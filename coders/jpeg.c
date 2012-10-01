@@ -142,6 +142,9 @@ typedef struct _SourceManager
 static MagickBooleanType
   WriteJPEGImage(const ImageInfo *,Image *);
 #endif
+static void 
+  JPEGErrorHandler(j_common_ptr);
+
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -222,11 +225,12 @@ static MagickBooleanType EmitMessage(j_common_ptr jpeg_info,int level)
   image=error_manager->image;
   if (level < 0)
     {
+      if (jpeg_info->err->num_warnings++ > 1000) /* 1000 = JPEGEcessiveWarnings */
+	JPEGErrorHandler(jpeg_info);
       if ((jpeg_info->err->num_warnings == 0) ||
           (jpeg_info->err->trace_level >= 3))
         ThrowBinaryException(CorruptImageWarning,(char *) message,
           image->filename);
-      jpeg_info->err->num_warnings++;
     }
   else
     if (jpeg_info->err->trace_level >= level)
@@ -305,6 +309,8 @@ static void JPEGErrorHandler(j_common_ptr jpeg_info)
 
 static boolean ReadComment(j_decompress_ptr jpeg_info)
 {
+  #define JPEGExcessiveWarnings  1000
+
   char
     *comment;
 

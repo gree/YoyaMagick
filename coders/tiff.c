@@ -589,10 +589,11 @@ static void TIFFGetEXIFProperties(TIFF *tiff,Image *image)
       case TIFF_ASCII:
       {
         char
-          *ascii;
+          *ascii= NULL;
 
-        if (TIFFGetField(tiff,exif_info[i].tag,&ascii) != 0)
-          (void) CopyMagickMemory(value,ascii,MaxTextExtent);
+        if ((TIFFGetField(tiff,exif_info[i].tag,&ascii) != 0) &&
+	    (ascii != (char *) NULL) && (*ascii != '\0'))
+          (void) CopyMagickString(value,ascii,MaxTextExtent);
         break;
       }
       case TIFF_SHORT:
