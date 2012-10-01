@@ -1085,6 +1085,21 @@ static Image *OptimizeLayerFrames(const Image *image,
         /*
           Compare a none disposal against a previous disposal
         */
+
+        /* for AU mobile terminal */
+        if ((bounds[i].width == 1) && (1 < image->columns)) {
+          bounds[i].width = 2;
+          if (image->columns < bounds[i].x + 2) {
+            bounds[i].x --;
+          }
+        }
+        if ((bounds[i].height == 1) && (1 < image->rows)) {
+          bounds[i].height = 2;
+          if (image->rows < bounds[i].y + 2) {
+            bounds[i].y --;
+          }
+        }
+
         try_bounds=CompareImageBounds(prev_image,next,CompareAnyLayer,exception);
         try_cleared=IsBoundsCleared(prev_image,next,&try_bounds,exception);
         if ( (!try_cleared && cleared ) ||
