@@ -639,6 +639,24 @@ static RectangleInfo CompareImageBounds(const Image *image1,const Image *image2,
   }
   if (x >= (long) image1->columns)
     {
+#if 1 /* for AU mobile terminal */
+      /*
+        Images are identical, return 2x2 image as possible.
+      */
+
+      bounds.x=0;
+      bounds.y=0;
+      if (1 < (long) image1->columns) {
+          bounds.width=2;
+      } else {
+          bounds.width=1;
+      }
+      if (1 < (long) image1->rows) {
+          bounds.height=2;
+      } else {
+          bounds.height=1;
+      }
+#else
       /*
         Images are identical, return a null image.
       */
@@ -646,6 +664,7 @@ static RectangleInfo CompareImageBounds(const Image *image1,const Image *image2,
       bounds.y=-1;
       bounds.width=1;
       bounds.height=1;
+#endif
       return(bounds);
     }
   bounds.x=x;
