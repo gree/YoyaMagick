@@ -3,6 +3,11 @@
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%        CCCC  L      IIIII  PPPP   BBBB    OOO    AAA   RRRR   DDDD          %
+%       C      L        I    P   P  B   B  O   O  A   A  R   R  D   D         %
+%       C      L        I    PPP    BBBB   O   O  AAAAA  RRRR   D   D         %
+%       C      L        I    P      B   B  O   O  A   A  R R    D   D         %
+%        CCCC  LLLLL  IIIII  P      BBBB    OOO   A   A  R  R   DDDD          %
 %                                                                             %
 %                                                                             %
 %                        Read/Write Windows Clipboard.                        %
@@ -12,7 +17,7 @@
 %                                 May 2002                                    %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -54,6 +59,7 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/nt-feature.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -101,14 +107,14 @@ static Image *ReadCLIPBOARDImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    y;
-
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   assert(image_info != (const ImageInfo *) NULL);
   assert(image_info->signature == MagickSignature);
@@ -164,8 +170,8 @@ static Image *ReadCLIPBOARDImage(const ImageInfo *image_info,
       */
       (void) ResetMagickMemory(&DIBinfo,0,sizeof(BITMAPINFO));
       DIBinfo.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-      DIBinfo.bmiHeader.biWidth=image->columns;
-      DIBinfo.bmiHeader.biHeight=(-1)*image->rows;
+      DIBinfo.bmiHeader.biWidth=(LONG) image->columns;
+      DIBinfo.bmiHeader.biHeight=(-1)*(LONG) image->rows;
       DIBinfo.bmiHeader.biPlanes=1;
       DIBinfo.bmiHeader.biBitCount=32;
       DIBinfo.bmiHeader.biCompression=BI_RGB;
@@ -198,20 +204,20 @@ static Image *ReadCLIPBOARDImage(const ImageInfo *image_info,
         RealizePalette(hDC);
       }
       /* bitblt from the memory to the DIB-based one */
-      BitBlt(hDC,0,0,image->columns,image->rows,hMemDC,0,0,SRCCOPY);
+      BitBlt(hDC,0,0,(int) image->columns,(int) image->rows,hMemDC,0,0,SRCCOPY);
       /* finally copy the pixels! */
       pBits=ppBits;
-      for (y=0; y < (long) image->rows; y++)
+      for (y=0; y < (ssize_t) image->rows; y++)
       {
         q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
         if (q == (PixelPacket *) NULL)
           break;
-        for (x=0; x < (long) image->columns; x++)
+        for (x=0; x < (ssize_t) image->columns; x++)
         {
-          q->red=ScaleCharToQuantum(pBits->rgbRed);
-          q->green=ScaleCharToQuantum(pBits->rgbGreen);
-          q->blue=ScaleCharToQuantum(pBits->rgbBlue);
-          SetOpacityPixelComponent(q,OpaqueOpacity);
+          SetPixelRed(q,ScaleCharToQuantum(pBits->rgbRed));
+          SetPixelGreen(q,ScaleCharToQuantum(pBits->rgbGreen));
+          SetPixelBlue(q,ScaleCharToQuantum(pBits->rgbBlue));
+          SetPixelOpacity(q,OpaqueOpacity);
           pBits++;
           q++;
         }
@@ -247,10 +253,10 @@ static Image *ReadCLIPBOARDImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterCLIPBOARDImage method is:
 %
-%      unsigned long RegisterCLIPBOARDImage(void)
+%      size_t RegisterCLIPBOARDImage(void)
 %
 */
-ModuleExport unsigned long RegisterCLIPBOARDImage(void)
+ModuleExport size_t RegisterCLIPBOARDImage(void)
 {
   MagickInfo
     *entry;
@@ -261,7 +267,7 @@ ModuleExport unsigned long RegisterCLIPBOARDImage(void)
   entry->encoder=(EncodeImageHandler *) WriteCLIPBOARDImage;
 #endif
   entry->adjoin=MagickFalse;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("The system clipboard");
   entry->module=ConstantString("CLIPBOARD");
   (void) RegisterMagickInfo(entry);
@@ -334,7 +340,7 @@ static MagickBooleanType WriteCLIPBOARDImage(const ImageInfo *image_info,
     HBITMAP
       bitmapH;
 
-    OpenClipboard( NULL );
+    OpenClipboard(NULL);
     EmptyClipboard();
     bitmapH=(HBITMAP) ImageToHBITMAP(image);
     SetClipboardData(CF_BITMAP,bitmapH);

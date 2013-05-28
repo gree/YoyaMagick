@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,11 +40,14 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/color-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -57,9 +60,11 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/nt-feature.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
+#include "magick/string-private.h"
 #include "magick/module.h"
 #if defined(MAGICKCORE_JBIG_DELEGATE)
 #include "jbig.h"
@@ -110,17 +115,13 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
   IndexPacket
     index;
 
-  long
-    length,
-    y;
-
-  MagickBooleanType
+  MagickStatusType
     status;
 
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
@@ -130,7 +131,8 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
     *p;
 
   ssize_t
-    count;
+    length,
+    y;
 
   struct jbg_dec_state
     jbig_info;
@@ -178,11 +180,10 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
   status=JBG_EAGAIN;
   do
   {
-    length=(long) ReadBlob(image,MagickMaxBufferExtent,buffer);
+    length=(ssize_t) ReadBlob(image,MagickMaxBufferExtent,buffer);
     if (length == 0)
       break;
     p=buffer;
-    count=0;
     while ((length > 0) && ((status == JBG_EAGAIN) || (status == JBG_EOK)))
     {
       size_t
@@ -190,7 +191,7 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
 
       status=jbg_dec_in(&jbig_info,p,length,&count);
       p+=count;
-      length-=(long) count;
+      length-=(ssize_t) count;
     }
   } while ((status == JBG_EAGAIN) || (status == JBG_EOK));
   /*
@@ -198,6 +199,7 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
   */
   image->columns=jbg_dec_getwidth(&jbig_info);
   image->rows=jbg_dec_getheight(&jbig_info);
+  image->compression=JBIG2Compression;
   if (AcquireImageColormap(image,2) == MagickFalse)
     {
       buffer=(unsigned char *) RelinquishMagickMemory(buffer);
@@ -220,7 +222,7 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
     Convert X bitmap image to pixel packets.
   */
   p=jbg_dec_getimage(&jbig_info,0);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
@@ -228,7 +230,7 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
     indexes=GetAuthenticIndexQueue(image);
     bit=0;
     byte=0;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       if (bit == 0)
         byte=(*p++);
@@ -237,12 +239,14 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
       byte<<=1;
       if (bit == 8)
         bit=0;
-      indexes[x]=index;
-      *q++=image->colormap[(long) index];
+      SetPixelIndex(indexes+x,index);
+      SetPixelRGBO(q,image->colormap+(ssize_t) index);
+      q++;
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
-    status=SetImageProgress(image,LoadImageTag,y,image->rows);
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }
@@ -276,10 +280,10 @@ static Image *ReadJBIGImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterJBIGImage method is:
 %
-%      unsigned long RegisterJBIGImage(void)
+%      size_t RegisterJBIGImage(void)
 %
 */
-ModuleExport unsigned long RegisterJBIGImage(void)
+ModuleExport size_t RegisterJBIGImage(void)
 {
 #define JBIGDescription  "Joint Bi-level Image experts Group interchange format"
 
@@ -395,26 +399,26 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
   double
     version;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   MagickOffsetType
     scene;
 
-  register const IndexPacket
-    *indexes;
-
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
 
   register unsigned char
     *q;
+
+  size_t
+    number_packets;
+
+  ssize_t
+    y;
 
   struct jbg_enc_state
     jbig_info;
@@ -423,9 +427,6 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
     bit,
     byte,
     *pixels;
-
-  unsigned long
-    number_packets;
 
   /*
     Open image file.
@@ -439,15 +440,15 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
-  version=strtod(JBG_VERSION,(char **) NULL);
+  version=StringToDouble(JBG_VERSION,(char **) NULL);
   scene=0;
   do
   {
     /*
       Allocate pixel data.
     */
-    if (image->colorspace != RGBColorspace)
-      (void) TransformImageColorspace(image,RGBColorspace);
+    if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+      (void) TransformImageColorspace(image,sRGBColorspace);
     number_packets=(image->columns+7)/8;
     pixels=(unsigned char *) AcquireQuantumMemory(number_packets,
       image->rows*sizeof(*pixels));
@@ -458,18 +459,17 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
     */
     (void) SetImageType(image,BilevelType);
     q=pixels;
-    for (y=0; y < (long) image->rows; y++)
+    for (y=0; y < (ssize_t) image->rows; y++)
     {
       p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
       if (p == (const PixelPacket *) NULL)
         break;
-      indexes=GetVirtualIndexQueue(image);
       bit=0;
       byte=0;
-      for (x=0; x < (long) image->columns; x++)
+      for (x=0; x < (ssize_t) image->columns; x++)
       {
         byte<<=1;
-        if (PixelIntensity(p) < (QuantumRange/2.0))
+        if (GetPixelLuma(image,p) < (QuantumRange/2.0))
           byte|=0x01;
         bit++;
         if (bit == 8)
@@ -484,7 +484,8 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
         *q++=byte << (8-bit);
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,SaveImageTag,y,image->rows);
+          status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+            image->rows);
           if (status == MagickFalse)
             break;
         }
@@ -492,22 +493,19 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
     /*
       Initialize JBIG info structure.
     */
-    jbg_enc_init(&jbig_info,image->columns,image->rows,1,&pixels,
-      (void (*)(unsigned char *,size_t,void *)) JBIGEncode,image);
+    jbg_enc_init(&jbig_info,(unsigned long) image->columns,(unsigned long)
+      image->rows,1,&pixels,(void (*)(unsigned char *,size_t,void *))
+      JBIGEncode,image);
     if (image_info->scene != 0)
       jbg_enc_layers(&jbig_info,(int) image_info->scene);
     else
       {
-        long
-          sans_offset;
-
-        unsigned long
+        size_t
           x_resolution,
           y_resolution;
 
         x_resolution=640;
         y_resolution=480;
-        sans_offset=0;
         if (image_info->density != (char *) NULL)
           {
             GeometryInfo
@@ -524,10 +522,11 @@ static MagickBooleanType WriteJBIGImage(const ImageInfo *image_info,
           }
         if (image->units == PixelsPerCentimeterResolution)
           {
-            x_resolution*=2.54;
-            y_resolution*=2.54;
+            x_resolution=(size_t) (100.0*2.54*x_resolution+0.5)/100.0;
+            y_resolution=(size_t) (100.0*2.54*y_resolution+0.5)/100.0;
           }
-        (void) jbg_enc_lrlmax(&jbig_info,x_resolution,y_resolution);
+        (void) jbg_enc_lrlmax(&jbig_info,(unsigned long) x_resolution,
+          (unsigned long) y_resolution);
       }
     (void) jbg_enc_lrange(&jbig_info,-1,-1);
     jbg_enc_options(&jbig_info,JBG_ILEAVE | JBG_SMID,JBG_TPDON | JBG_TPBON |

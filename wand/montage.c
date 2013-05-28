@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -163,6 +163,7 @@ static MagickBooleanType MontageUsage(void)
       "-identify            identify the format and characteristics of the image",
       "-interlace type      type of image interlacing scheme",
       "-interpolate method  pixel color interpolation method",
+      "-kerning value       set the space between two letters",
       "-label string        assign a label to an image",
       "-limit type value    pixel cache resource limit",
       "-mattecolor color    frame color",
@@ -186,6 +187,8 @@ static MagickBooleanType MontageUsage(void)
       "-shadow              add a shadow beneath a tile to simulate depth",
       "-size geometry       width and height of image",
       "-stroke color        color to use when stroking a graphic primitive",
+      "-synchronize         synchronize image to storage device",
+      "-taint               declare the image as modified",
       "-texture filename    name of texture to tile onto the image background",
       "-thumbnail geometry  create a thumbnail of the image",
       "-tile geometry       number of tiles per row and column",
@@ -209,13 +212,17 @@ static MagickBooleanType MontageUsage(void)
     },
     *stack_operators[]=
     {
-      "-clone index         clone an image",
+      "-clone indexes       clone an image",
+      "-delete indexes      delete the image from the image sequence",
+      "-duplicate count,indexes",
+      "                     duplicate an image one or more times",
+      "-insert index        insert last image into the image sequence",
+      "-reverse             reverse image sequence",
+      "-swap indexes        swap two images in the image sequence",
       (char *) NULL
     };
 
-  (void) printf("Version: %s\n",GetMagickVersion((unsigned long *) NULL));
-  (void) printf("Copyright: %s\n",GetMagickCopyright());
-  (void) printf("Features: %s\n\n",GetMagickFeatures());
+  ListMagickVersion(stdout);
   (void) printf("Usage: %s [options ...] file [ [options ...] file ...] file\n",
     GetClientName());
   (void) printf("\nImage Settings:\n");
@@ -259,7 +266,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
   if (montage_image != (Image *) NULL) \
     montage_image=DestroyImageList(montage_image); \
   DestroyImageStack(); \
-  for (i=0; i < (long) argc; i++) \
+  for (i=0; i < (ssize_t) argc; i++) \
     argv[i]=DestroyString(argv[i]); \
   argv=(char **) RelinquishMagickMemory(argv); \
 }
@@ -294,14 +301,12 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
 
   long
     first_scene,
-    j,
-    k,
-    last_scene,
-    scene;
+    last_scene;
 
   MagickBooleanType
     fire,
-    pend;
+    pend,
+    respect_parenthesis;
 
   MagickStatusType
     status;
@@ -309,8 +314,13 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
   MontageInfo
     *montage_info;
 
-  register long
+  register ssize_t
     i;
+
+  ssize_t
+    j,
+    k,
+    scene;
 
   /*
     Set defaults.
@@ -326,10 +336,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
       if ((LocaleCompare("version",option+1) == 0) ||
           (LocaleCompare("-version",option+1) == 0))
         {
-          (void) fprintf(stdout,"Version: %s\n",
-            GetMagickVersion((unsigned long *) NULL));
-          (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-          (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+          ListMagickVersion(stdout);
           return(MagickFalse);
         }
     }
@@ -345,6 +352,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
   NewImageStack();
   option=(char *) NULL;
   pend=MagickFalse;
+  respect_parenthesis=MagickFalse;
   scene=0;
   status=MagickFalse;
   transparent_color=(char *) NULL;
@@ -356,7 +364,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
   if (status == MagickFalse)
     ThrowMontageException(ResourceLimitError,"MemoryAllocationFailed",
       GetExceptionMessage(errno));
-  for (i=1; i < (long) (argc-1); i++)
+  for (i=1; i < (ssize_t) (argc-1); i++)
   {
     option=argv[i];
     if (LocaleCompare(option,"(") == 0)
@@ -376,13 +384,13 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         PopImageStack();
         continue;
       }
-    if (IsMagickOption(option) == MagickFalse)
+    if (IsCommandOption(option) == MagickFalse)
       {
         Image
           *images;
 
         FireImageStack(MagickFalse,MagickFalse,pend);
-        for (scene=first_scene; scene <= last_scene ; scene++)
+        for (scene=(ssize_t) first_scene; scene <= (ssize_t) last_scene ; scene++)
         {
           char
             *filename;
@@ -391,8 +399,9 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             Option is a file name: begin by reading image from specified file.
           */
           filename=argv[i];
-          if ((LocaleCompare(filename,"--") == 0) && (i < (argc-1)))
+          if ((LocaleCompare(filename,"--") == 0) && (i < (ssize_t) (argc-1)))
             filename=argv[++i];
+          (void) SetImageOption(image_info,"filename",filename);
           (void) CopyMagickString(image_info->filename,filename,MaxTextExtent);
           if (first_scene != last_scene)
             {
@@ -405,8 +414,8 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
               (void) InterpretImageFilename(image_info,(Image *) NULL,
                 image_info->filename,(int) scene,filename);
               if (LocaleCompare(filename,image_info->filename) == 0)
-                (void) FormatMagickString(filename,MaxTextExtent,"%s.%lu",
-                  image_info->filename,scene);
+                (void) FormatLocaleString(filename,MaxTextExtent,"%s.%.20g",
+                  image_info->filename,(double) scene);
               (void) CopyMagickString(image_info->filename,filename,
                 MaxTextExtent);
             }
@@ -428,7 +437,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if (LocaleCompare("adaptive-sharpen",option+1) == 0)
           {
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -441,7 +450,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -449,15 +458,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("alpha",option+1) == 0)
           {
-            long
+            ssize_t
               type;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            type=ParseMagickOption(MagickAlphaOptions,MagickFalse,argv[i]);
+            type=ParseCommandOption(MagickAlphaOptions,MagickFalse,argv[i]);
             if (type < 0)
               ThrowMontageException(OptionError,"UnrecognizedAlphaChannelType",
                 argv[i]);
@@ -468,11 +477,11 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             i++;
             break;
@@ -484,7 +493,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -497,7 +506,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) QueryColorDatabase(argv[i],
               &montage_info->background_color,exception);
@@ -508,7 +517,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -519,7 +528,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -527,16 +536,20 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("border",option+1) == 0)
           {
-            (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
-            montage_info->border_width=0;
+            if (k == 0)
+              {
+                (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
+                montage_info->border_width=0;
+              }
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            montage_info->border_width=StringToUnsignedLong(argv[i]);
+            if (k == 0)
+              montage_info->border_width=StringToUnsignedLong(argv[i]);
             break;
           }
         if (LocaleCompare("bordercolor",option+1) == 0)
@@ -544,7 +557,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) QueryColorDatabase(argv[i],&montage_info->border_color,
               exception);
@@ -556,7 +569,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -572,7 +585,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -583,19 +596,19 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("channel",option+1) == 0)
           {
-            long
+            ssize_t
               channel;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             channel=ParseChannelOption(argv[i]);
             if (channel < 0)
@@ -619,7 +632,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             else
               {
                 i++;
-                if (i == (long) (argc-1))
+                if (i == (ssize_t) (argc-1))
                   ThrowMontageException(OptionError,"MissingArgument",option);
                 if (IsSceneGeometry(argv[i],MagickFalse) == MagickFalse)
                   ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -637,7 +650,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -645,15 +658,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("colorspace",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,
               MagickFalse,argv[i]);
             if (colorspace < 0)
               ThrowMontageException(OptionError,"UnrecognizedColorspace",
@@ -665,21 +678,21 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("compose",option+1) == 0)
           {
-            long
+            ssize_t
               compose;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            compose=ParseMagickOption(MagickComposeOptions,MagickFalse,argv[i]);
+            compose=ParseCommandOption(MagickComposeOptions,MagickFalse,argv[i]);
             if (compose < 0)
               ThrowMontageException(OptionError,"UnrecognizedComposeOperator",
                 argv[i]);
@@ -689,15 +702,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           break;
         if (LocaleCompare("compress",option+1) == 0)
           {
-            long
+            ssize_t
               compress;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            compress=ParseMagickOption(MagickCompressOptions,MagickFalse,
+            compress=ParseCommandOption(MagickCompressOptions,MagickFalse,
               argv[i]);
             if (compress < 0)
               ThrowMontageException(OptionError,"UnrecognizedCompressType",
@@ -711,7 +724,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -723,15 +736,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("debug",option+1) == 0)
           {
-            long
+            ssize_t
               event;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            event=ParseMagickOption(MagickLogEventOptions,MagickFalse,argv[i]);
+            event=ParseCommandOption(MagickLogEventOptions,MagickFalse,argv[i]);
             if (event < 0)
               ThrowMontageException(OptionError,"UnrecognizedEventType",
                 argv[i]);
@@ -741,7 +754,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if (LocaleCompare("define",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (*option == '+')
               {
@@ -755,12 +768,23 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
               }
             break;
           }
+        if (LocaleCompare("delete",option+1) == 0)
+          {
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsSceneGeometry(argv[i],MagickFalse) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
+            break;
+          }
         if (LocaleCompare("density",option+1) == 0)
           {
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -771,7 +795,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -782,21 +806,21 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("dispose",option+1) == 0)
           {
-            long
+            ssize_t
               dispose;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            dispose=ParseMagickOption(MagickDisposeOptions,MagickFalse,argv[i]);
+            dispose=ParseCommandOption(MagickDisposeOptions,MagickFalse,argv[i]);
             if (dispose < 0)
               ThrowMontageException(OptionError,"UnrecognizedDisposeMethod",
                 argv[i]);
@@ -804,15 +828,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("dither",option+1) == 0)
           {
-            long
+            ssize_t
               method;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            method=ParseMagickOption(MagickDitherOptions,MagickFalse,argv[i]);
+            method=ParseCommandOption(MagickDitherOptions,MagickFalse,argv[i]);
             if (method < 0)
               ThrowMontageException(OptionError,"UnrecognizedDitherMethod",
                 argv[i]);
@@ -823,8 +847,19 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
+            break;
+          }
+        if (LocaleCompare("duplicate",option+1) == 0)
+          {
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsGeometry(argv[i]) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
             break;
           }
         if (LocaleCompare("duration",option+1) == 0)
@@ -832,7 +867,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -847,21 +882,21 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("endian",option+1) == 0)
           {
-            long
+            ssize_t
               endian;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            endian=ParseMagickOption(MagickEndianOptions,MagickFalse,
+            endian=ParseCommandOption(MagickEndianOptions,MagickFalse,
               argv[i]);
             if (endian < 0)
               ThrowMontageException(OptionError,"UnrecognizedEndianType",
@@ -873,7 +908,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -889,7 +924,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) QueryColorDatabase(argv[i],&montage_info->fill,
               exception);
@@ -897,15 +932,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("filter",option+1) == 0)
           {
-            long
+            ssize_t
               filter;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            filter=ParseMagickOption(MagickFilterOptions,MagickFalse,argv[i]);
+            filter=ParseCommandOption(MagickFilterOptions,MagickFalse,argv[i]);
             if (filter < 0)
               ThrowMontageException(OptionError,"UnrecognizedImageFilter",
                 argv[i]);
@@ -922,7 +957,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) CloneString(&montage_info->font,argv[i]);
             break;
@@ -932,23 +967,27 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             format=argv[i];
             break;
           }
         if (LocaleCompare("frame",option+1) == 0)
           {
-            (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
-            (void) CloneString(&montage_info->frame,(char *) NULL);
+            if (k == 0)
+              {
+                (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
+                (void) CloneString(&montage_info->frame,(char *) NULL);
+              }
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            (void) CloneString(&montage_info->frame,argv[i]);
+            if (k == 0)
+              (void) CloneString(&montage_info->frame,argv[i]);
             break;
           }
         ThrowMontageException(OptionError,"UnrecognizedOption",option)
@@ -958,7 +997,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if (LocaleCompare("gamma",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -970,7 +1009,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -979,16 +1018,16 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("gravity",option+1) == 0)
           {
-            long
+            ssize_t
               gravity;
 
             montage_info->gravity=UndefinedGravity;
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            gravity=ParseMagickOption(MagickGravityOptions,MagickFalse,
+            gravity=ParseCommandOption(MagickGravityOptions,MagickFalse,
               argv[i]);
             if (gravity < 0)
               ThrowMontageException(OptionError,"UnrecognizedGravityType",
@@ -1001,7 +1040,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1020,17 +1059,28 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("identify",option+1) == 0)
           break;
+        if (LocaleCompare("insert",option+1) == 0)
+          {
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsGeometry(argv[i]) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
+            break;
+          }
         if (LocaleCompare("interlace",option+1) == 0)
           {
-            long
+            ssize_t
               interlace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            interlace=ParseMagickOption(MagickInterlaceOptions,MagickFalse,
+            interlace=ParseCommandOption(MagickInterlaceOptions,MagickFalse,
               argv[i]);
             if (interlace < 0)
               ThrowMontageException(OptionError,"UnrecognizedInterlaceType",
@@ -1039,19 +1089,34 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("interpolate",option+1) == 0)
           {
-            long
+            ssize_t
               interpolate;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            interpolate=ParseMagickOption(MagickInterpolateOptions,MagickFalse,
+            interpolate=ParseCommandOption(MagickInterpolateOptions,MagickFalse,
               argv[i]);
             if (interpolate < 0)
               ThrowMontageException(OptionError,"UnrecognizedInterpolateMethod",
                 argv[i]);
+            break;
+          }
+        ThrowMontageException(OptionError,"UnrecognizedOption",option)
+      }
+      case 'k':
+      {
+        if (LocaleCompare("kerning",option+1) == 0)
+          {
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsGeometry(argv[i]) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
             break;
           }
         ThrowMontageException(OptionError,"UnrecognizedOption",option)
@@ -1063,7 +1128,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1075,51 +1140,52 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             double
               value;
 
-            long
+            ssize_t
               resource;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            resource=ParseMagickOption(MagickResourceOptions,MagickFalse,
+            resource=ParseCommandOption(MagickResourceOptions,MagickFalse,
               argv[i]);
             if (resource < 0)
               ThrowMontageException(OptionError,"UnrecognizedResourceType",
                 argv[i]);
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            value=strtod(argv[i],&p);
+            value=StringToDouble(argv[i],&p);
+            (void) value;
             if ((p == argv[i]) && (LocaleCompare("unlimited",argv[i]) != 0))
               ThrowMontageInvalidArgumentException(option,argv[i]);
             break;
           }
         if (LocaleCompare("list",option+1) == 0)
           {
-            long
+            ssize_t
               list;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            list=ParseMagickOption(MagickListOptions,MagickFalse,argv[i]);
+            list=ParseCommandOption(MagickListOptions,MagickFalse,argv[i]);
             if (list < 0)
               ThrowMontageException(OptionError,"UnrecognizedListType",argv[i]);
-            (void) MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
+            status=MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
               argv+j,exception);
             DestroyMontage();
-            return(MagickTrue);
+            return(status != 0 ? MagickFalse : MagickTrue);
           }
         if (LocaleCompare("log",option+1) == 0)
           {
             if (*option == '+')
               break;
             i++;
-            if ((i == (long) argc) ||
+            if ((i == (ssize_t) argc) ||
                 (strchr(argv[i],'%') == (char *) NULL))
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
@@ -1135,7 +1201,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) QueryColorDatabase(argv[i],&montage_info->matte_color,
               exception);
@@ -1146,10 +1212,11 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             MontageMode
               mode;
 
+            (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             mode=UndefinedMode;
             if (LocaleCompare("frame",argv[i]) == 0)
@@ -1205,7 +1272,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1220,7 +1287,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1230,11 +1297,11 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            montage_info->pointsize=StringToDouble(argv[i]);
+            montage_info->pointsize=StringToDouble(argv[i],(char **) NULL);
             break;
           }
         if (LocaleCompare("polaroid",option+1) == 0)
@@ -1242,7 +1309,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1251,7 +1318,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if (LocaleCompare("profile",option+1) == 0)
           {
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1264,7 +1331,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1272,15 +1339,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("quantize",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,
               MagickFalse,argv[i]);
             if (colorspace < 0)
               ThrowMontageException(OptionError,"UnrecognizedColorspace",
@@ -1298,7 +1365,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1313,7 +1380,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1324,7 +1391,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1335,10 +1402,12 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             respect_parenthesis=(*option == '-') ? MagickTrue : MagickFalse;
             break;
           }
+        if (LocaleCompare("reverse",option+1) == 0)
+          break;
         if (LocaleCompare("rotate",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1353,7 +1422,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1364,7 +1433,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1377,11 +1446,11 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsSceneGeometry(argv[i],MagickFalse) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            first_scene=StringToLong(argv[i]);
+            first_scene=(int) StringToLong(argv[i]);
             last_scene=first_scene;
             (void) sscanf(argv[i],"%ld-%ld",&first_scene,&last_scene);
             break;
@@ -1389,19 +1458,31 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if (LocaleCompare("set",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("shadow",option+1) == 0)
           {
-            (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
-            montage_info->shadow=(*option == '-') ? MagickTrue : MagickFalse;
+            if (k == 0)
+              {
+                (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
+                montage_info->shadow=(*option == '-') ? MagickTrue :
+                  MagickFalse;
+                break;
+              }
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsGeometry(argv[i]) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
             break;
           }
         if (LocaleCompare("sharpen",option+1) == 0)
@@ -1409,7 +1490,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if ((i == (long) argc) || (IsGeometry(argv[i]) == MagickFalse))
+            if ((i == (ssize_t) argc) || (IsGeometry(argv[i]) == MagickFalse))
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1418,7 +1499,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1430,7 +1511,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) QueryColorDatabase(argv[i],&montage_info->stroke,
               exception);
@@ -1443,7 +1524,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1454,17 +1535,32 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             i++;  /* deprecated */
             break;
           }
+        if (LocaleCompare("swap",option+1) == 0)
+          {
+            if (*option == '+')
+              break;
+            i++;
+            if (i == (ssize_t) (argc-1))
+              ThrowMontageException(OptionError,"MissingArgument",option);
+            if (IsGeometry(argv[i]) == MagickFalse)
+              ThrowMontageInvalidArgumentException(option,argv[i]);
+            break;
+          }
+        if (LocaleCompare("synchronize",option+1) == 0)
+          break;
         ThrowMontageException(OptionError,"UnrecognizedOption",option)
       }
       case 't':
       {
+        if (LocaleCompare("taint",option+1) == 0)
+          break;
         if (LocaleCompare("texture",option+1) == 0)
           {
             (void) CloneString(&montage_info->texture,(char *) NULL);
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) CloneString(&montage_info->texture,argv[i]);
             break;
@@ -1474,7 +1570,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1482,16 +1578,20 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("tile",option+1) == 0)
           {
-            (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
-            (void) CloneString(&montage_info->tile,(char *) NULL);
+            if (k == 0)
+              {
+                (void) CopyMagickString(argv[i]+1,"sans",MaxTextExtent);
+                (void) CloneString(&montage_info->tile,(char *) NULL);
+              }
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
-            (void) CloneString(&montage_info->tile,argv[i]);
+            if (k == 0)
+              (void) CloneString(&montage_info->tile,argv[i]);
             break;
           }
         if (LocaleCompare("tile-offset",option+1) == 0)
@@ -1499,7 +1599,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1510,7 +1610,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1526,7 +1626,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) CloneString(&montage_info->title,argv[i]);
             break;
@@ -1537,7 +1637,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           {
             transparent_color=(char *) NULL;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             (void) CloneString(&transparent_color,argv[i]);
             break;
@@ -1547,7 +1647,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1556,7 +1656,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1566,15 +1666,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
           break;
         if (LocaleCompare("type",option+1) == 0)
           {
-            long
+            ssize_t
               type;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            type=ParseMagickOption(MagickTypeOptions,MagickFalse,argv[i]);
+            type=ParseCommandOption(MagickTypeOptions,MagickFalse,argv[i]);
             if (type < 0)
               ThrowMontageException(OptionError,"UnrecognizedImageType",
                 argv[i]);
@@ -1586,15 +1686,15 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("units",option+1) == 0)
           {
-            long
+            ssize_t
               units;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
-            units=ParseMagickOption(MagickResolutionOptions,MagickFalse,
+            units=ParseCommandOption(MagickResolutionOptions,MagickFalse,
               argv[i]);
             if (units < 0)
               ThrowMontageException(OptionError,"UnrecognizedUnitsType",
@@ -1606,7 +1706,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1623,23 +1723,20 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
         if ((LocaleCompare("version",option+1) == 0) ||
             (LocaleCompare("-version",option+1) == 0))
           {
-            (void) fprintf(stdout,"Version: %s\n",
-              GetMagickVersion((unsigned long *) NULL));
-            (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-            (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+            ListMagickVersion(stdout);
             break;
           }
         if (LocaleCompare("virtual-pixel",option+1) == 0)
           {
-            long
+            ssize_t
               method;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
-            method=ParseMagickOption(MagickVirtualPixelOptions,MagickFalse,
+            method=ParseCommandOption(MagickVirtualPixelOptions,MagickFalse,
               argv[i]);
             if (method < 0)
               ThrowMontageException(OptionError,
@@ -1655,7 +1752,7 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowMontageException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowMontageInvalidArgumentException(option,argv[i]);
@@ -1668,14 +1765,14 @@ WandExport MagickBooleanType MontageImageCommand(ImageInfo *image_info,
       default:
         ThrowMontageException(OptionError,"UnrecognizedOption",option)
     }
-    fire=ParseMagickOption(MagickImageListOptions,MagickFalse,option+1) < 0 ?
-      MagickFalse : MagickTrue;
+    fire=(GetCommandOptionFlags(MagickCommandOptions,MagickFalse,option) &
+      FireOptionFlag) == 0 ?  MagickFalse : MagickTrue;
     if (fire != MagickFalse)
       FireImageStack(MagickTrue,MagickTrue,MagickTrue);
   }
   if (k != 0)
     ThrowMontageException(OptionError,"UnbalancedParenthesis",argv[i]);
-  if (i-- != (long) (argc-1))
+  if (i-- != (ssize_t) (argc-1))
     ThrowMontageException(OptionError,"MissingAnImageFilename",argv[i]);
   if (image == (Image *) NULL)
     ThrowMontageException(OptionError,"MissingAnImageFilename",argv[argc-1]);

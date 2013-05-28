@@ -38,8 +38,8 @@
         <message name="CacheResourcesExhausted">
           cache resources exhausted
         </message>
-        <message name="InconsistentPersistentCacheDepth">
-          inconsistent persistent cache depth
+        <message name="IncompatibleAPI">
+          incompatible API
         </message>
         <message name="NoPixelsDefinedInCache">
           no pixels defined in cache
@@ -67,6 +67,9 @@
         </message>
         <message name="UnableToReadPixelCache">
           unable to read pixel cache
+        </message>
+        <message name="UnableToWritePixelCache">
+          unable to write pixel cache
         </message>
       </error>
       <fatalerror>
@@ -267,6 +270,9 @@
           <message name="MaximumChannelsExceeded">
             maximum channels exceeded
           </message>
+          <message name="MissingImageChannel">
+            missing image channel
+          </message>
           <message name="NegativeOrZeroImageSize">
             negative or zero image size
           </message>
@@ -328,6 +334,12 @@
           </message>
         </fatalerror>
         <warning>
+          <message name="InsufficientImageDataInFile">
+            insufficient image data in file
+          </message>
+          <message name="LengthAndFilesizeDoNotMatch">
+            length and filesize do not match
+          </message>
           <message name="SkipToSyncByte">
             corrupt PCD image, skipping to sync byte
           </message>
@@ -546,6 +558,9 @@
           <message name="LCMSLibraryIsNotAvailable">
             LCMS color profile library is not available
           </message>
+          <message name="NoEncodeDelegateForThisImageFormat">
+            no encode delegate for this image format
+          </message>
         </warning>
       </delegate>
     </missing>
@@ -600,9 +615,6 @@
         </message>
         <message name="ImageSizeMustExceedBevelWidth">
           size must exceed bevel width
-        </message>
-        <message name="ImageSmallerThanRadius">
-          image smaller than radius
         </message>
         <message name="ImageWidthsOrHeightsDiffer">
           image widths or heights differ
@@ -679,11 +691,20 @@
         <message name="SubimageSpecificationReturnsNoImages">
           subimage specification returns no images
         </message>
+        <message name="UnableToAccessPath">
+          unable to access file path
+        </message>
         <message name="UnableToOpenFile">
           unable to open file
         </message>
         <message name="UnableToParseExpression">
           unable to parse expression
+        </message>
+        <message name="UnableToParseKernel">
+          unable to parse kernel string
+        </message>
+        <message name="UnbalancedBraces">
+          unbalanced braces
         </message>
         <message name="UnbalancedParenthesis">
           unbalanced parenthesis
@@ -705,6 +726,9 @@
         </message>
         <message name="UnrecognizedCompressType">
           unrecognized compress type
+        </message>
+        <message name="UnrecognizedDirectionType">
+          unrecognized direction type
         </message>
         <message name="UnrecognizedDisposeMethod">
           unrecognized dispose method
@@ -751,6 +775,9 @@
         <message name="UnrecognizedImageType">
           unrecognized image type
         </message>
+        <message name="UnrecognizedIntensityMethod">
+          unrecognized intensity method
+        </message>
         <message name="UnrecognizedIntentType">
           unrecognized intent type
         </message>
@@ -760,6 +787,9 @@
         <message name="UnrecognizedInterpolateMethod">
           unrecognized interpolate method
         </message>
+        <message name="UnrecognizedKernelType">
+          unrecognized kernel type
+        </message>
         <message name="UnrecognizedListType">
           unrecognized list type
         </message>
@@ -768,6 +798,9 @@
         </message>
         <message name="UnrecognizedModeType">
           unrecognized mode type
+        </message>
+        <message name="UnrecognizedMorphologyMethod">
+          unrecognized morphology method
         </message>
         <message name="UnrecognizedOption">
           unrecognized option
@@ -822,11 +855,11 @@
         </message>
       </error>
       <fatalerror>
+        <message name="FilenameTruncated">
+          image filename truncated
+        </message>
         <message name="MissingAnImageFilename">
           missing an image filename
-        </message>
-        <message name="TruncatedFilename">
-          image filename truncated
         </message>
         <message name="UnrecognizedColormapType">
           unrecognized colormap type
@@ -868,6 +901,9 @@
         </message>
         <message name="NoSuchElement">
           no such element in list
+        </message>
+        <message name="UnknownImageProperty">
+          unknown image property
         </message>
         <message name="UnrecognizedColor">
           unrecognized color

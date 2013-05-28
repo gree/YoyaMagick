@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -54,7 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
-#include "magick/quantum-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/statistic.h"
@@ -93,15 +93,11 @@ static MagickBooleanType
 %    o exception: return any errors or warnings in this structure.
 %
 */
-static Image *ReadRAWImage(const ImageInfo *image_info,
-  ExceptionInfo *exception)
+static Image *ReadRAWImage(const ImageInfo *image_info,ExceptionInfo *exception)
 {
   Image
     *canvas_image,
     *image;
-
-  long
-    y;
 
   MagickBooleanType
     status;
@@ -115,14 +111,12 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
   QuantumType
     quantum_type;
 
-  register long
-    i;
-
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -146,13 +140,9 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
       image=DestroyImageList(image);
       return((Image *) NULL);
     }
-  for (i=0; i < image->offset; i++)
-    if (ReadBlobByte(image) == EOF)
-      {
-        ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
-          image->filename);
-        break;
-      }
+  if (DiscardBlobBytes(image,image->offset) == MagickFalse)
+    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+      image->filename);
   /*
     Create virtual canvas to support cropping (i.e. image.gray[100x100+10+20]).
   */
@@ -172,7 +162,7 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
       */
       image->scene++;
       length=GetQuantumExtent(canvas_image,quantum_info,quantum_type);
-      for (y=0; y < (long) image->rows; y++)
+      for (y=0; y < (ssize_t) image->rows; y++)
       {
         count=ReadBlob(image,length,pixels);
         if (count != (ssize_t) length)
@@ -195,21 +185,21 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
         length=GetQuantumExtent(canvas_image,quantum_info,quantum_type);
         count=ReadBlob(image,length,pixels);
       }
-    for (y=0; y < (long) image->extract_info.height; y++)
+    for (y=0; y < (ssize_t) image->extract_info.height; y++)
     {
       register const PixelPacket
         *restrict p;
 
-      register long
-        x;
-
       register PixelPacket
         *restrict q;
 
+      register ssize_t
+        x;
+
       if (count != (ssize_t) length)
         {
-          ThrowFileException(exception,CorruptImageError,
-            "UnexpectedEndOfFile",image->filename);
+          ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+            image->filename);
           break;
         }
       q=GetAuthenticPixels(canvas_image,0,0,canvas_image->columns,1,exception);
@@ -219,8 +209,8 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
         quantum_type,pixels,exception);
       if (SyncAuthenticPixels(canvas_image,exception) == MagickFalse)
         break;
-      if (((y-image->extract_info.y) >= 0) && 
-          ((y-image->extract_info.y) < (long) image->rows))
+      if (((y-image->extract_info.y) >= 0) &&
+          ((y-image->extract_info.y) < (ssize_t) image->rows))
         {
           p=GetVirtualPixels(canvas_image,canvas_image->extract_info.x,0,
             image->columns,1,exception);
@@ -228,11 +218,11 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
             1,exception);
           if ((p == (const PixelPacket *) NULL) || (q == (PixelPacket *) NULL))
             break;
-          for (x=0; x < (long) image->columns; x++)
+          for (x=0; x < (ssize_t) image->columns; x++)
           {
-            SetRedPixelComponent(q,GetRedPixelComponent(p));
-            SetGreenPixelComponent(q,GetGreenPixelComponent(p));
-            SetBluePixelComponent(q,GetBluePixelComponent(p));
+            SetPixelRed(q,GetPixelRed(p));
+            SetPixelGreen(q,GetPixelGreen(p));
+            SetPixelBlue(q,GetPixelBlue(p));
             p++;
             q++;
           }
@@ -241,7 +231,8 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
         }
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,LoadImageTag,y,image->rows);
+          status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+            image->rows);
           if (status == MagickFalse)
             break;
         }
@@ -299,10 +290,10 @@ static Image *ReadRAWImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterRAWImage method is:
 %
-%      unsigned long RegisterRAWImage(void)
+%      size_t RegisterRAWImage(void)
 %
 */
-ModuleExport unsigned long RegisterRAWImage(void)
+ModuleExport size_t RegisterRAWImage(void)
 {
   MagickInfo
     *entry;
@@ -312,7 +303,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw red samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -321,7 +311,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw cyan samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -330,7 +319,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw green samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -339,7 +327,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw magenta samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -349,7 +336,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
   entry->description=ConstantString("Raw blue samples");
-  entry->format_type=ExplicitFormatType;
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("Y");
@@ -357,7 +343,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw yellow samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -374,7 +359,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw opacity samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -383,7 +367,6 @@ ModuleExport unsigned long RegisterRAWImage(void)
   entry->encoder=(EncodeImageHandler *) WriteRAWImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Raw black samples");
   entry->module=ConstantString("RAW");
   (void) RegisterMagickInfo(entry);
@@ -448,9 +431,6 @@ ModuleExport void UnregisterRAWImage(void)
 */
 static MagickBooleanType WriteRAWImage(const ImageInfo *image_info,Image *image)
 {
-  long
-    y;
-
   MagickOffsetType
     scene;
 
@@ -466,11 +446,12 @@ static MagickBooleanType WriteRAWImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -573,7 +554,7 @@ static MagickBooleanType WriteRAWImage(const ImageInfo *image_info,Image *image)
     if (quantum_info == (QuantumInfo *) NULL)
       ThrowWriterException(ResourceLimitError,"MemoryAllocationFailed");
     pixels=GetQuantumPixels(quantum_info);
-    for (y=0; y < (long) image->rows; y++)
+    for (y=0; y < (ssize_t) image->rows; y++)
     {
       p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
       if (p == (const PixelPacket *) NULL)
@@ -585,7 +566,8 @@ static MagickBooleanType WriteRAWImage(const ImageInfo *image_info,Image *image)
         break;
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,SaveImageTag,y,image->rows);
+          status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+            image->rows);
           if (status == MagickFalse)
             break;
         }

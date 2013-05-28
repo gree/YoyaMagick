@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,6 +52,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -116,6 +117,7 @@ static Image *ReadTILEImage(const ImageInfo *image_info,
     ThrowReaderException(OptionError,"MustSpecifyImageSize");
   if (*image_info->filename == '\0')
     ThrowReaderException(OptionError,"MustSpecifyAnImageName");
+  image->colorspace=tile_image->colorspace;
   image->matte=tile_image->matte;
   if (image->matte != MagickFalse)
     (void) SetImageBackgroundColor(image);
@@ -127,6 +129,8 @@ static Image *ReadTILEImage(const ImageInfo *image_info,
     }
   (void) TextureImage(image,tile_image);
   tile_image=DestroyImage(tile_image);
+  if (image->colorspace == GRAYColorspace)
+    image->type=GrayscaleType;
   return(GetFirstImageInList(image));
 }
 
@@ -150,10 +154,10 @@ static Image *ReadTILEImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterTILEImage method is:
 %
-%      unsigned long RegisterTILEImage(void)
+%      size_t RegisterTILEImage(void)
 %
 */
-ModuleExport unsigned long RegisterTILEImage(void)
+ModuleExport size_t RegisterTILEImage(void)
 {
   MagickInfo
     *entry;
@@ -162,7 +166,7 @@ ModuleExport unsigned long RegisterTILEImage(void)
   entry->decoder=(DecodeImageHandler *) ReadTILEImage;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Tile image with a texture");
   entry->module=ConstantString("TILE");
   (void) RegisterMagickInfo(entry);

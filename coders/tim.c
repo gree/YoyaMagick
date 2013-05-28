@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -43,6 +43,7 @@
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
+#include "magick/colormap.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -52,6 +53,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -89,7 +91,7 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
 {
   typedef struct _TIMInfo
   {
-    unsigned long
+    size_t
       id,
       flag;
   } TIMInfo;
@@ -104,29 +106,34 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
     bits_per_pixel,
     has_clut;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
 
-  register long
+  register ssize_t
     i;
 
   register unsigned char
     *p;
 
+  size_t
+    bytes_per_line,
+    height,
+    image_size,
+    pixel_mode,
+    width;
+
   ssize_t
-    count;
+    count,
+    y;
 
   unsigned char
     *tim_data,
@@ -134,13 +141,6 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
 
   unsigned short
     word;
-
-  unsigned long
-    bytes_per_line,
-    height,
-    image_size,
-    pixel_mode,
-    width;
 
   /*
     Open image file.
@@ -206,7 +206,7 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
         if (count != (ssize_t) (2*image->colors))
           ThrowReaderException(CorruptImageError,"InsufficientImageDataInFile");
         p=tim_colormap;
-        for (i=0; i < (long) image->colors; i++)
+        for (i=0; i < (ssize_t) image->colors; i++)
         {
           word=(*p++);
           word|=(unsigned short) (*p++ << 8);
@@ -256,29 +256,30 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
         /*
           Convert PseudoColor scanline.
         */
-        for (y=(long) image->rows-1; y >= 0; y--)
+        for (y=(ssize_t) image->rows-1; y >= 0; y--)
         {
           q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
           if (q == (PixelPacket *) NULL)
             break;
           indexes=GetAuthenticIndexQueue(image);
           p=tim_pixels+y*bytes_per_line;
-          for (x=0; x < ((long) image->columns-1); x+=2)
+          for (x=0; x < ((ssize_t) image->columns-1); x+=2)
           {
-            indexes[x]=(IndexPacket) ((*p) & 0x0f);
-            indexes[x+1]=(IndexPacket) ((*p >> 4) & 0x0f);
+            SetPixelIndex(indexes+x,(*p) & 0x0f);
+            SetPixelIndex(indexes+x+1,(*p >> 4) & 0x0f);
             p++;
           }
           if ((image->columns % 2) != 0)
             {
-              indexes[x]=(IndexPacket) ((*p >> 4) & 0x0f);
+              SetPixelIndex(indexes+x,(*p >> 4) & 0x0f);
               p++;
             }
           if (SyncAuthenticPixels(image,exception) == MagickFalse)
             break;
           if (image->previous == (Image *) NULL)
             {
-              status=SetImageProgress(image,LoadImageTag,y,image->rows);
+              status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
               if (status == MagickFalse)
                 break;
             }
@@ -290,20 +291,21 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
         /*
           Convert PseudoColor scanline.
         */
-        for (y=(long) image->rows-1; y >= 0; y--)
+        for (y=(ssize_t) image->rows-1; y >= 0; y--)
         {
           q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
           if (q == (PixelPacket *) NULL)
             break;
           indexes=GetAuthenticIndexQueue(image);
           p=tim_pixels+y*bytes_per_line;
-          for (x=0; x < (long) image->columns; x++)
-            indexes[x]=(*p++);
+          for (x=0; x < (ssize_t) image->columns; x++)
+            SetPixelIndex(indexes+x,*p++);
           if (SyncAuthenticPixels(image,exception) == MagickFalse)
             break;
           if (image->previous == (Image *) NULL)
             {
-              status=SetImageProgress(image,LoadImageTag,y,image->rows);
+              status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
               if (status == MagickFalse)
                 break;
             }
@@ -315,26 +317,30 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
         /*
           Convert DirectColor scanline.
         */
-        for (y=(long) image->rows-1; y >= 0; y--)
+        for (y=(ssize_t) image->rows-1; y >= 0; y--)
         {
           p=tim_pixels+y*bytes_per_line;
           q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
           if (q == (PixelPacket *) NULL)
             break;
-          for (x=0; x < (long) image->columns; x++)
+          for (x=0; x < (ssize_t) image->columns; x++)
           {
             word=(*p++);
             word|=(*p++ << 8);
-            q->blue=ScaleCharToQuantum(ScaleColor5to8((1UL*word >> 10) & 0x1f));
-            q->green=ScaleCharToQuantum(ScaleColor5to8((1UL*word >> 5) & 0x1f));
-            q->red=ScaleCharToQuantum(ScaleColor5to8(1UL*word & 0x1f));
+            SetPixelBlue(q,ScaleCharToQuantum(ScaleColor5to8(
+              (1UL*word >> 10) & 0x1f)));
+            SetPixelGreen(q,ScaleCharToQuantum(ScaleColor5to8(
+              (1UL*word >> 5) & 0x1f)));
+            SetPixelRed(q,ScaleCharToQuantum(ScaleColor5to8(
+              (1UL*word >> 0) & 0x1f)));
             q++;
           }
           if (SyncAuthenticPixels(image,exception) == MagickFalse)
             break;
           if (image->previous == (Image *) NULL)
             {
-              status=SetImageProgress(image,LoadImageTag,y,image->rows);
+              status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
               if (status == MagickFalse)
                 break;
             }
@@ -346,24 +352,25 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
         /*
           Convert DirectColor scanline.
         */
-        for (y=(long) image->rows-1; y >= 0; y--)
+        for (y=(ssize_t) image->rows-1; y >= 0; y--)
         {
           p=tim_pixels+y*bytes_per_line;
           q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
           if (q == (PixelPacket *) NULL)
             break;
-          for (x=0; x < (long) image->columns; x++)
+          for (x=0; x < (ssize_t) image->columns; x++)
           {
-            q->red=ScaleCharToQuantum(*p++);
-            q->green=ScaleCharToQuantum(*p++);
-            q->blue=ScaleCharToQuantum(*p++);
+            SetPixelRed(q,ScaleCharToQuantum(*p++));
+            SetPixelGreen(q,ScaleCharToQuantum(*p++));
+            SetPixelBlue(q,ScaleCharToQuantum(*p++));
             q++;
           }
           if (SyncAuthenticPixels(image,exception) == MagickFalse)
             break;
           if (image->previous == (Image *) NULL)
             {
-              status=SetImageProgress(image,LoadImageTag,y,image->rows);
+              status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
               if (status == MagickFalse)
                 break;
             }
@@ -428,10 +435,10 @@ static Image *ReadTIMImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterTIMImage method is:
 %
-%      unsigned long RegisterTIMImage(void)
+%      size_t RegisterTIMImage(void)
 %
 */
-ModuleExport unsigned long RegisterTIMImage(void)
+ModuleExport size_t RegisterTIMImage(void)
 {
   MagickInfo
     *entry;

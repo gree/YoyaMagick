@@ -17,7 +17,7 @@
 %                                December 1996                                %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -39,8 +39,10 @@
   Include declarations.
 */
 #include "magick/studio.h"
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
 #include "magick/client.h"
+#include "magick/exception-private.h"
+#include "magick/locale_.h"
 #include "magick/log.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
@@ -82,7 +84,7 @@ static void
 /*
   External declarations.
 */
-#if !defined(__WINDOWS__)
+#if !defined(MAGICKCORE_WINDOWS_SUPPORT)
 extern "C" BOOL WINAPI
   DllMain(HINSTANCE handle,DWORD reason,LPVOID lpvReserved);
 #endif
@@ -182,7 +184,7 @@ BOOL WINAPI DllMain(HINSTANCE handle,DWORD reason,LPVOID lpvReserved)
                       module_path=DestroyString(module_path);
                       return(FALSE);
                     }
-                  (void) FormatMagickString(variable,16*MaxTextExtent,
+                  (void) FormatLocaleString(variable,16*MaxTextExtent,
                     "%s;%s",module_path,path);
                   SetEnvironmentVariable("PATH",variable);
                   variable=DestroyString(variable);
@@ -236,6 +238,7 @@ MagickExport int Exit(int status)
   return(0);
 }
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -285,8 +288,8 @@ MagickExport int gettimeofday (struct timeval *time_value,
       time=date_time.QuadPart;
       time-=EpochFiletime;
       time/=10;
-      time_value->tv_sec=(long) (time / 1000000);
-      time_value->tv_usec=(long) (time % 1000000);
+      time_value->tv_sec=(ssize_t) (time / 1000000);
+      time_value->tv_usec=(ssize_t) (time % 1000000);
     }
   if (time_zone != (struct timezone *) NULL)
     {
@@ -300,6 +303,7 @@ MagickExport int gettimeofday (struct timeval *time_value,
     }
   return(0);
 }
+#endif
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -329,6 +333,65 @@ MagickExport int IsWindows95()
       (version_info.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS))
     return(1);
   return(0);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   N T A r g v T o U T F 8                                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  NTArgvToUTF8() converts the wide command line arguments to UTF-8 to ensure
+%  compatibility with Linux.
+%
+%  The format of the NTArgvToUTF8 method is:
+%
+%      char **NTArgvToUTF8(const int argc,wchar_t **argv)
+%
+%  A description of each parameter follows:
+%
+%    o argc: the number of command line arguments.
+%
+%    o argv:  the  wide-character command line arguments.
+%
+*/
+MagickExport char **NTArgvToUTF8(const int argc,wchar_t **argv)
+{
+  char
+    **utf8;
+
+  ssize_t
+    i;
+
+  utf8=(char **) AcquireQuantumMemory(argc,sizeof(*utf8));
+  if (utf8 == (char **) NULL)
+    ThrowFatalException(ResourceLimitFatalError,"UnableToConvertStringToARGV");
+  for (i=0; i < (ssize_t) argc; i++)
+  {
+    ssize_t
+      count;
+
+    count=WideCharToMultiByte(CP_UTF8,0,argv[i],-1,NULL,0,NULL,NULL);
+    if (count < 0)
+      count=0;
+    utf8[i]=(char *) AcquireQuantumMemory(count+1,sizeof(**utf8));
+    if (utf8[i] == (char *) NULL)
+      {
+        for (i--; i >= 0; i--)
+          utf8[i]=DestroyString(utf8[i]);
+        utf8=(char **) RelinquishMagickMemory(utf8);
+        ThrowFatalException(ResourceLimitFatalError,
+          "UnableToConvertStringToARGV");
+      }
+    count=WideCharToMultiByte(CP_UTF8,0,argv[i],-1,utf8[i],count,NULL,NULL);
+    utf8[i][count]=0;
+  }
+  return(utf8);
 }
 
 /*
@@ -505,18 +568,18 @@ MagickExport void NTErrorHandler(const ExceptionType severity,
     }
   message=GetExceptionMessage(errno);
   if ((description != (char *) NULL) && errno)
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s) [%s].\n",
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s) [%s].\n",
       GetClientName(),reason,description,message);
   else
     if (description != (char *) NULL)
-      (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s).\n",
+      (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s).\n",
         GetClientName(),reason,description);
     else
       if (errno != 0)
-        (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s [%s].\n",
+        (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s [%s].\n",
           GetClientName(),reason,message);
       else
-        (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s.\n",
+        (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s.\n",
           GetClientName(),reason);
   message=DestroyString(message);
   (void) MessageBox(NULL,buffer,"ImageMagick Exception",MB_OK | MB_TASKMODAL |
@@ -784,7 +847,7 @@ MagickExport MagickBooleanType NTGetModulePath(const char *module,char *path)
   HMODULE
     handle;
 
-  long
+  ssize_t
     length;
 
   *path='\0';
@@ -823,7 +886,7 @@ MagickExport MagickBooleanType NTGetModulePath(const char *module,char *path)
 %
 */
 
-static int NTGetRegistryValue(HKEY root,const char *key,const char *name,
+static int NTGetRegistryValue(HKEY root,const char *key,DWORD flags,const char *name,
   char *value,int *length)
 {
   BYTE
@@ -843,7 +906,7 @@ static int NTGetRegistryValue(HKEY root,const char *key,const char *name,
   /*
     Get a registry value: key = root\\key, named value = name.
   */
-  if (RegOpenKeyExA(root,key,0,KEY_READ,&hkey) != ERROR_SUCCESS)
+  if (RegOpenKeyExA(root,key,0,KEY_READ | flags,&hkey) != ERROR_SUCCESS)
     return(1);  /* no match */
   p=(BYTE *) value;
   type=REG_SZ;
@@ -865,7 +928,7 @@ static int NTGetRegistryValue(HKEY root,const char *key,const char *name,
   return(1);  /* not found */
 }
 
-static int NTLocateGhostscript(const char **product_family,int *major_version,
+static int NTLocateGhostscript(DWORD flags,const char **product_family,int *major_version,
   int *minor_version)
 {
   int
@@ -890,7 +953,7 @@ static int NTLocateGhostscript(const char **product_family,int *major_version,
   *product_family=NULL;
   *major_version=5;
   *minor_version=49; /* min version of Ghostscript is 5.50 */
-  for (i=0; i < (long) (sizeof(products)/sizeof(products[0])); i++)
+  for (i=0; i < (ssize_t) (sizeof(products)/sizeof(products[0])); i++)
   {
     char
       key[MaxTextExtent];
@@ -902,12 +965,9 @@ static int NTLocateGhostscript(const char **product_family,int *major_version,
     REGSAM
       mode;
 
-    (void) FormatMagickString(key,MaxTextExtent,"SOFTWARE\\%s",products[i]);
+    (void) FormatLocaleString(key,MaxTextExtent,"SOFTWARE\\%s",products[i]);
     root=HKEY_LOCAL_MACHINE;
-    mode=KEY_READ;
-#if defined(KEY_WOW64_32KEY)
-    mode|=KEY_WOW64_32KEY;
-#endif
+    mode=KEY_READ | flags;
     if (RegOpenKeyExA(root,key,0,mode,&hkey) == ERROR_SUCCESS)
       {
         DWORD
@@ -944,7 +1004,6 @@ static int NTLocateGhostscript(const char **product_family,int *major_version,
   }
   if (status == FALSE)
     {
-      i=0;
       *major_version=0;
       *minor_version=0;
     }
@@ -953,7 +1012,17 @@ static int NTLocateGhostscript(const char **product_family,int *major_version,
   return(status);
 }
 
-static int NTGhostscriptGetString(const char *name,char *value,
+static BOOL NTIs64BitPlatform()
+{
+#if defined(_WIN64) || !defined(KEY_WOW64_32KEY)
+  return(TRUE);
+#else
+  BOOL is64=FALSE;
+  return(IsWow64Process(GetCurrentProcess(), &is64) && is64);
+#endif
+}
+
+static int NTGhostscriptGetString(const char *name,BOOL *is_64_bit,char *value,
   const size_t length)
 {
   char
@@ -966,7 +1035,11 @@ static int NTGhostscriptGetString(const char *name,char *value,
   static const char
     *product_family = (const char *) NULL;
 
+  static BOOL
+    is_64_bit_version = FALSE;
+
   static int
+    flags=0,
     major_version=0,
     minor_version=0;
 
@@ -987,17 +1060,44 @@ static int NTGhostscriptGetString(const char *name,char *value,
   /*
     Get a string from the installed Ghostscript.
   */
+  if (is_64_bit!=NULL)
+    *is_64_bit=FALSE;
   *value='\0';
   if (product_family == NULL)
-    (void) NTLocateGhostscript(&product_family,&major_version,&minor_version);
+  {
+    flags=0;
+#if defined(KEY_WOW64_32KEY)
+    flags=NTIs64BitPlatform() ? KEY_WOW64_64KEY : 0;
+#endif
+    (void) NTLocateGhostscript(flags,&product_family,&major_version,
+      &minor_version);
+    if (product_family == NULL)
+    {
+      if (flags!=0)
+      {
+        /*
+          We are running on a 64 bit platform - check for a 32 bit Ghostscript.
+        */
+#if defined(KEY_WOW64_32KEY)
+        flags=KEY_WOW64_32KEY;
+#endif
+        (void) NTLocateGhostscript(flags,&product_family,&major_version,
+          &minor_version);
+  	  }
+    }
+    else
+      is_64_bit_version=NTIs64BitPlatform();
+  }
+  if (is_64_bit!=NULL)
+    *is_64_bit=is_64_bit_version;
   if (product_family == NULL)
     return(FALSE);
-  (void) FormatMagickString(key,MaxTextExtent,"SOFTWARE\\%s\\%d.%02d",
+  (void) FormatLocaleString(key,MaxTextExtent,"SOFTWARE\\%s\\%d.%02d",
     product_family,major_version,minor_version);
-  for (i=0; i < (long) (sizeof(hkeys)/sizeof(hkeys[0])); i++)
+  for (i=0; i < (ssize_t) (sizeof(hkeys)/sizeof(hkeys[0])); i++)
   {
     extent=(int) length;
-    if (NTGetRegistryValue(hkeys[i].hkey,key,name,value,&extent) == 0)
+    if (NTGetRegistryValue(hkeys[i].hkey,key,flags,name,value,&extent) == 0)
       {
         (void) LogMagickEvent(ConfigureEvent,GetMagickModule(),
           "registry: \"%s\\%s\\%s\"=\"%s\"",hkeys[i].name,key,name,value);
@@ -1014,10 +1114,21 @@ MagickExport int NTGhostscriptDLL(char *path,int length)
   static char
     dll[MaxTextExtent] = { "" };
 
+  static BOOL
+    is_64_bit_version;
+
   *path='\0';
   if ((*dll == '\0') &&
-      (NTGhostscriptGetString("GS_DLL",dll,sizeof(dll)) == FALSE))
+      (NTGhostscriptGetString("GS_DLL",&is_64_bit_version,dll,sizeof(dll)) == FALSE))
     return(FALSE);
+
+#if defined(_WIN64)
+  if (!is_64_bit_version)
+    return(FALSE);
+#else
+  if (is_64_bit_version)
+    return(FALSE);
+#endif
   (void) CopyMagickString(path,dll,length);
   return(TRUE);
 }
@@ -1084,16 +1195,19 @@ MagickExport int NTGhostscriptEXE(char *path,int length)
   static char
     program[MaxTextExtent] = { "" };
 
+  static BOOL
+    is_64_bit_version = FALSE;
+
   (void) CopyMagickString(path,"gswin32c.exe",length);
   if ((*program == '\0') &&
-      (NTGhostscriptGetString("GS_DLL",program,sizeof(program)) == FALSE))
+      (NTGhostscriptGetString("GS_DLL",&is_64_bit_version,program,sizeof(program)) == FALSE))
     return(FALSE);
   p=strrchr(program,'\\');
   if (p != (char *) NULL)
     {
       p++;
       *p='\0';
-      (void) ConcatenateMagickString(program,"gswin32c.exe",sizeof(program));
+      (void) ConcatenateMagickString(program,is_64_bit_version ? "gswin64c.exe" : "gswin32c.exe",sizeof(program));
     }
   (void) CopyMagickString(path,program,length);
   return(TRUE);
@@ -1135,7 +1249,7 @@ MagickExport int NTGhostscriptFonts(char *path,int length)
     *q;
 
   *path='\0';
-  if (NTGhostscriptGetString("GS_LIB",buffer,MaxTextExtent) == FALSE)
+  if (NTGhostscriptGetString("GS_LIB",NULL,buffer,MaxTextExtent) == FALSE)
     return(FALSE);
   for (p=buffer-1; p != (char *) NULL; p=strchr(p+1,DirectoryListSeparator))
   {
@@ -1143,7 +1257,7 @@ MagickExport int NTGhostscriptFonts(char *path,int length)
     q=strchr(path,DirectoryListSeparator);
     if (q != (char *) NULL)
       *q='\0';
-    (void) FormatMagickString(filename,MaxTextExtent,"%s%sfonts.dir",path,
+    (void) FormatLocaleString(filename,MaxTextExtent,"%s%sfonts.dir",path,
       DirectorySeparator);
     if (IsPathAccessible(filename) != MagickFalse)
       return(TRUE);
@@ -1372,13 +1486,13 @@ MagickExport DIR *NTOpenDirectory(const char *path)
 
   assert(path != (const char *) NULL);
   length=CopyMagickString(file_specification,path,MaxTextExtent);
-  if (length >= MaxTextExtent)
+  if (length >= (MaxTextExtent-1))
     return((DIR *) NULL);
   length=ConcatenateMagickString(file_specification,DirectorySeparator,
     MaxTextExtent);
-  if (length >= MaxTextExtent)
+  if (length >= (MaxTextExtent-1))
     return((DIR *) NULL);
-  entry=(DIR *) AcquireAlignedMemory(1,sizeof(DIR));
+  entry=(DIR *) AcquireMagickMemory(sizeof(DIR));
   if (entry != (DIR *) NULL)
     {
       entry->firsttime=TRUE;
@@ -1387,7 +1501,7 @@ MagickExport DIR *NTOpenDirectory(const char *path)
   if (entry->hSearch == INVALID_HANDLE_VALUE)
     {
       length=ConcatenateMagickString(file_specification,"\\*.*",MaxTextExtent);
-      if (length >= MaxTextExtent)
+      if (length >= (MaxTextExtent-1))
         {
           entry=(DIR *) RelinquishMagickMemory(entry);
           return((DIR *) NULL);
@@ -1559,7 +1673,8 @@ MagickExport struct dirent *NTReadDirectory(DIR *entry)
 %  may coexist.
 %
 %  Values are stored in the registry under a base path path similar to
-%  "HKEY_LOCAL_MACHINE/SOFTWARE\ImageMagick\5.5.7\Q:16". The provided subkey
+%  "HKEY_LOCAL_MACHINE/SOFTWARE\ImageMagick\6.7.4\Q:16" or
+%  "HKEY_CURRENT_USER/SOFTWARE\ImageMagick\6.7.4\Q:16". The provided subkey
 %  is appended to this base path to form the full key.
 %
 %  The format of the NTRegistryKeyLookup method is:
@@ -1594,11 +1709,14 @@ MagickExport unsigned char *NTRegistryKeyLookup(const char *subkey)
   /*
     Look-up base key.
   */
-  (void) FormatMagickString(package_key,MaxTextExtent,"SOFTWARE\\%s\\%s\\Q:%d",
+  (void) FormatLocaleString(package_key,MaxTextExtent,"SOFTWARE\\%s\\%s\\Q:%d",
     MagickPackageName,MagickLibVersionText,MAGICKCORE_QUANTUM_DEPTH);
   (void) LogMagickEvent(ConfigureEvent,GetMagickModule(),"%s",package_key);
   registry_key=(HKEY) INVALID_HANDLE_VALUE;
   status=RegOpenKeyExA(HKEY_LOCAL_MACHINE,package_key,0,KEY_READ,&registry_key);
+  if (status != ERROR_SUCCESS)
+    status=RegOpenKeyExA(HKEY_CURRENT_USER,package_key,0,KEY_READ,
+      &registry_key);
   if (status != ERROR_SUCCESS)
     {
       registry_key=(HKEY) INVALID_HANDLE_VALUE;
@@ -1727,7 +1845,7 @@ MagickExport unsigned char *NTResourceToBlob(const char *id)
 
   assert(id != (const char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",id);
-  (void) FormatMagickString(path,MaxTextExtent,"%s%s%s",GetClientPath(),
+  (void) FormatLocaleString(path,MaxTextExtent,"%s%s%s",GetClientPath(),
     DirectorySeparator,GetClientName());
   if (IsPathAccessible(path) != MagickFalse)
     handle=GetModuleHandle(path);
@@ -1776,7 +1894,7 @@ MagickExport unsigned char *NTResourceToBlob(const char *id)
 %
 %  The format of the NTSeekDirectory method is:
 %
-%      void NTSeekDirectory(DIR *entry,long position)
+%      void NTSeekDirectory(DIR *entry,ssize_t position)
 %
 %  A description of each parameter follows:
 %
@@ -1786,7 +1904,7 @@ MagickExport unsigned char *NTResourceToBlob(const char *id)
 %      stream.
 %
 */
-MagickExport void NTSeekDirectory(DIR *entry,long position)
+MagickExport void NTSeekDirectory(DIR *entry,ssize_t position)
 {
   (void) position;
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"...");
@@ -1956,14 +2074,14 @@ MagickExport int NTSystemCommand(const char *command)
 %
 %  The format of the exit method is:
 %
-%      long NTSystemConfiguration(int name)
+%      ssize_t NTSystemConfiguration(int name)
 %
 %  A description of each parameter follows:
 %
 %    o name: _SC_PAGE_SIZE or _SC_PHYS_PAGES.
 %
 */
-MagickExport long NTSystemConfiguration(int name)
+MagickExport ssize_t NTSystemConfiguration(int name)
 {
   switch (name)
   {
@@ -2000,12 +2118,12 @@ MagickExport long NTSystemConfiguration(int name)
             status;
 
           GlobalMemoryStatus(&status);
-          return((long) status.dwTotalPhys/system_info.dwPageSize);
+          return((ssize_t) status.dwTotalPhys/system_info.dwPageSize/4);
         }
       status.dwLength=sizeof(status);
       if (module(&status) == 0)
         return(0L);
-      return((long) status.ullTotalPhys/system_info.dwPageSize);
+      return((ssize_t) status.ullTotalPhys/system_info.dwPageSize/4);
     }
     case _SC_OPEN_MAX:
       return(2048);
@@ -2031,14 +2149,14 @@ MagickExport long NTSystemConfiguration(int name)
 %
 %  The format of the NTTellDirectory method is:
 %
-%      long NTTellDirectory(DIR *entry)
+%      ssize_t NTTellDirectory(DIR *entry)
 %
 %  A description of each parameter follows:
 %
 %    o entry: Specifies a pointer to a DIR structure.
 %
 */
-MagickExport long NTTellDirectory(DIR *entry)
+MagickExport ssize_t NTTellDirectory(DIR *entry)
 {
   assert(entry != (DIR *) NULL);
   return(0);
@@ -2221,10 +2339,10 @@ MagickExport void NTWarningHandler(const ExceptionType severity,
   if (reason == (char *) NULL)
     return;
   if (description == (char *) NULL)
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
       reason);
   else
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s).\n",
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s).\n",
       GetClientName(),reason,description);
   (void) MessageBox(NULL,buffer,"ImageMagick Warning",MB_OK | MB_TASKMODAL |
     MB_SETFOREGROUND | MB_ICONINFORMATION);

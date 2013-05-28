@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,10 +52,12 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
+#include "magick/token.h"
 #include "magick/utility.h"
 #include "magick/xwindow.h"
 #include "magick/xwindow-private.h"
@@ -106,6 +108,9 @@ static Image *ReadXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   option=GetImageOption(image_info,"x:screen");
   if (option != (const char *) NULL)
     ximage_info.screen=IsMagickTrue(option);
+  option=GetImageOption(image_info,"x:silent");
+  if (option != (const char *) NULL)
+    ximage_info.silent=IsMagickTrue(option);
   return(XImportImage(image_info,&ximage_info));
 }
 #endif
@@ -130,10 +135,10 @@ static Image *ReadXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterXImage method is:
 %
-%      unsigned long RegisterXImage(void)
+%      size_t RegisterXImage(void)
 %
 */
-ModuleExport unsigned long RegisterXImage(void)
+ModuleExport size_t RegisterXImage(void)
 {
   MagickInfo
     *entry;
@@ -143,7 +148,7 @@ ModuleExport unsigned long RegisterXImage(void)
   entry->decoder=(DecodeImageHandler *) ReadXImage;
   entry->encoder=(EncodeImageHandler *) WriteXImage;
 #endif
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("X Image");
   entry->module=ConstantString("X");
   (void) RegisterMagickInfo(entry);

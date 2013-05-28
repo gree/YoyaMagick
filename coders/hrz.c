@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -44,6 +44,7 @@
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -53,6 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -95,13 +97,10 @@ static Image *ReadHRZImage(const ImageInfo *image_info,ExceptionInfo *exception)
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
@@ -111,7 +110,8 @@ static Image *ReadHRZImage(const ImageInfo *image_info,ExceptionInfo *exception)
     *p;
 
   ssize_t
-    count;
+    count,
+    y;
 
   size_t
     length;
@@ -142,12 +142,12 @@ static Image *ReadHRZImage(const ImageInfo *image_info,ExceptionInfo *exception)
   image->columns=256;
   image->rows=240;
   image->depth=8;
-  pixels=(unsigned char *) AcquireQuantumMemory(image->columns,
-    3*sizeof(*pixels));
-  if (pixels == (unsigned char *) NULL) 
+  pixels=(unsigned char *) AcquireQuantumMemory(image->columns,3*
+    sizeof(*pixels));
+  if (pixels == (unsigned char *) NULL)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   length=(size_t) (3*image->columns);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     count=ReadBlob(image,length,pixels);
     if ((size_t) count != length)
@@ -156,12 +156,12 @@ static Image *ReadHRZImage(const ImageInfo *image_info,ExceptionInfo *exception)
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      q->red=4*ScaleCharToQuantum(*p++);
-      q->green=4*ScaleCharToQuantum(*p++);
-      q->blue=4*ScaleCharToQuantum(*p++);
-      SetOpacityPixelComponent(q,OpaqueOpacity);
+      SetPixelRed(q,ScaleCharToQuantum(4**p++));
+      SetPixelGreen(q,ScaleCharToQuantum(4**p++));
+      SetPixelBlue(q,ScaleCharToQuantum(4**p++));
+      SetPixelOpacity(q,OpaqueOpacity);
       q++;
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
@@ -196,10 +196,10 @@ static Image *ReadHRZImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterHRZImage method is:
 %
-%      unsigned long RegisterHRZImage(void)
+%      size_t RegisterHRZImage(void)
 %
 */
-ModuleExport unsigned long RegisterHRZImage(void)
+ModuleExport size_t RegisterHRZImage(void)
 {
   MagickInfo
     *entry;
@@ -273,7 +273,7 @@ static MagickBooleanType WriteHRZImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x,
     y;
 
@@ -302,8 +302,8 @@ static MagickBooleanType WriteHRZImage(const ImageInfo *image_info,Image *image)
     &image->exception);
   if (hrz_image == (Image *) NULL)
     return(MagickFalse);
-  if (hrz_image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(hrz_image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(hrz_image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(hrz_image,sRGBColorspace);
   /*
     Allocate memory for pixels.
   */
@@ -317,17 +317,17 @@ static MagickBooleanType WriteHRZImage(const ImageInfo *image_info,Image *image)
   /*
     Convert MIFF to HRZ raster pixels.
   */
-  for (y=0; y < (long) hrz_image->rows; y++)
+  for (y=0; y < (ssize_t) hrz_image->rows; y++)
   {
     p=GetVirtualPixels(hrz_image,0,y,hrz_image->columns,1,&image->exception);
     if (p == (PixelPacket *) NULL)
       break;
     q=pixels;
-    for (x=0; x < (long) hrz_image->columns; x++)
+    for (x=0; x < (ssize_t) hrz_image->columns; x++)
     {
-      *q++=ScaleQuantumToChar(GetRedPixelComponent(p))/4;
-      *q++=ScaleQuantumToChar(GetGreenPixelComponent(p))/4;
-      *q++=ScaleQuantumToChar(GetBluePixelComponent(p))/4;
+      *q++=ScaleQuantumToChar(GetPixelRed(p)/4);
+      *q++=ScaleQuantumToChar(GetPixelGreen(p)/4);
+      *q++=ScaleQuantumToChar(GetPixelBlue(p)/4);
       p++;
     }
     count=WriteBlob(image,(size_t) (q-pixels),pixels);

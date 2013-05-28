@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,6 +52,7 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -105,11 +106,11 @@ static Image *ReadINLINEImage(const ImageInfo *image_info,
   register size_t
     i;
 
-  ssize_t
-    count;
-
   size_t
     quantum;
+
+  ssize_t
+    count;
 
   unsigned char
     *inline_image;
@@ -136,6 +137,7 @@ static Image *ReadINLINEImage(const ImageInfo *image_info,
   quantum=MagickMin((size_t) GetBlobSize(image),MagickMaxBufferExtent);
   inline_image=(unsigned char *) AcquireQuantumMemory(quantum,
     sizeof(*inline_image));
+  count=0;
   for (i=0; inline_image != (unsigned char *) NULL; i+=count)
   {
     count=(ssize_t) ReadBlob(image,quantum,inline_image+i);
@@ -145,7 +147,7 @@ static Image *ReadINLINEImage(const ImageInfo *image_info,
         if (errno != EINTR)
           break;
       }
-    if (~(1UL*i) < (quantum+1))
+    if (~((size_t) i) < (quantum+1))
       {
         inline_image=(unsigned char *) RelinquishMagickMemory(inline_image);
         break;
@@ -186,17 +188,17 @@ static Image *ReadINLINEImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterINLINEImage method is:
 %
-%      unsigned long RegisterINLINEImage(void)
+%      size_t RegisterINLINEImage(void)
 %
 */
-ModuleExport unsigned long RegisterINLINEImage(void)
+ModuleExport size_t RegisterINLINEImage(void)
 {
   MagickInfo
     *entry;
 
   entry=SetMagickInfo("INLINE");
   entry->decoder=(DecodeImageHandler *) ReadINLINEImage;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Base64-encoded inline images");
   entry->module=ConstantString("INLINE");
   (void) RegisterMagickInfo(entry);

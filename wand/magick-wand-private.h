@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ extern "C" {
 #define DegreesToRadians(x)  (MagickPI*(x)/180.0)
 #define MagickPI  3.14159265358979323846264338327950288419716939937510
 #define MagickWandId  "MagickWand"
-#define QuantumScale  ((MagickRealType) 1.0/(MagickRealType) QuantumRange)
 #define QuantumTick(i,span) ((MagickBooleanType) ((((i) & ((i)-1)) == 0) || \
    (((i) & 0xfff) == 0) || \
    ((MagickOffsetType) (i) == ((MagickOffsetType) (span)-1))))
@@ -33,7 +32,7 @@ extern "C" {
 
 struct _MagickWand
 {
-  unsigned long
+  size_t
     id;
 
   char
@@ -52,11 +51,11 @@ struct _MagickWand
     *images;
 
   MagickBooleanType
-    active,
-    pend,
+    insert_before,
+    image_pending,
     debug;
 
-  unsigned long
+  size_t
     signature;
 };
 

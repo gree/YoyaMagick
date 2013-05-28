@@ -13,16 +13,11 @@
 %                        Read Windows Metafile Format                         %
 %                                                                             %
 %                              Software Design                                %
-%                              Bob Friesenhahn                                %
-%                            Dec 2000 - May 2001                              %
-%                            Oct 2001 - May 2002                              %
-%                                                                             %
-%                           Port to libwmf 0.2 API                            %
-%                            Francis J. Franklin                              %
-%                            May 2001 - Oct 2001                              %
+%                                John Cristy                                  %
+%                               December 2000                                 %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -60,6 +55,7 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/paint.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -68,7 +64,175 @@
 #include "magick/module.h"
 #include "wand/MagickWand.h"
 
-#if defined(MAGICKCORE_WMF_DELEGATE) || defined(MAGICKCORE_WMFLITE_DELEGATE)
+#if defined(__CYGWIN__)
+#undef MAGICKCORE_WMF_DELEGATE
+#endif
+
+#if defined(MAGICKCORE_WMF_DELEGATE)
+#include "libwmf/api.h"
+#include "libwmf/eps.h"
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   R e a d W M F I m a g e                                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  ReadWMFImage() reads an Windows Metafile image file and returns it.  It
+%  allocates the memory necessary for the new Image structure and returns a
+%  pointer to the new image.
+%
+%  The format of the ReadWMFImage method is:
+%
+%      Image *ReadWMFImage(const ImageInfo *image_info,ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o image_info: the image info.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+
+static int WMFReadBlob(void *image)
+{
+  return(ReadBlobByte((Image *) image));
+}
+
+static int WMFSeekBlob(void *image,long offset)
+{
+  return((int) SeekBlob((Image *) image,(MagickOffsetType) offset,SEEK_SET));
+}
+
+static long WMFTellBlob(void *image)
+{
+  return((long) TellBlob((Image*) image));
+}
+
+static Image *ReadWMFImage(const ImageInfo *image_info,ExceptionInfo *exception)
+{
+  char
+    filename[MaxTextExtent];
+
+  int
+    unique_file;
+
+  FILE
+    *file;
+
+  Image
+    *image;
+
+  ImageInfo
+    *read_info;
+
+  MagickBooleanType
+    status;
+
+  size_t
+    flags;
+
+  wmfAPI
+    *wmf_info;
+
+  wmfAPI_Options
+    options;
+
+  wmfD_Rect
+    bounding_box;
+
+  wmf_eps_t
+    *eps_info;
+
+  wmf_error_t
+    wmf_status;
+
+  /*
+    Read WMF image.
+  */
+  image=AcquireImage(image_info);
+  status=OpenBlob(image_info,image,ReadBinaryBlobMode,exception);
+  if (status == MagickFalse)
+    {
+      image=DestroyImageList(image);
+      return((Image *) NULL);
+    }
+  wmf_info=(wmfAPI *) NULL;
+  flags=0;
+  flags|=WMF_OPT_IGNORE_NONFATAL;
+  flags|=WMF_OPT_FUNCTION;
+  options.function=wmf_eps_function;
+  wmf_status=wmf_api_create(&wmf_info,(unsigned long) flags,&options);
+  if (wmf_status != wmf_E_None)
+    {
+      if (wmf_info != (wmfAPI *) NULL)
+        wmf_api_destroy(wmf_info);
+      ThrowReaderException(DelegateError,"UnableToInitializeWMFLibrary");
+    }
+  wmf_status=wmf_bbuf_input(wmf_info,WMFReadBlob,WMFSeekBlob,WMFTellBlob,
+    (void *) image);
+  if (wmf_status != wmf_E_None)
+    {
+      wmf_api_destroy(wmf_info);
+      ThrowFileException(exception,FileOpenError,"UnableToOpenFile",
+        image->filename);
+      image=DestroyImageList(image);
+      return((Image *) NULL);
+    }
+  wmf_status=wmf_scan(wmf_info,0,&bounding_box);
+  if (wmf_status != wmf_E_None)
+    {
+      wmf_api_destroy(wmf_info);
+      ThrowReaderException(DelegateError,"FailedToScanFile");
+    }
+  eps_info=WMF_EPS_GetData(wmf_info);
+  file=(FILE *) NULL;
+  unique_file=AcquireUniqueFileResource(filename);
+  if (unique_file != -1)
+    file=fdopen(unique_file,"wb");
+  if ((unique_file == -1) || (file == (FILE *) NULL))
+    {
+      wmf_api_destroy(wmf_info);
+      ThrowReaderException(FileOpenError,"UnableToCreateTemporaryFile");
+    }
+  eps_info->out=wmf_stream_create(wmf_info,file);
+  eps_info->bbox=bounding_box;
+  wmf_status=wmf_play(wmf_info,0,&bounding_box);
+  if (wmf_status != wmf_E_None)
+    {
+      wmf_api_destroy(wmf_info);
+      ThrowReaderException(DelegateError,"FailedToRenderFile");
+    }
+  (void) fclose(file);
+  wmf_api_destroy(wmf_info);
+  (void) CloseBlob(image);
+  image=DestroyImage(image);
+  /*
+    Read EPS image.
+  */
+  read_info=CloneImageInfo(image_info);
+  SetImageInfoBlob(read_info,(void *) NULL,0);
+  (void) FormatLocaleString(read_info->filename,MaxTextExtent,"eps:%s",
+    filename);
+  image=ReadImage(read_info,exception);
+  read_info=DestroyImageInfo(read_info);
+  if (image != (Image *) NULL)
+    {
+      (void) CopyMagickString(image->filename,image_info->filename,
+        MaxTextExtent);
+      (void) CopyMagickString(image->magick_filename,image_info->filename,
+        MaxTextExtent);
+      (void) CopyMagickString(image->magick,"WMF",MaxTextExtent);
+    }
+  (void) RelinquishUniqueFileResource(filename);
+  return(GetFirstImageInList(image));
+}
+#elif defined(MAGICKCORE_WMFLITE_DELEGATE)
 
 #define ERR(API)  ((API)->err != wmf_E_None)
 #define XC(x) ((double) x)
@@ -285,16 +449,8 @@ int magick_progress_callback(void *context,float quantum)
   MagickBooleanType
     status;
 
-  MagickOffsetType
-    offset;
-
-  MagickSizeType
-    span;
-
   image=(Image *) context;
   assert(image->signature == MagickSignature);
-  offset=(MagickOffsetType) floor((double) (100.0*quantum));
-  span=100;
   status=SetImageProgress(image,LoadImagesTag,TellBlob(image),
     GetBlobSize(image));
   return(status == MagickTrue ? 0 : 1);
@@ -371,7 +527,7 @@ static void draw_pattern_push( wmfAPI* API,
   char
     pattern_id[30];
 
-  (void) FormatMagickString(pattern_id,MaxTextExtent,"brush_%lu",id);
+  (void) FormatLocaleString(pattern_id,MaxTextExtent,"brush_%lu",id);
   (void) DrawPushPattern(WmfDrawingWand,pattern_id,0,0,columns,rows);
 }
 
@@ -596,7 +752,7 @@ static void ipa_bmp_read(wmfAPI * API, wmfBMP_Read_t * bmp_read) {
       char
         size[MaxTextExtent];
 
-      (void) FormatMagickString(size,MaxTextExtent,"%ux%u",bmp_read->width,
+      (void) FormatLocaleString(size,MaxTextExtent,"%ux%u",bmp_read->width,
         bmp_read->height);
       CloneString(&image_info->size,size);
     }
@@ -613,7 +769,7 @@ static void ipa_bmp_read(wmfAPI * API, wmfBMP_Read_t * bmp_read) {
       char
         description[MaxTextExtent];
 
-      (void) FormatMagickString(description,MaxTextExtent,
+      (void) FormatLocaleString(description,MaxTextExtent,
         "packed DIB at offset %ld",bmp_read->offset);
       (void) ThrowMagickException(&ddata->image->exception,GetMagickModule(),
         CorruptImageError,exception.reason,"`%s'",exception.description);
@@ -685,8 +841,8 @@ static void ipa_device_begin(wmfAPI * API)
 
   DrawSetViewbox(WmfDrawingWand, 0, 0, ddata->image->columns, ddata->image->rows );
 
-  (void) FormatMagickString(comment,MaxTextExtent,"Created by ImageMagick %s",
-    GetMagickVersion((unsigned long *) NULL));
+  (void) FormatLocaleString(comment,MaxTextExtent,"Created by ImageMagick %s",
+    GetMagickVersion((size_t *) NULL));
   DrawComment(WmfDrawingWand,comment);
 
   /* Scale width and height to image */
@@ -751,7 +907,7 @@ static void ipa_device_begin(wmfAPI * API)
           magick_wand=DestroyMagickWand(magick_wand);
           (void) DrawPopPattern(WmfDrawingWand);
           DrawPopDefs(WmfDrawingWand);
-          (void) FormatMagickString(pattern_id,MaxTextExtent,"#brush_%lu",
+          (void) FormatLocaleString(pattern_id,MaxTextExtent,"#brush_%lu",
             ddata->pattern_id);
           (void) DrawSetFillPatternURL(WmfDrawingWand,pattern_id);
           ++ddata->pattern_id;
@@ -943,7 +1099,7 @@ static void util_draw_arc(wmfAPI * API,
       else if (finish == magick_arc_pie)
         {
           DrawPathStart(WmfDrawingWand);
-          DrawPathMoveToAbsolute(WmfDrawingWand, XC(O.x+start.x), 
+          DrawPathMoveToAbsolute(WmfDrawingWand, XC(O.x+start.x),
             YC(O.y+start.y));
           DrawPathEllipticArcAbsolute(WmfDrawingWand, Rx, Ry, 0, MagickFalse,
             MagickTrue, XC(O.x+end.x), YC(O.y+end.y));
@@ -955,7 +1111,7 @@ static void util_draw_arc(wmfAPI * API,
         {
           DrawArc(WmfDrawingWand, XC(draw_arc->TL.x), YC(draw_arc->TL.y),
             XC(draw_arc->BR.x), XC(draw_arc->BR.y), phi_s, phi_e);
-          DrawLine(WmfDrawingWand, XC(draw_arc->BR.x-start.x), 
+          DrawLine(WmfDrawingWand, XC(draw_arc->BR.x-start.x),
             YC(draw_arc->BR.y-start.y), XC(draw_arc->BR.x-end.x),
             YC(draw_arc->BR.y-end.y));
         }
@@ -1199,7 +1355,7 @@ static void ipa_region_clip(wmfAPI *API, wmfPolyRectangle_t *poly_rect)
       /* Define clip path */
       ddata->clip_mask_id++;
       DrawPushDefs(WmfDrawingWand);
-      (void) FormatMagickString(clip_mask_id,MaxTextExtent,"clip_%lu",
+      (void) FormatLocaleString(clip_mask_id,MaxTextExtent,"clip_%lu",
         ddata->clip_mask_id);
       DrawPushClipPath(WmfDrawingWand,clip_mask_id);
       (void) PushDrawingWand(WmfDrawingWand);
@@ -1343,6 +1499,8 @@ static void ipa_draw_text(wmfAPI * API, wmfDrawText_t * draw_text)
   /* Save graphic wand */
   (void) PushDrawingWand(WmfDrawingWand);
 
+  (void) bbox_width;
+  (void) bbox_height;
 #if 0
   printf("\nipa_draw_text\n");
   printf("Text                    = \"%s\"\n", draw_text->str);
@@ -1681,7 +1839,7 @@ static void util_set_brush(wmfAPI * API, wmfDC * dc, const BrushApply brush_appl
           char
             pattern_id[30];
 
-          (void) FormatMagickString(pattern_id,MaxTextExtent,"#brush_%lu",
+          (void) FormatLocaleString(pattern_id,MaxTextExtent,"#brush_%lu",
             ddata->pattern_id);
           if (brush_apply == BrushApplyStroke )
             (void) DrawSetStrokePatternURL(WmfDrawingWand,pattern_id);
@@ -1799,7 +1957,7 @@ static void util_set_brush(wmfAPI * API, wmfDC * dc, const BrushApply brush_appl
               char
                 pattern_id[30];
 
-              (void) FormatMagickString(pattern_id,MaxTextExtent,"#brush_%lu",
+              (void) FormatLocaleString(pattern_id,MaxTextExtent,"#brush_%lu",
                 ddata->pattern_id);
 
               if ( brush_apply == BrushApplyStroke )
@@ -1874,6 +2032,7 @@ static void util_set_pen(wmfAPI * API, wmfDC * dc)
 
   pen_style = (unsigned int) WMF_PEN_STYLE(pen);
   pen_type = (unsigned int) WMF_PEN_TYPE(pen);
+  (void) pen_type;
 
   /* Pen style specified? */
   if (pen_style == PS_NULL)
@@ -2108,6 +2267,7 @@ static int util_font_weight( const char* font )
  */
 static float lite_font_stringwidth( wmfAPI* API, wmfFont* font, char* str)
 {
+#if 0
   wmf_magick_t
     *ddata = WMF_MAGICK_GetData(API);
 
@@ -2168,18 +2328,46 @@ static float lite_font_stringwidth( wmfAPI* API, wmfFont* font, char* str)
   image->units = orig_resolution_units;
 
   return stringwidth;
+#else
+  (void) API;
+  (void) font;
+  (void) str;
+
+  return 0;
+#endif
 }
 
 /* Map font (similar to wmf_ipa_font_map) */
 
 /* Mappings to Postscript fonts: family, normal, italic, bold, bolditalic */
 static wmfFontMap WMFFontMap[] = {
-  { (char *) "Courier",            (char *) "Courier",     (char *) "Courier-Oblique",   (char *) "Courier-Bold", (char *) "Courier-BoldOblique"   },   { (char *) "Helvetica",          (char *) "Helvetica",   (char *) "Helvetica-Oblique", (char *) "Helvetica-Bold", (char *) "Helvetica-BoldOblique" },   { (char *) "Modern",             (char *) "Courier",     (char *) "Courier-Oblique",   (char *) "Courier-Bold", (char *) "Courier-BoldOblique"   },   { (char *) "Monotype Corsiva",   (char *) "Courier",     (char *) "Courier-Oblique",   (char *) "Courier-Bold", (char *) "Courier-BoldOblique"   },
-  { (char *) "News Gothic",        (char *) "Helvetica",   (char *) "Helvetica-Oblique", (char *) "Helvetica-Bold", (char *) "Helvetica-BoldOblique" },
-  { (char *) "Symbol",             (char *) "Symbol",      (char *) "Symbol",            (char *) "Symbol", (char *) "Symbol"                },
-  { (char *) "System",             (char *) "Courier",     (char *) "Courier-Oblique",   (char *) "Courier-Bold", (char *) "Courier-BoldOblique"   },
-  { (char *) "Times",              (char *) "Times-Roman", (char *) "Times-Italic",      (char *) "Times-Bold", (char *) "Times-BoldItalic"      },
-  {  (char *) NULL,                (char *) NULL,           (char *) NULL,               (char *) NULL,  (char *) NULL                   }
+  { (char *) "Courier",            (char *) "Courier",
+    (char *) "Courier-Oblique",    (char *) "Courier-Bold",
+    (char *) "Courier-BoldOblique"   },
+  { (char *) "Helvetica",          (char *) "Helvetica",
+    (char *) "Helvetica-Oblique",  (char *) "Helvetica-Bold",
+    (char *) "Helvetica-BoldOblique" },
+  { (char *) "Modern",             (char *) "Courier",
+    (char *) "Courier-Oblique",    (char *) "Courier-Bold",
+    (char *) "Courier-BoldOblique"   },
+  { (char *) "Monotype Corsiva",   (char *) "Courier",
+    (char *) "Courier-Oblique",    (char *) "Courier-Bold",
+    (char *) "Courier-BoldOblique"   },
+  { (char *) "News Gothic",        (char *) "Helvetica",
+    (char *) "Helvetica-Oblique",  (char *) "Helvetica-Bold",
+    (char *) "Helvetica-BoldOblique" },
+  { (char *) "Symbol",             (char *) "Symbol",
+    (char *) "Symbol",             (char *) "Symbol",
+    (char *) "Symbol"                },
+  { (char *) "System",             (char *) "Courier",
+    (char *) "Courier-Oblique",    (char *) "Courier-Bold",
+    (char *) "Courier-BoldOblique"   },
+  { (char *) "Times",              (char *) "Times-Roman",
+    (char *) "Times-Italic",       (char *) "Times-Bold",
+    (char *) "Times-BoldItalic"      },
+  { (char *) NULL,                 (char *) NULL,
+    (char *) NULL,                 (char *) NULL,
+    (char *) NULL                   }
 };
 
 
@@ -2375,15 +2563,8 @@ static long ipa_blob_tell(void* wand)
   return (long)TellBlob((Image*)wand);
 }
 
-static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * exception)
+static Image *ReadWMFImage(const ImageInfo *image_info,ExceptionInfo *exception)
 {
-  Image
-    *image;
-
-  float
-    wmf_width,
-    wmf_height;
-
   double
     bounding_height,
     bounding_width,
@@ -2394,6 +2575,13 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
     resolution_y,
     resolution_x,
     units_per_inch;
+
+  float
+    wmf_width,
+    wmf_height;
+
+  Image
+    *image;
 
   unsigned long
     wmf_options_flags = 0;
@@ -2413,7 +2601,7 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
   wmfD_Rect
     bbox;
 
-  image = AcquireImage(image_info);
+  image=AcquireImage(image_info);
   if (OpenBlob(image_info,image,ReadBinaryBlobMode,exception) == MagickFalse)
     {
       if (image->debug != MagickFalse)
@@ -2458,13 +2646,14 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
   /* Register progress monitor */
   wmf_status_function(API,image,magick_progress_callback);
 
-  ddata = WMF_MAGICK_GetData(API);
-  ddata->image = image;
-  ddata->image_info = image_info;
-  ddata->draw_info = CloneDrawInfo((const ImageInfo *) NULL, (const DrawInfo *) NULL);
-  RelinquishMagickMemory(ddata->draw_info->font);
-  RelinquishMagickMemory(ddata->draw_info->text);
-
+  ddata=WMF_MAGICK_GetData(API);
+  ddata->image=image;
+  ddata->image_info=image_info;
+  ddata->draw_info=CloneDrawInfo(image_info,(const DrawInfo *) NULL);
+  ddata->draw_info->font=(char *)
+    RelinquishMagickMemory(ddata->draw_info->font);
+  ddata->draw_info->text=(char *)
+    RelinquishMagickMemory(ddata->draw_info->text);
 
 #if defined(MAGICKCORE_WMFLITE_DELEGATE)
   /* Must initialize font subystem for WMFlite interface */
@@ -2478,7 +2667,7 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
    *
    */
   wmf_error = wmf_bbuf_input(API,ipa_blob_read,ipa_blob_seek,
-                             ipa_blob_tell,(void*)image);
+    ipa_blob_tell,(void*)image);
   if (wmf_error != wmf_E_None)
     {
       wmf_api_destroy(API);
@@ -2502,7 +2691,7 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
   if (image->debug != MagickFalse)
     (void) LogMagickEvent(CoderEvent,GetMagickModule(),
       "  Scanning WMF to obtain bounding box");
-  wmf_error = wmf_scan(API, 0, &bbox);
+  wmf_error=wmf_scan(API, 0, &bbox);
   if (wmf_error != wmf_E_None)
     {
       wmf_api_destroy(API);
@@ -2521,19 +2710,18 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
    *
    */
 
-  ddata->bbox = bbox;
+  ddata->bbox=bbox;
 
   /* User specified resolution */
   resolution_y=DefaultResolution;
-  if (image->y_resolution > 0)
+  if (image->y_resolution != 0.0)
     {
       resolution_y = image->y_resolution;
       if (image->units == PixelsPerCentimeterResolution)
         resolution_y *= CENTIMETERS_PER_INCH;
     }
-
   resolution_x=DefaultResolution;
-  if (image->x_resolution > 0)
+  if (image->x_resolution != 0.0)
     {
       resolution_x = image->x_resolution;
       if (image->units == PixelsPerCentimeterResolution)
@@ -2541,7 +2729,7 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
     }
 
   /* Obtain output size expressed in metafile units */
-  wmf_error = wmf_size(API, &wmf_width, &wmf_height);
+  wmf_error=wmf_size(API,&wmf_width,&wmf_height);
   if (wmf_error != wmf_E_None)
     {
       wmf_api_destroy(API);
@@ -2557,11 +2745,11 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
 
   /* Obtain (or guess) metafile units */
   if ((API)->File->placeable)
-    units_per_inch = (API)->File->pmh->Inch;
+    units_per_inch=(API)->File->pmh->Inch;
   else if ( (wmf_width*wmf_height) < 1024*1024)
-    units_per_inch = POINTS_PER_INCH;  /* MM_TEXT */
+    units_per_inch=POINTS_PER_INCH;  /* MM_TEXT */
   else
-    units_per_inch = TWIPS_PER_INCH;  /* MM_TWIPS */
+    units_per_inch=TWIPS_PER_INCH;  /* MM_TWIPS */
 
   /* Calculate image width and height based on specified DPI
      resolution */
@@ -2688,36 +2876,17 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
     }
   if (image->debug != MagickFalse)
     (void) LogMagickEvent(CoderEvent,GetMagickModule(),
-       "  Creating canvas image with size %ldx%ld",
-       image->rows,image->columns);
+       "  Creating canvas image with size %lux%lu",(unsigned long) image->rows,
+       (unsigned long) image->columns);
 
   /*
    * Set solid background color
    */
   {
-    unsigned long
-      column,
-      row;
-
-    PixelPacket
-      *pixel,
-      background_color;
-
-    background_color = image_info->background_color;
-    image->background_color = background_color;
-    if (background_color.opacity != OpaqueOpacity)
+    image->background_color = image_info->background_color;
+    if (image->background_color.opacity != OpaqueOpacity)
       image->matte = MagickTrue;
-
-    for (row=0; row < image->rows; row++)
-      {
-        pixel=QueueAuthenticPixels(image,0,row,image->columns,1,exception);
-        if (pixel == (PixelPacket *) NULL)
-          break;
-        for (column=image->columns; column; column--)
-          *pixel++ = background_color;
-        if (SyncAuthenticPixels(image,exception) == MagickFalse)
-          break;
-      }
+    (void) SetImageBackgroundColor(image);
   }
   /*
    * Play file to generate Vector drawing commands
@@ -2752,11 +2921,6 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
       "  Rendering WMF vectors");
   DrawRender(ddata->draw_wand);
 
-  /* Check for and report any rendering error */
-  if (image->exception.severity != UndefinedException)
-    (void) ThrowMagickException(exception,GetMagickModule(),CoderWarning,
-      ddata->image->exception.reason,"`%s'",ddata->image->exception.description);
-
   if (image->debug != MagickFalse)
     (void) LogMagickEvent(CoderEvent,GetMagickModule(),"leave ReadWMFImage()");
 
@@ -2767,8 +2931,7 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
   /* Return image */
   return image;
 }
-/* #endif */
-#endif /* MAGICKCORE_WMF_DELEGATE || MAGICKCORE_WMFLITE_DELEGATE */
+#endif
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2790,10 +2953,10 @@ static Image *ReadWMFImage(const ImageInfo * image_info, ExceptionInfo * excepti
 %
 %  The format of the RegisterWMFImage method is:
 %
-%      unsigned long RegisterWMFImage(void)
+%      size_t RegisterWMFImage(void)
 %
 */
-ModuleExport unsigned long RegisterWMFImage(void)
+ModuleExport size_t RegisterWMFImage(void)
 {
   MagickInfo
     *entry;
@@ -2803,17 +2966,14 @@ ModuleExport unsigned long RegisterWMFImage(void)
   entry->decoder=ReadWMFImage;
 #endif
   entry->description=ConstantString("Compressed Windows Meta File");
-  entry->blob_support=MagickTrue;
-  entry->seekable_stream=MagickTrue;
   entry->module=ConstantString("WMZ");
+  entry->seekable_stream=MagickTrue;
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("WMF");
 #if defined(MAGICKCORE_WMF_DELEGATE) || defined(MAGICKCORE_WMFLITE_DELEGATE)
   entry->decoder=ReadWMFImage;
 #endif
   entry->description=ConstantString("Windows Meta File");
-  entry->blob_support=MagickTrue;
-  entry->seekable_stream=MagickTrue;
   entry->module=ConstantString("WMF");
   (void) RegisterMagickInfo(entry);
   return(MagickImageCoderSignature);

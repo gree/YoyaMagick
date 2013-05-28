@@ -38,8 +38,8 @@
         <message name="CacheResourcesExhausted">
           Ressources du cache épuisées
         </message>
-        <message name="InconsistentPersistentCacheDepth">
-          profondeur du cache persistant inconsistante
+        <message name="IncompatibleAPI">
+          incompatible API
         </message>
         <message name="NoPixelsDefinedInCache">
           pas de pixels définis dans le cache
@@ -67,6 +67,9 @@
         </message>
         <message name="UnableToReadPixelCache">
           impossible de lire le cache pixels
+        </message>
+        <message name="UnableToWritePixelCache">
+          impossible d'écrire le cache pixels
         </message>
       </error>
       <fatalerror>
@@ -267,6 +270,9 @@
           <message name="MaximumChannelsExceeded">
             maximum de canals dépassent les
           </message>
+          <message name="MissingImageChannel">
+            absence l'image canel
+          </message>
           <message name="NegativeOrZeroImageSize">
             Taille d'image négative ou nulle
           </message>
@@ -325,6 +331,12 @@
           </message>
         </fatalerror>
         <warning>
+          <message name="InsufficientImageDataInFile">
+            Pas assez de données d'image dans le fichier
+          </message>
+          <message name="LengthAndFilesizeDoNotMatch">
+            Longueur et taille du fichier ne correspondent pas
+          </message>
           <message name="SkipToSyncByte">
             Image PCD corrompue, saut à l'octet de synchronisation
           </message>
@@ -540,6 +552,9 @@
           <message name="DelegateLibrarySupportNotBuiltIn">
             delegate library support not built-in
           </message>
+          <message name="NoEncodeDelegateForThisImageFormat">
+            pas de délégué pour encoder ce format d'image
+          </message>
         </warning>
       </delegate>
     </missing>
@@ -591,9 +606,6 @@
         </message>
         <message name="ImageSizeMustExceedBevelWidth">
           la taille doit être supérieure à la largeur de la facette
-        </message>
-        <message name="ImageSmallerThanRadius">
-          image plus petite que le rayon
         </message>
         <message name="ImageWidthsOrHeightsDiffer">
           différences dans la hauteur ou la largeur de l'image
@@ -670,11 +682,20 @@
         <message name="SubimageSpecificationReturnsNoImages">
           la spécification de sous-image ne permet pas de fournir des images
         </message>
+        <message name="UnableToAccessPath">
+          incapables d'accéder chemin du fichier
+        </message>
         <message name="UnableToOpenFile">
           impossible d'ouvrir le fichier
         </message>
         <message name="UnableToParseExpression">
           impossible d'analyser l'expression
+        </message>
+        <message name="UnableToParseKernel">
+          impossible d'analyser l'kernel string
+        </message>
+        <message name="UnbalancedBraces">
+          brace non fermée
         </message>
         <message name="UnbalancedParenthesis">
           parenthèse non fermée
@@ -736,11 +757,17 @@
         <message name="UnrecognizedImageMode">
           mode d'image non reconnu
         </message>
+        <message name="UnrecognizedMorphologyMethod">
+          morphology method d'image non reconnu
+        </message>
         <message name="UnrecognizedImageOrientation">
           orientation d'image non reconnue
         </message>
         <message name="UnrecognizedImageType">
           type d'image non reconnu
+        </message>
+        <message name="UnrecognizedIntensityMethod">
+          unrecognized intensity method
         </message>
         <message name="UnrecognizedIntentType">
           type de gestion des couleurs de l'image non reconnu
@@ -750,6 +777,9 @@
         </message>
         <message name="UnrecognizedInterpolateMethod">
           méthode d'interpolation non reconnnue
+        </message>
+        <message name="UnrecognizedKernelType">
+          type de kernel non reconnnue
         </message>
         <message name="UnrecognizedListType">
           type de liste non reconnu
@@ -816,7 +846,7 @@
         <message name="MissingAnImageFilename">
           nom de fichier d'image absent
         </message>
-        <message name="TruncatedFilename">
+        <message name="FilenameTruncated">
           image filename truncated
         </message>
         <message name="UnrecognizedColormapType">
@@ -859,6 +889,9 @@
         </message>
         <message name="NoSuchElement">
           élément absent de la liste
+        </message>
+        <message name="UnknownImageProperty">
+          image propriété non reconnus
         </message>
         <message name="UnrecognizedColor">
           couleur non reconnue

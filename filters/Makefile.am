@@ -1,4 +1,4 @@
-#  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+#  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
 #  dedicated to making software imaging solutions freely available.
 #
 #  You may not use this file except in compliance with the License.  You may
@@ -21,8 +21,7 @@ MAGICK_FILTER_SRCS = \
 	filters/analyze.c
 
 if WITH_MODULES
-filters_LTLIBRARIES = \
-	filters/analyze.la
+filters_LTLIBRARIES = filters/analyze.la
 else
 filters_LTLIBRARIES =
 endif # WITH_MODULES

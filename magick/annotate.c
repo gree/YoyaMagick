@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -46,9 +46,11 @@
 #include "magick/annotate.h"
 #include "magick/attribute.h"
 #include "magick/cache-view.h"
+#include "magick/channel.h"
 #include "magick/client.h"
 #include "magick/color.h"
 #include "magick/color-private.h"
+#include "magick/colorspace-private.h"
 #include "magick/composite.h"
 #include "magick/composite-private.h"
 #include "magick/constitute.h"
@@ -62,8 +64,10 @@
 #include "magick/log.h"
 #include "magick/quantum.h"
 #include "magick/quantum-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/property.h"
 #include "magick/resource_.h"
+#include "magick/semaphore.h"
 #include "magick/statistic.h"
 #include "magick/string_.h"
 #include "magick/token-private.h"
@@ -72,12 +76,10 @@
 #include "magick/utility.h"
 #include "magick/xwindow-private.h"
 #if defined(MAGICKCORE_FREETYPE_DELEGATE)
-#if defined(__MINGW32__)
+#if defined(__MINGW32__) || defined(__MINGW64__)
 #  undef interface
 #endif
-#if defined(MAGICKCORE_HAVE_FT2BUILD_H)
-#  include <ft2build.h>
-#endif
+#include <ft2build.h>
 #if defined(FT_FREETYPE_H)
 #  include FT_FREETYPE_H
 #else
@@ -101,6 +103,12 @@
 #endif
 
 /*
+  Annotate semaphores.
+*/
+static SemaphoreInfo
+  *annotate_semaphore = (SemaphoreInfo *) NULL;
+
+/*
   Forward declarations.
 */
 static MagickBooleanType
@@ -109,6 +117,55 @@ static MagickBooleanType
   RenderFreetype(Image *,const DrawInfo *,const char *,const PointInfo *,
     TypeMetric *),
   RenderX11(Image *,const DrawInfo *,const PointInfo *,TypeMetric *);
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   A n n o t a t e C o m p o n e n t G e n e s i s                           %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  AnnotateComponentGenesis() instantiates the annotate component.
+%
+%  The format of the AnnotateComponentGenesis method is:
+%
+%      MagickBooleanType AnnotateComponentGenesis(void)
+%
+*/
+MagickExport MagickBooleanType AnnotateComponentGenesis(void)
+{
+  AcquireSemaphoreInfo(&annotate_semaphore);
+  return(MagickTrue);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   A n n o t a t e C o m p o n e n t T e r m i n u s                         %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  AnnotateComponentTerminus() destroys the annotate component.
+%
+%  The format of the AnnotateComponentTerminus method is:
+%
+%      AnnotateComponentTerminus(void)
+%
+*/
+MagickExport void AnnotateComponentTerminus(void)
+{
+  if (annotate_semaphore == (SemaphoreInfo *) NULL)
+    AcquireSemaphoreInfo(&annotate_semaphore);
+  DestroySemaphoreInfo(&annotate_semaphore);
+}
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -181,7 +238,7 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
   RectangleInfo
     geometry;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -190,7 +247,7 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
   TypeMetric
     metrics;
 
-  unsigned long
+  size_t
     height,
     number_lines;
 
@@ -211,7 +268,7 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
   for (i=1; textlist[i] != (char *) NULL; i++)
     if (strlen(textlist[i]) > length)
       length=strlen(textlist[i]);
-  number_lines=(unsigned long) i;
+  number_lines=(size_t) i;
   annotate=CloneDrawInfo((ImageInfo *) NULL,draw_info);
   annotate_info=CloneDrawInfo((ImageInfo *) NULL,draw_info);
   SetGeometry(image,&geometry);
@@ -224,6 +281,8 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
     }
   if (SetImageStorageClass(image,DirectClass) == MagickFalse)
     return(MagickFalse);
+  if (IsGrayColorspace(image->colorspace) != MagickFalse)
+    (void) SetImageColorspace(image,sRGBColorspace);
   status=MagickTrue;
   for (i=0; textlist[i] != (char *) NULL; i++)
   {
@@ -234,7 +293,7 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
     annotate_info->affine.ty=geometry_info.psi-image->page.y;
     (void) CloneString(&annotate->text,textlist[i]);
     (void) GetTypeMetrics(image,annotate,&metrics);
-    height=(long) (metrics.ascent-metrics.descent+
+    height=(ssize_t) (metrics.ascent-metrics.descent+
       draw_info->interline_spacing+0.5);
     switch (annotate->gravity)
     {
@@ -394,15 +453,15 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
         undercolor_info->affine=draw_info->affine;
         undercolor_info->affine.tx=offset.x-draw_info->affine.ry*metrics.ascent;
         undercolor_info->affine.ty=offset.y-draw_info->affine.sy*metrics.ascent;
-        (void) FormatMagickString(primitive,MaxTextExtent,
-          "rectangle 0,0 %g,%lu",metrics.origin.x,height);
+        (void) FormatLocaleString(primitive,MaxTextExtent,
+          "rectangle 0,0 %g,%.20g",metrics.origin.x,(double) height);
         (void) CloneString(&undercolor_info->primitive,primitive);
         (void) DrawImage(image,undercolor_info);
         (void) DestroyDrawInfo(undercolor_info);
       }
     annotate_info->affine.tx=offset.x;
     annotate_info->affine.ty=offset.y;
-    (void) FormatMagickString(primitive,MaxTextExtent,"stroke-width %g "
+    (void) FormatLocaleString(primitive,MaxTextExtent,"stroke-width %g "
       "line 0,0 %g,0",metrics.underline_thickness,metrics.width);
     if (annotate->decorate == OverlineDecoration)
       {
@@ -460,23 +519,28 @@ MagickExport MagickBooleanType AnnotateImage(Image *image,
 %
 %  The format of the FormatMagickCaption method is:
 %
-%      long FormatMagickCaption(Image *image,DrawInfo *draw_info,
-%        TypeMetric *metrics,char **caption)
+%      ssize_t FormatMagickCaption(Image *image,DrawInfo *draw_info,
+%        const MagickBooleanType split,TypeMetric *metrics,char **caption)
 %
 %  A description of each parameter follows.
 %
 %    o image:  The image.
 %
-%    o caption: the caption.
-%
 %    o draw_info: the draw info.
+%
+%    o split: when no convenient line breaks-- insert newline.
 %
 %    o metrics: Return the font metrics in this structure.
 %
+%    o caption: the caption.
+%
 */
-MagickExport long FormatMagickCaption(Image *image,DrawInfo *draw_info,
-  TypeMetric *metrics,char **caption)
+MagickExport ssize_t FormatMagickCaption(Image *image,DrawInfo *draw_info,
+  const MagickBooleanType split,TypeMetric *metrics,char **caption)
 {
+  char
+    *text;
+
   MagickBooleanType
     status;
 
@@ -485,68 +549,66 @@ MagickExport long FormatMagickCaption(Image *image,DrawInfo *draw_info,
     *q,
     *s;
 
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     width;
 
+  ssize_t
+    n;
+
+  text=AcquireString(draw_info->text);
   q=draw_info->text;
   s=(char *) NULL;
   for (p=(*caption); GetUTFCode(p) != 0; p+=GetUTFOctets(p))
   {
     if (IsUTFSpace(GetUTFCode(p)) != MagickFalse)
       s=p;
-    for (i=0; i < (long) GetUTFOctets(p); i++)
+    if (GetUTFCode(p) == '\n')
+      q=draw_info->text;
+    for (i=0; i < (ssize_t) GetUTFOctets(p); i++)
       *q++=(*(p+i));
     *q='\0';
     status=GetTypeMetrics(image,draw_info,metrics);
     if (status == MagickFalse)
       break;
-    width=(unsigned long) (metrics->width+0.5);
-    if (GetUTFCode(p) != '\n')
-      if (width <= image->columns)
-        continue;
-    if (s == (char *) NULL)
-      {
-        s=p;
-        while ((IsUTFSpace(GetUTFCode(s)) == MagickFalse) &&
-               (GetUTFCode(s) != 0))
-          s+=GetUTFOctets(s);
-      }
-    if (GetUTFCode(s) != 0)
+    width=(size_t) floor(metrics->width+metrics->max_advance/2.0+0.5);
+    if ((width <= image->columns) || (strcmp(text,draw_info->text) == 0))
+      continue;
+    (void) strcpy(text,draw_info->text);
+    if ((s != (char *) NULL) && (GetUTFOctets(s) == 1))
       {
         *s='\n';
         p=s;
       }
     else
-      {
-        char
-          *target;
+      if ((s != (char *) NULL) || (split != MagickFalse))
+        {
+          char
+            *target;
 
-        long
-          n;
-
-        /*
-          No convenient line breaks-- insert newline.
-        */
-        target=AcquireString(*caption);
-        n=p-(*caption);
-        CopyMagickString(target,*caption,n+1);
-        ConcatenateMagickString(target,"\n",strlen(*caption)+1);
-        ConcatenateMagickString(target,p,strlen(*caption)+2);
-        (void) DestroyString(*caption);
-        *caption=target;
-        p=(*caption)+n;
-      }
-    s=(char *) NULL;
+          /*
+            No convenient line breaks-- insert newline.
+          */
+          target=AcquireString(*caption);
+          n=p-(*caption);
+          CopyMagickString(target,*caption,n+1);
+          ConcatenateMagickString(target,"\n",strlen(*caption)+1);
+          ConcatenateMagickString(target,p,strlen(*caption)+2);
+          (void) DestroyString(*caption);
+          *caption=target;
+          p=(*caption)+n;
+        }
     q=draw_info->text;
+    s=(char *) NULL;
   }
-  i=0;
+  text=DestroyString(text);
+  n=0;
   for (p=(*caption); GetUTFCode(p) != 0; p+=GetUTFOctets(p))
     if (GetUTFCode(p) == '\n')
-      i++;
-  return(i);
+      n++;
+  return(n);
 }
 
 /*
@@ -608,7 +670,7 @@ MagickExport MagickBooleanType GetMultilineTypeMetrics(Image *image,
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
 
   TypeMetric
@@ -632,6 +694,7 @@ MagickExport MagickBooleanType GetMultilineTypeMetrics(Image *image,
   if (textlist == (char **) NULL)
     return(MagickFalse);
   annotate_info->render=MagickFalse;
+  annotate_info->direction=UndefinedDirection;
   (void) ResetMagickMemory(metrics,0,sizeof(*metrics));
   (void) ResetMagickMemory(&extent,0,sizeof(extent));
   /*
@@ -647,8 +710,8 @@ MagickExport MagickBooleanType GetMultilineTypeMetrics(Image *image,
     if (extent.width > metrics->width)
       *metrics=extent;
   }
-  metrics->height=(double) (i*(unsigned long) (metrics->ascent-
-    metrics->descent+0.5)+(i-1)*draw_info->interline_spacing);
+  metrics->height=(double) (i*(size_t) (metrics->ascent-metrics->descent+0.5)+
+    (i-1)*draw_info->interline_spacing);
   /*
     Relinquish resources.
   */
@@ -725,6 +788,7 @@ MagickExport MagickBooleanType GetTypeMetrics(Image *image,
   assert(draw_info->signature == MagickSignature);
   annotate_info=CloneDrawInfo((ImageInfo *) NULL,draw_info);
   annotate_info->render=MagickFalse;
+  annotate_info->direction=UndefinedDirection;
   (void) ResetMagickMemory(metrics,0,sizeof(*metrics));
   offset.x=0.0;
   offset.y=0.0;
@@ -817,14 +881,22 @@ static MagickBooleanType RenderType(Image *image,const DrawInfo *draw_info,
           TypeWarning,"UnableToReadFont","`%s'",draw_info->family);
     }
   if (type_info == (const TypeInfo *) NULL)
-    type_info=GetTypeInfoByFamily("arial",draw_info->style,
+    type_info=GetTypeInfoByFamily("Arial",draw_info->style,
       draw_info->stretch,draw_info->weight,&image->exception);
   if (type_info == (const TypeInfo *) NULL)
-    type_info=GetTypeInfoByFamily("helvetica",draw_info->style,
+    type_info=GetTypeInfoByFamily("Helvetica",draw_info->style,
+      draw_info->stretch,draw_info->weight,&image->exception);
+  if (type_info == (const TypeInfo *) NULL)
+    type_info=GetTypeInfoByFamily("Century Schoolbook",draw_info->style,
+      draw_info->stretch,draw_info->weight,&image->exception);
+  if (type_info == (const TypeInfo *) NULL)
+    type_info=GetTypeInfoByFamily("Sans",draw_info->style,
       draw_info->stretch,draw_info->weight,&image->exception);
   if (type_info == (const TypeInfo *) NULL)
     type_info=GetTypeInfoByFamily((const char *) NULL,draw_info->style,
       draw_info->stretch,draw_info->weight,&image->exception);
+  if (type_info == (const TypeInfo *) NULL)
+    type_info=GetTypeInfo("*",&image->exception);
   if (type_info == (const TypeInfo *) NULL)
     {
       status=RenderFreetype(image,draw_info,draw_info->encoding,offset,metrics);
@@ -875,6 +947,7 @@ static MagickBooleanType RenderType(Image *image,const DrawInfo *draw_info,
 */
 
 #if defined(MAGICKCORE_FREETYPE_DELEGATE)
+
 static int TraceCubicBezier(FT_Vector *p,FT_Vector *q,FT_Vector *to,
   DrawInfo *draw_info)
 {
@@ -885,7 +958,7 @@ static int TraceCubicBezier(FT_Vector *p,FT_Vector *q,FT_Vector *to,
     path[MaxTextExtent];
 
   affine=draw_info->affine;
-  (void) FormatMagickString(path,MaxTextExtent,
+  (void) FormatLocaleString(path,MaxTextExtent,
     "C%g,%g %g,%g %g,%g",affine.tx+p->x/64.0,affine.ty-
     p->y/64.0,affine.tx+q->x/64.0,affine.ty-q->y/64.0,affine.tx+to->x/64.0,
     affine.ty-to->y/64.0);
@@ -902,7 +975,7 @@ static int TraceLineTo(FT_Vector *to,DrawInfo *draw_info)
     path[MaxTextExtent];
 
   affine=draw_info->affine;
-  (void) FormatMagickString(path,MaxTextExtent,"L%g,%g",affine.tx+
+  (void) FormatLocaleString(path,MaxTextExtent,"L%g,%g",affine.tx+
     to->x/64.0,affine.ty-to->y/64.0);
   (void) ConcatenateString(&draw_info->primitive,path);
   return(0);
@@ -917,7 +990,7 @@ static int TraceMoveTo(FT_Vector *to,DrawInfo *draw_info)
     path[MaxTextExtent];
 
   affine=draw_info->affine;
-  (void) FormatMagickString(path,MaxTextExtent,"M%g,%g",affine.tx+
+  (void) FormatLocaleString(path,MaxTextExtent,"M%g,%g",affine.tx+
     to->x/64.0,affine.ty-to->y/64.0);
   (void) ConcatenateString(&draw_info->primitive,path);
   return(0);
@@ -933,7 +1006,7 @@ static int TraceQuadraticBezier(FT_Vector *control,FT_Vector *to,
     path[MaxTextExtent];
 
   affine=draw_info->affine;
-  (void) FormatMagickString(path,MaxTextExtent,"Q%g,%g %g,%g",
+  (void) FormatLocaleString(path,MaxTextExtent,"Q%g,%g %g,%g",
     affine.tx+control->x/64.0,affine.ty-control->y/64.0,affine.tx+to->x/64.0,
     affine.ty-to->y/64.0);
   (void) ConcatenateString(&draw_info->primitive,path);
@@ -961,6 +1034,9 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
 
   const char
     *value;
+
+  double
+    direction;
 
   DrawInfo
     *annotate_info;
@@ -999,16 +1075,16 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
     glyph,
     last_glyph;
 
-  long
-    code,
-    y;
-
   PointInfo
     point,
     resolution;
 
   register char
     *p;
+
+  ssize_t
+    code,
+    y;
 
   static FT_Outline_Funcs
     OutlineMethods =
@@ -1019,6 +1095,9 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
       (FT_Outline_CubicTo_Func) TraceCubicBezier,
       0, 0
     };
+
+  unsigned char
+    *utf8;
 
   /*
     Initialize Truetype library.
@@ -1036,13 +1115,13 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
     else
       args.pathname=ConstantString(draw_info->font+1);
   face=(FT_Face) NULL;
-  status=FT_Open_Face(library,&args,draw_info->face,&face);
+  status=FT_Open_Face(library,&args,(long) draw_info->face,&face);
   args.pathname=DestroyString(args.pathname);
   if (status != 0)
     {
       (void) FT_Done_FreeType(library);
-      (void) ThrowMagickException(&image->exception,GetMagickModule(),
-        TypeError,"UnableToReadFont","`%s'",draw_info->font);
+      (void) ThrowMagickException(&image->exception,GetMagickModule(),TypeError,
+        "UnableToReadFont","`%s'",draw_info->font);
       return(RenderPostscript(image,draw_info,offset,metrics));
     }
   if ((draw_info->metrics != (char *) NULL) &&
@@ -1127,7 +1206,7 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
   metrics->bounds.y2=metrics->ascent+metrics->descent;
   metrics->underline_position=face->underline_position/64.0;
   metrics->underline_thickness=face->underline_thickness/64.0;
-  if (*draw_info->text == '\0')
+  if ((draw_info->text == (char *) NULL) || (*draw_info->text == '\0'))
     {
       (void) FT_Done_Face(face);
       (void) FT_Done_FreeType(library);
@@ -1144,8 +1223,18 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
       draw_info->encoding != (char *) NULL ? draw_info->encoding : "none",
       draw_info->pointsize);
   flags=FT_LOAD_NO_BITMAP;
+  if (draw_info->text_antialias == MagickFalse)
+    flags|=FT_LOAD_TARGET_MONO;
+  else
+    {
+#if defined(FT_LOAD_TARGET_LIGHT)
+      flags|=FT_LOAD_TARGET_LIGHT;
+#elif defined(FT_LOAD_TARGET_LCD)
+      flags|=FT_LOAD_TARGET_LCD;
+#endif
+    }
   value=GetImageProperty(image,"type:hinting");
-  if (LocaleCompare(value,"off") == 0)
+  if ((value != (const char *) NULL) && (LocaleCompare(value,"off") == 0))
     flags|=FT_LOAD_NO_HINTING;
   glyph.id=0;
   glyph.image=NULL;
@@ -1173,370 +1262,208 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
       if (image->matte == MagickFalse)
         (void) SetImageAlphaChannel(image,OpaqueAlphaChannel);
     }
+  direction=1.0;
+  if (draw_info->direction == RightToLeftDirection)
+    direction=(-1.0);
   point.x=0.0;
   point.y=0.0;
-  code=0;
   for (p=draw_info->text; GetUTFCode(p) != 0; p+=GetUTFOctets(p))
     if (GetUTFCode(p) < 0)
       break;
+  utf8=(unsigned char *) NULL;
   if (GetUTFCode(p) == 0)
-    for (p=draw_info->text; GetUTFCode(p) != 0; p+=GetUTFOctets(p))
-    {
-      /*
-        Render UTF-8 sequence.
-      */
-      glyph.id=FT_Get_Char_Index(face,GetUTFCode(p));
-      if (glyph.id == 0)
-        glyph.id=FT_Get_Char_Index(face,'?');
-      if ((glyph.id != 0) && (last_glyph.id != 0))
-        {
-          if (draw_info->kerning != 0.0)
-            origin.x+=64.0*draw_info->kerning;
-          else
-            if (FT_HAS_KERNING(face))
-              {
-                FT_Vector
-                  kerning;
-
-                status=FT_Get_Kerning(face,last_glyph.id,glyph.id,
-                  ft_kerning_default,&kerning);
-                if (status == 0)
-                  origin.x+=kerning.x;
-              }
-          }
-      glyph.origin=origin;
-      status=FT_Load_Glyph(face,glyph.id,flags);
-      if (status != 0)
-        continue;
-      status=FT_Get_Glyph(face->glyph,&glyph.image);
-      if (status != 0)
-        continue;
-      status=FT_Outline_Get_BBox(&((FT_OutlineGlyph) glyph.image)->outline,
-        &bounds);
-      if (status != 0)
-        continue;
-      if ((p == draw_info->text) || (bounds.xMin < metrics->bounds.x1))
-        metrics->bounds.x1=bounds.xMin;
-      if ((p == draw_info->text) || (bounds.yMin < metrics->bounds.y1))
-        metrics->bounds.y1=bounds.yMin;
-      if ((p == draw_info->text) || (bounds.xMax > metrics->bounds.x2))
-        metrics->bounds.x2=bounds.xMax;
-      if ((p == draw_info->text) || (bounds.yMax > metrics->bounds.y2))
-        metrics->bounds.y2=bounds.yMax;
-      if (draw_info->render != MagickFalse)
-        if ((draw_info->stroke.opacity != TransparentOpacity) ||
-            (draw_info->stroke_pattern != (Image *) NULL))
-          {
-            /*
-              Trace the glyph.
-            */
-            annotate_info->affine.tx=glyph.origin.x/64.0;
-            annotate_info->affine.ty=glyph.origin.y/64.0;
-            (void) FT_Outline_Decompose(&((FT_OutlineGlyph) glyph.image)->
-              outline,&OutlineMethods,annotate_info);
-          }
-      FT_Vector_Transform(&glyph.origin,&affine);
-      (void) FT_Glyph_Transform(glyph.image,&affine,&glyph.origin);
-      status=FT_Glyph_To_Bitmap(&glyph.image,ft_render_mode_normal,
-        (FT_Vector *) NULL,MagickTrue);
-      if (status != 0)
-        continue;
-      bitmap=(FT_BitmapGlyph) glyph.image;
-      point.x=offset->x+bitmap->left;
-      point.y=offset->y-bitmap->top;
-      if (draw_info->render != MagickFalse)
-        {
-          CacheView
-            *image_view;
-
-          ExceptionInfo
-            *exception;
-
-          MagickBooleanType
-            status;
-
-          /*
-            Rasterize the glyph.
-          */
-          status=MagickTrue;
-          exception=(&image->exception);
-          image_view=AcquireCacheView(image);
-          for (y=0; y < (long) bitmap->bitmap.rows; y++)
-          {
-            long
-              x_offset,
-              y_offset;
-
-            MagickBooleanType
-              active,
-              sync;
-
-            MagickRealType
-              fill_opacity;
-
-            PixelPacket
-              fill_color;
-
-            register long
-              x;
-
-            register PixelPacket
-              *restrict q;
-
-            register unsigned char
-              *p;
-
-            if (status == MagickFalse)
-              continue;
-            x_offset=(long) (point.x+0.5);
-            y_offset=(long) (point.y+y+0.5);
-            if ((y_offset < 0) || (y_offset >= (long) image->rows))
-              continue;
-            q=(PixelPacket *) NULL;
-            if ((x_offset < 0) || (x_offset >= (long) image->columns))
-              active=MagickFalse;
-            else
-              {
-                q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,
-                  bitmap->bitmap.width,1,exception);
-                active=q != (PixelPacket *) NULL ? MagickTrue : MagickFalse;
-              }
-            p=bitmap->bitmap.buffer+y*bitmap->bitmap.width;
-            for (x=0; x < (long) bitmap->bitmap.width; x++)
-            {
-              x_offset++;
-              if ((*p == 0) || (x_offset < 0) ||
-                  (x_offset >= (long) image->columns))
-                {
-                  p++;
-                  q++;
-                  continue;
-                }
-              fill_opacity=(MagickRealType) (*p)/(bitmap->bitmap.num_grays-1);
-              if (draw_info->text_antialias == MagickFalse)
-                fill_opacity=fill_opacity >= 0.5 ? 1.0 : 0.0;
-              if (active == MagickFalse)
-                q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,1,1,
-                  exception);
-              if (q == (PixelPacket *) NULL)
-                {
-                  p++;
-                  q++;
-                  continue;
-                }
-              (void) GetFillColor(draw_info,x_offset,y_offset,&fill_color);
-              fill_opacity=QuantumRange-fill_opacity*(QuantumRange-
-                fill_color.opacity);
-              MagickCompositeOver(&fill_color,fill_opacity,q,q->opacity,q);
-              if (active == MagickFalse)
-                {
-                  sync=SyncCacheViewAuthenticPixels(image_view,exception);
-                  if (sync == MagickFalse)
-                    status=MagickFalse;
-                }
-              p++;
-              q++;
-            }
-            sync=SyncCacheViewAuthenticPixels(image_view,exception);
-            if (sync == MagickFalse)
-              status=MagickFalse;
-          }
-          image_view=DestroyCacheView(image_view);
-        }
-      if ((bitmap->left+bitmap->bitmap.width) > metrics->width)
-        metrics->width=bitmap->left+bitmap->bitmap.width;
-      if ((draw_info->interword_spacing != 0.0) &&
-          (IsUTFSpace(GetUTFCode(p)) != MagickFalse) &&
-          (IsUTFSpace(code) == MagickFalse))
-        origin.x+=64.0*draw_info->interword_spacing;
-      else
-        origin.x+=face->glyph->advance.x;
-      metrics->origin.x=origin.x;
-      metrics->origin.y=origin.y;
-      if (last_glyph.id != 0)
-        FT_Done_Glyph(last_glyph.image);
-      last_glyph=glyph;
-      code=GetUTFCode(p);
-    }
+    p=draw_info->text;
   else
-    for (p=draw_info->text; *p != 0; p++)
     {
-      /*
-        Render Latin-1 sequence.
-      */
-      glyph.id=FT_Get_Char_Index(face,(unsigned char) *p);
-      if (glyph.id == 0)
-        glyph.id=FT_Get_Char_Index(face,'?');
-      if ((glyph.id != 0) && (last_glyph.id != 0))
-        {
-          if (draw_info->kerning != 0.0)
-            origin.x+=64.0*draw_info->kerning;
-          else
-            if (FT_HAS_KERNING(face))
-              {
-                FT_Vector
-                  kerning;
-
-                status=FT_Get_Kerning(face,last_glyph.id,glyph.id,
-                  ft_kerning_default,&kerning);
-                if (status == 0)
-                  origin.x+=kerning.x;
-              }
-          }
-      glyph.origin=origin;
-      status=FT_Load_Glyph(face,glyph.id,flags);
-      if (status != 0)
-        continue;
-      status=FT_Get_Glyph(face->glyph,&glyph.image);
-      if (status != 0)
-        continue;
-      status=FT_Outline_Get_BBox(&((FT_OutlineGlyph) glyph.image)->outline,
-        &bounds);
-      if (status != 0)
-        continue;
-      if ((p == draw_info->text) || (bounds.xMin < metrics->bounds.x1))
-        metrics->bounds.x1=bounds.xMin;
-      if ((p == draw_info->text) || (bounds.yMin < metrics->bounds.y1))
-        metrics->bounds.y1=bounds.yMin;
-      if ((p == draw_info->text) || (bounds.xMax > metrics->bounds.x2))
-        metrics->bounds.x2=bounds.xMax;
-      if ((p == draw_info->text) || (bounds.yMax > metrics->bounds.y2))
-        metrics->bounds.y2=bounds.yMax;
-      if (draw_info->render != MagickFalse)
-        if ((draw_info->stroke.opacity != TransparentOpacity) ||
-            (draw_info->stroke_pattern != (Image *) NULL))
-          {
-            /*
-              Trace the glyph.
-            */
-            annotate_info->affine.tx=glyph.origin.x/64.0;
-            annotate_info->affine.ty=glyph.origin.y/64.0;
-            (void) FT_Outline_Decompose(&((FT_OutlineGlyph) glyph.image)->
-              outline,&OutlineMethods,annotate_info);
-          }
-      FT_Vector_Transform(&glyph.origin,&affine);
-      (void) FT_Glyph_Transform(glyph.image,&affine,&glyph.origin);
-      status=FT_Glyph_To_Bitmap(&glyph.image,ft_render_mode_normal,
-        (FT_Vector *) NULL,MagickTrue);
-      if (status != 0)
-        continue;
-      bitmap=(FT_BitmapGlyph) glyph.image;
-      point.x=offset->x+bitmap->left;
-      point.y=offset->y-bitmap->top;
-      if (draw_info->render != MagickFalse)
-        {
-          CacheView
-            *image_view;
-
-          ExceptionInfo
-            *exception;
-
-          MagickBooleanType
-            status;
-
-          /*
-            Rasterize the glyph.
-          */
-          status=MagickTrue;
-          exception=(&image->exception);
-          image_view=AcquireCacheView(image);
-          for (y=0; y < (long) bitmap->bitmap.rows; y++)
-          {
-            long
-              x_offset,
-              y_offset;
-
-            MagickBooleanType
-              active,
-              sync;
-
-            MagickRealType
-              fill_opacity;
-
-            PixelPacket
-              fill_color;
-
-            register long
-              x;
-
-            register PixelPacket
-              *restrict q;
-
-            register unsigned char
-              *p;
-
-            if (status == MagickFalse)
-              continue;
-            x_offset=(long) (point.x+0.5);
-            y_offset=(long) (point.y+y+0.5);
-            if ((y_offset < 0) || (y_offset >= (long) image->rows))
-              continue;
-            q=(PixelPacket *) NULL;
-            if ((x_offset < 0) || (x_offset >= (long) image->columns))
-              active=MagickFalse;
-            else
-              {
-                q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,
-                  bitmap->bitmap.width,1,exception);
-                active=q != (PixelPacket *) NULL ? MagickTrue : MagickFalse;
-              }
-            p=bitmap->bitmap.buffer+y*bitmap->bitmap.width;
-            for (x=0; x < (long) bitmap->bitmap.width; x++)
-            {
-              x_offset++;
-              if ((*p == 0) || (x_offset < 0) ||
-                  (x_offset >= (long) image->columns))
-                {
-                  p++;
-                  q++;
-                  continue;
-                }
-              fill_opacity=(MagickRealType) (*p)/(bitmap->bitmap.num_grays-1);
-              if (draw_info->text_antialias == MagickFalse)
-                fill_opacity=fill_opacity >= 0.5 ? 1.0 : 0.0;
-              if (active == MagickFalse)
-                q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,1,1,
-                  exception);
-              if (q == (PixelPacket *) NULL)
-                {
-                  p++;
-                  q++;
-                  continue;
-                }
-              (void) GetFillColor(draw_info,x_offset,y_offset,&fill_color);
-              fill_opacity=QuantumRange-fill_opacity*(QuantumRange-
-                fill_color.opacity);
-              MagickCompositeOver(&fill_color,fill_opacity,q,q->opacity,q);
-              if (active == MagickFalse)
-                {
-                  sync=SyncCacheViewAuthenticPixels(image_view,exception);
-                  if (sync == MagickFalse)
-                    status=MagickFalse;
-                }
-              p++;
-              q++;
-            }
-            sync=SyncCacheViewAuthenticPixels(image_view,exception);
-            if (sync == MagickFalse)
-              status=MagickFalse;
-          }
-          image_view=DestroyCacheView(image_view);
-        }
-      if ((bitmap->left+bitmap->bitmap.width) > metrics->width)
-        metrics->width=bitmap->left+bitmap->bitmap.width;
-      if ((draw_info->interword_spacing != 0.0) &&
-          (isspace((int) ((unsigned char) *p)) != 0) &&
-          (isspace((int) code) == 0))
-        origin.x+=64.0*draw_info->interword_spacing;
-      else
-        origin.x+=face->glyph->advance.x;
-      metrics->origin.x=origin.x;
-      metrics->origin.y=origin.y;
-      if (last_glyph.id != 0)
-        FT_Done_Glyph(last_glyph.image);
-      last_glyph=glyph;
-      code=(*p);
+      utf8=ConvertLatin1ToUTF8((unsigned char *) draw_info->text);
+      if (utf8 != (unsigned char *) NULL)
+        p=(char *) utf8;
     }
+  for (code=0; GetUTFCode(p) != 0; p+=GetUTFOctets(p))
+  {
+    /*
+      Render UTF-8 sequence.
+    */
+    glyph.id=FT_Get_Char_Index(face,GetUTFCode(p));
+    if (glyph.id == 0)
+      glyph.id=FT_Get_Char_Index(face,'?');
+    if ((glyph.id != 0) && (last_glyph.id != 0))
+      {
+        if (fabs(draw_info->kerning) >= MagickEpsilon)
+          origin.x+=(FT_Pos) (64.0*direction*draw_info->kerning);
+        else
+          if (FT_HAS_KERNING(face))
+            {
+              FT_Vector
+                kerning;
+
+              status=FT_Get_Kerning(face,last_glyph.id,glyph.id,
+                ft_kerning_default,&kerning);
+              if (status == 0)
+                origin.x+=(FT_Pos) (direction*kerning.x);
+            }
+        }
+    glyph.origin=origin;
+    status=FT_Load_Glyph(face,glyph.id,flags);
+    if (status != 0)
+      continue;
+    status=FT_Get_Glyph(face->glyph,&glyph.image);
+    if (status != 0)
+      continue;
+    status=FT_Outline_Get_BBox(&((FT_OutlineGlyph) glyph.image)->outline,
+      &bounds);
+    if (status != 0)
+      continue;
+    if ((p == draw_info->text) || (bounds.xMin < metrics->bounds.x1))
+      metrics->bounds.x1=(double) bounds.xMin;
+    if ((p == draw_info->text) || (bounds.yMin < metrics->bounds.y1))
+      metrics->bounds.y1=(double) bounds.yMin;
+    if ((p == draw_info->text) || (bounds.xMax > metrics->bounds.x2))
+      metrics->bounds.x2=(double) bounds.xMax;
+    if ((p == draw_info->text) || (bounds.yMax > metrics->bounds.y2))
+      metrics->bounds.y2=(double) bounds.yMax;
+    if (draw_info->render != MagickFalse)
+      if ((draw_info->stroke.opacity != TransparentOpacity) ||
+          (draw_info->stroke_pattern != (Image *) NULL))
+        {
+          /*
+            Trace the glyph.
+          */
+          annotate_info->affine.tx=glyph.origin.x/64.0;
+          annotate_info->affine.ty=glyph.origin.y/64.0;
+          (void) FT_Outline_Decompose(&((FT_OutlineGlyph) glyph.image)->
+            outline,&OutlineMethods,annotate_info);
+        }
+    FT_Vector_Transform(&glyph.origin,&affine);
+    (void) FT_Glyph_Transform(glyph.image,&affine,&glyph.origin);
+    status=FT_Glyph_To_Bitmap(&glyph.image,ft_render_mode_normal,
+      (FT_Vector *) NULL,MagickTrue);
+    if (status != 0)
+      continue;
+    bitmap=(FT_BitmapGlyph) glyph.image;
+    point.x=offset->x+bitmap->left;
+    if (bitmap->bitmap.pixel_mode == ft_pixel_mode_mono)
+      point.x=offset->x+(origin.x >> 6);
+    point.y=offset->y-bitmap->top;
+    if (draw_info->render != MagickFalse)
+      {
+        CacheView
+          *image_view;
+
+        ExceptionInfo
+          *exception;
+
+        MagickBooleanType
+          status;
+
+        register unsigned char
+          *p;
+
+        /*
+          Rasterize the glyph.
+        */
+        status=MagickTrue;
+        exception=(&image->exception);
+        p=bitmap->bitmap.buffer;
+        image_view=AcquireAuthenticCacheView(image,exception);
+        for (y=0; y < (ssize_t) bitmap->bitmap.rows; y++)
+        {
+          MagickBooleanType
+            active,
+            sync;
+
+          MagickRealType
+            fill_opacity;
+
+          PixelPacket
+            fill_color;
+
+          register PixelPacket
+            *restrict q;
+
+          register ssize_t
+            x;
+
+          ssize_t
+            n,
+            x_offset,
+            y_offset;
+
+          if (status == MagickFalse)
+            continue;
+          x_offset=(ssize_t) ceil(point.x-0.5);
+          y_offset=(ssize_t) ceil(point.y+y-0.5);
+          if ((y_offset < 0) || (y_offset >= (ssize_t) image->rows))
+            continue;
+          q=(PixelPacket *) NULL;
+          if ((x_offset < 0) || (x_offset >= (ssize_t) image->columns))
+            active=MagickFalse;
+          else
+            {
+              q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,
+                bitmap->bitmap.width,1,exception);
+              active=q != (PixelPacket *) NULL ? MagickTrue : MagickFalse;
+            }
+          n=y*bitmap->bitmap.pitch-1;
+          for (x=0; x < (ssize_t) bitmap->bitmap.width; x++)
+          {
+            n++;
+            x_offset++;
+            if ((x_offset < 0) || (x_offset >= (ssize_t) image->columns))
+              {
+                q++;
+                continue;
+              }
+            if (bitmap->bitmap.pixel_mode != ft_pixel_mode_mono)
+              fill_opacity=(MagickRealType) (p[n])/(bitmap->bitmap.num_grays-1);
+            else
+              fill_opacity=((p[(x >> 3)+y*bitmap->bitmap.pitch] &
+                (1 << (~x & 0x07)))) == 0 ? 0.0 : 1.0;
+            if (draw_info->text_antialias == MagickFalse)
+              fill_opacity=fill_opacity >= 0.5 ? 1.0 : 0.0;
+            if (active == MagickFalse)
+              q=GetCacheViewAuthenticPixels(image_view,x_offset,y_offset,1,1,
+                exception);
+            if (q == (PixelPacket *) NULL)
+              {
+                q++;
+                continue;
+              }
+            (void) GetFillColor(draw_info,x_offset,y_offset,&fill_color);
+            fill_opacity=QuantumRange-fill_opacity*(QuantumRange-
+              fill_color.opacity);
+            MagickCompositeOver(&fill_color,fill_opacity,q,q->opacity,q);
+            if (active == MagickFalse)
+              {
+                sync=SyncCacheViewAuthenticPixels(image_view,exception);
+                if (sync == MagickFalse)
+                  status=MagickFalse;
+              }
+            q++;
+          }
+          sync=SyncCacheViewAuthenticPixels(image_view,exception);
+          if (sync == MagickFalse)
+            status=MagickFalse;
+        }
+        image_view=DestroyCacheView(image_view);
+      }
+    if ((bitmap->left+bitmap->bitmap.width) > metrics->width)
+      metrics->width=bitmap->left+bitmap->bitmap.width;
+    if ((fabs(draw_info->interword_spacing) >= MagickEpsilon) &&
+        (IsUTFSpace(GetUTFCode(p)) != MagickFalse) &&
+        (IsUTFSpace(code) == MagickFalse))
+      origin.x+=(FT_Pos) (64.0*direction*draw_info->interword_spacing);
+    else
+      origin.x+=(FT_Pos) (direction*face->glyph->advance.x);
+    metrics->origin.x=(double) origin.x;
+    metrics->origin.y=(double) origin.y;
+    if (last_glyph.id != 0)
+      FT_Done_Glyph(last_glyph.image);
+    last_glyph=glyph;
+    code=GetUTFCode(p);
+  }
+  if (utf8 != (unsigned char *) NULL)
+    utf8=(unsigned char *) RelinquishMagickMemory(utf8);
   if (last_glyph.id != 0)
     FT_Done_Glyph(last_glyph.image);
   if ((draw_info->stroke.opacity != TransparentOpacity) ||
@@ -1565,8 +1492,8 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
       status=FT_Get_Glyph(face->glyph,&glyph.image);
       if (status == 0)
         {
-          status=FT_Outline_Get_BBox(&((FT_OutlineGlyph) glyph.image)->
-            outline,&bounds);
+          status=FT_Outline_Get_BBox(&((FT_OutlineGlyph) glyph.image)->outline,
+            &bounds);
           if (status == 0)
             {
               FT_Vector_Transform(&glyph.origin,&affine);
@@ -1578,10 +1505,10 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
                 metrics->width=bitmap->left;
             }
         }
-      if (glyph.id != 0)
-        FT_Done_Glyph(glyph.image);
+      FT_Done_Glyph(glyph.image);
     }
   metrics->width-=metrics->bounds.x1/64.0;
+  metrics->width+=annotate_info->stroke_width;
   metrics->bounds.x1/=64.0;
   metrics->bounds.y1/=64.0;
   metrics->bounds.x2/=64.0;
@@ -1603,7 +1530,7 @@ static MagickBooleanType RenderFreetype(Image *image,const DrawInfo *draw_info,
 {
   (void) ThrowMagickException(&image->exception,GetMagickModule(),
     MissingDelegateWarning,"DelegateLibrarySupportNotBuiltIn","`%s' (Freetype)",
-    draw_info->font);
+    draw_info->font != (char *) NULL ? draw_info->font : "none");
   return(RenderPostscript(image,draw_info,offset,metrics));
 }
 #endif
@@ -1654,7 +1581,7 @@ static char *EscapeParenthesis(const char *text)
   register char
     *p;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -1663,7 +1590,7 @@ static char *EscapeParenthesis(const char *text)
   escapes=0;
   buffer=AcquireString(text);
   p=buffer;
-  for (i=0; i < (long) MagickMin(strlen(text),MaxTextExtent-escapes-1); i++)
+  for (i=0; i < (ssize_t) MagickMin(strlen(text),MaxTextExtent-escapes-1); i++)
   {
     if ((text[i] == '(') || (text[i] == ')'))
       {
@@ -1696,9 +1623,6 @@ static MagickBooleanType RenderPostscript(Image *image,
   int
     unique_file;
 
-  long
-    y;
-
   MagickBooleanType
     identity;
 
@@ -1707,8 +1631,14 @@ static MagickBooleanType RenderPostscript(Image *image,
     point,
     resolution;
 
-  register long
+  register ssize_t
     i;
+
+  size_t
+    length;
+
+  ssize_t
+    y;
 
   /*
     Render label with a Postscript font.
@@ -1727,24 +1657,25 @@ static MagickBooleanType RenderPostscript(Image *image,
         filename);
       return(MagickFalse);
     }
-  (void) fprintf(file,"%%!PS-Adobe-3.0\n");
-  (void) fprintf(file,"/ReencodeType\n");
-  (void) fprintf(file,"{\n");
-  (void) fprintf(file,"  findfont dup length\n");
-  (void) fprintf(file,
+  (void) FormatLocaleFile(file,"%%!PS-Adobe-3.0\n");
+  (void) FormatLocaleFile(file,"/ReencodeType\n");
+  (void) FormatLocaleFile(file,"{\n");
+  (void) FormatLocaleFile(file,"  findfont dup length\n");
+  (void) FormatLocaleFile(file,
     "  dict begin { 1 index /FID ne {def} {pop pop} ifelse } forall\n");
-  (void) fprintf(file,
+  (void) FormatLocaleFile(file,
     "  /Encoding ISOLatin1Encoding def currentdict end definefont pop\n");
-  (void) fprintf(file,"} bind def\n");
+  (void) FormatLocaleFile(file,"} bind def\n");
   /*
     Sample to compute bounding box.
   */
-  identity=(draw_info->affine.sx == draw_info->affine.sy) &&
-    (draw_info->affine.rx == 0.0) && (draw_info->affine.ry == 0.0) ?
-    MagickTrue : MagickFalse;
+  identity=(fabs(draw_info->affine.sx-draw_info->affine.sy) < MagickEpsilon) &&
+    (fabs(draw_info->affine.rx) < MagickEpsilon) &&
+    (fabs(draw_info->affine.ry) < MagickEpsilon) ? MagickTrue : MagickFalse;
   extent.x=0.0;
   extent.y=0.0;
-  for (i=0; i <= (long) (strlen(draw_info->text)+2); i++)
+  length=strlen(draw_info->text);
+  for (i=0; i <= (ssize_t) (length+2); i++)
   {
     point.x=fabs(draw_info->affine.sx*i*draw_info->pointsize+
       draw_info->affine.ry*2.0*draw_info->pointsize);
@@ -1755,31 +1686,33 @@ static MagickBooleanType RenderPostscript(Image *image,
     if (point.y > extent.y)
       extent.y=point.y;
   }
-  (void) fprintf(file,"%g %g moveto\n",identity  != MagickFalse ? 0.0 :
+  (void) FormatLocaleFile(file,"%g %g moveto\n",identity  != MagickFalse ? 0.0 :
     extent.x/2.0,extent.y/2.0);
-  (void) fprintf(file,"%g %g scale\n",draw_info->pointsize,
+  (void) FormatLocaleFile(file,"%g %g scale\n",draw_info->pointsize,
     draw_info->pointsize);
   if ((draw_info->font == (char *) NULL) || (*draw_info->font == '\0') ||
       (strchr(draw_info->font,'/') != (char *) NULL))
-    (void) fprintf(file,
+    (void) FormatLocaleFile(file,
       "/Times-Roman-ISO dup /Times-Roman ReencodeType findfont setfont\n");
   else
-    (void) fprintf(file,"/%s-ISO dup /%s ReencodeType findfont setfont\n",
-      draw_info->font,draw_info->font);
-  (void) fprintf(file,"[%g %g %g %g 0 0] concat\n",
+    (void) FormatLocaleFile(file,
+      "/%s-ISO dup /%s ReencodeType findfont setfont\n",draw_info->font,
+      draw_info->font);
+  (void) FormatLocaleFile(file,"[%g %g %g %g 0 0] concat\n",
     draw_info->affine.sx,-draw_info->affine.rx,-draw_info->affine.ry,
     draw_info->affine.sy);
   text=EscapeParenthesis(draw_info->text);
   if (identity == MagickFalse)
-    (void) fprintf(file,"(%s) stringwidth pop -0.5 mul -0.5 rmoveto\n",text);
-  (void) fprintf(file,"(%s) show\n",text);
+    (void) FormatLocaleFile(file,"(%s) stringwidth pop -0.5 mul -0.5 rmoveto\n",
+      text);
+  (void) FormatLocaleFile(file,"(%s) show\n",text);
   text=DestroyString(text);
-  (void) fprintf(file,"showpage\n");
+  (void) FormatLocaleFile(file,"showpage\n");
   (void) fclose(file);
-  (void) FormatMagickString(geometry,MaxTextExtent,"%ldx%ld+0+0!",(long)
-    (extent.x+0.5),(long) (extent.y+0.5));
+  (void) FormatLocaleString(geometry,MaxTextExtent,"%.20gx%.20g+0+0!",
+    floor(extent.x+0.5),floor(extent.y+0.5));
   annotate_info=AcquireImageInfo();
-  (void) FormatMagickString(annotate_info->filename,MaxTextExtent,"ps:%s",
+  (void) FormatLocaleString(annotate_info->filename,MaxTextExtent,"ps:%s",
     filename);
   (void) CloneString(&annotate_info->page,geometry);
   if (draw_info->density != (char *) NULL)
@@ -1815,11 +1748,13 @@ static MagickBooleanType RenderPostscript(Image *image,
         crop_info;
 
       crop_info=GetImageBoundingBox(annotate_image,&annotate_image->exception);
-      crop_info.height=(unsigned long) ((resolution.y/DefaultResolution)*
+      crop_info.height=(size_t) ((resolution.y/DefaultResolution)*
         ExpandAffine(&draw_info->affine)*draw_info->pointsize+0.5);
-      crop_info.y=(long) ((resolution.y/DefaultResolution)*extent.y/8.0+0.5);
-      (void) FormatMagickString(geometry,MaxTextExtent,"%lux%lu%+ld%+ld",
-        crop_info.width,crop_info.height,crop_info.x,crop_info.y);
+      crop_info.y=(ssize_t) ceil((resolution.y/DefaultResolution)*extent.y/8.0-
+        0.5);
+      (void) FormatLocaleString(geometry,MaxTextExtent,
+        "%.20gx%.20g%+.20g%+.20g",(double) crop_info.width,(double)
+        crop_info.height,(double) crop_info.x,(double) crop_info.y);
       (void) TransformImage(&annotate_image,geometry,(char *) NULL);
     }
   metrics->pixels_per_em.x=(resolution.y/DefaultResolution)*
@@ -1865,10 +1800,10 @@ static MagickBooleanType RenderPostscript(Image *image,
         (void) SetImageAlphaChannel(annotate_image,OpaqueAlphaChannel);
       fill_color=draw_info->fill;
       exception=(&image->exception);
-      annotate_view=AcquireCacheView(annotate_image);
-      for (y=0; y < (long) annotate_image->rows; y++)
+      annotate_view=AcquireAuthenticCacheView(annotate_image,exception);
+      for (y=0; y < (ssize_t) annotate_image->rows; y++)
       {
-        register long
+        register ssize_t
           x;
 
         register PixelPacket
@@ -1878,15 +1813,15 @@ static MagickBooleanType RenderPostscript(Image *image,
           1,exception);
         if (q == (PixelPacket *) NULL)
           break;
-        for (x=0; x < (long) annotate_image->columns; x++)
+        for (x=0; x < (ssize_t) annotate_image->columns; x++)
         {
           (void) GetFillColor(draw_info,x,y,&fill_color);
-          q->opacity=ClampToQuantum(QuantumRange-(((QuantumRange-
-            (MagickRealType) PixelIntensityToQuantum(q))*(QuantumRange-
-            fill_color.opacity))/QuantumRange));
-          q->red=fill_color.red;
-          q->green=fill_color.green;
-          q->blue=fill_color.blue;
+          SetPixelAlpha(q,ClampToQuantum((((QuantumRange-GetPixelIntensity(
+            annotate_image,q))*(QuantumRange-fill_color.opacity))/
+            QuantumRange)));
+          SetPixelRed(q,fill_color.red);
+          SetPixelGreen(q,fill_color.green);
+          SetPixelBlue(q,fill_color.blue);
           q++;
         }
         sync=SyncCacheViewAuthenticPixels(annotate_view,exception);
@@ -1895,8 +1830,8 @@ static MagickBooleanType RenderPostscript(Image *image,
       }
       annotate_view=DestroyCacheView(annotate_view);
       (void) CompositeImage(image,OverCompositeOp,annotate_image,
-        (long) (offset->x+0.5),(long) (offset->y-(metrics->ascent+
-        metrics->descent)+0.5));
+        (ssize_t) ceil(offset->x-0.5),(ssize_t) ceil(offset->y-(metrics->ascent+
+        metrics->descent)-0.5));
     }
   annotate_image=DestroyImage(annotate_image);
   return(MagickTrue);
@@ -1932,209 +1867,16 @@ static MagickBooleanType RenderPostscript(Image *image,
 %    o metrics: bounding box of text.
 %
 */
-#if defined(MAGICKCORE_X11_DELEGATE)
 static MagickBooleanType RenderX11(Image *image,const DrawInfo *draw_info,
   const PointInfo *offset,TypeMetric *metrics)
 {
   MagickBooleanType
     status;
 
-  static DrawInfo
-    cache_info;
-
-  static Display
-    *display = (Display *) NULL;
-
-  static XAnnotateInfo
-    annotate_info;
-
-  static XFontStruct
-    *font_info;
-
-  static XPixelInfo
-    pixel;
-
-  static XResourceInfo
-    resource_info;
-
-  static XrmDatabase
-    resource_database;
-
-  static XStandardColormap
-    *map_info;
-
-  static XVisualInfo
-    *visual_info;
-
-  unsigned long
-    height,
-    width;
-
-  if (display == (Display *) NULL)
-    {
-      const char
-        *client_name;
-
-      ImageInfo
-        *image_info;
-
-      /*
-        Open X server connection.
-      */
-      display=XOpenDisplay(draw_info->server_name);
-      if (display == (Display *) NULL)
-        {
-          ThrowXWindowException(XServerError,"UnableToOpenXServer",
-            draw_info->server_name);
-          return(MagickFalse);
-        }
-      /*
-        Get user defaults from X resource database.
-      */
-      (void) XSetErrorHandler(XError);
-      image_info=AcquireImageInfo();
-      client_name=GetClientName();
-      resource_database=XGetResourceDatabase(display,client_name);
-      XGetResourceInfo(image_info,resource_database,client_name,&resource_info);
-      resource_info.close_server=MagickFalse;
-      resource_info.colormap=PrivateColormap;
-      resource_info.font=AcquireString(draw_info->font);
-      resource_info.background_color=AcquireString("#ffffffffffff");
-      resource_info.foreground_color=AcquireString("#000000000000");
-      map_info=XAllocStandardColormap();
-      if (map_info == (XStandardColormap *) NULL)
-        {
-          ThrowXWindowException(ResourceLimitError,"MemoryAllocationFailed",
-            image->filename);
-          return(MagickFalse);
-        }
-      /*
-        Initialize visual info.
-      */
-      visual_info=XBestVisualInfo(display,map_info,&resource_info);
-      if (visual_info == (XVisualInfo *) NULL)
-        {
-          ThrowXWindowException(XServerError,"UnableToGetVisual",
-            image->filename);
-          return(MagickFalse);
-        }
-      map_info->colormap=(Colormap) NULL;
-      pixel.pixels=(unsigned long *) NULL;
-      /*
-        Initialize Standard Colormap info.
-      */
-      XGetMapInfo(visual_info,XDefaultColormap(display,visual_info->screen),
-        map_info);
-      XGetPixelPacket(display,visual_info,map_info,&resource_info,
-        (Image *) NULL,&pixel);
-      pixel.annotate_context=XDefaultGC(display,visual_info->screen);
-      /*
-        Initialize font info.
-      */
-      font_info=XBestFont(display,&resource_info,MagickFalse);
-      if (font_info == (XFontStruct *) NULL)
-        {
-          ThrowXWindowException(XServerError,"UnableToLoadFont",
-            draw_info->font);
-          return(MagickFalse);
-        }
-      if ((map_info == (XStandardColormap *) NULL) ||
-          (visual_info == (XVisualInfo *) NULL) ||
-          (font_info == (XFontStruct *) NULL))
-        {
-          XFreeResources(display,visual_info,map_info,&pixel,font_info,
-            &resource_info,(XWindowInfo *) NULL);
-          ThrowXWindowException(XServerError,"UnableToLoadFont",
-            image->filename);
-          return(MagickFalse);
-        }
-      cache_info=(*draw_info);
-    }
-  /*
-    Initialize annotate info.
-  */
-  XGetAnnotateInfo(&annotate_info);
-  annotate_info.stencil=ForegroundStencil;
-  if (cache_info.font != draw_info->font)
-    {
-      /*
-        Type name has changed.
-      */
-      (void) XFreeFont(display,font_info);
-      (void) CloneString(&resource_info.font,draw_info->font);
-      font_info=XBestFont(display,&resource_info,MagickFalse);
-      if (font_info == (XFontStruct *) NULL)
-        {
-          ThrowXWindowException(XServerError,"UnableToLoadFont",
-            draw_info->font);
-          return(MagickFalse);
-        }
-    }
-  if (image->debug != MagickFalse)
-    (void) LogMagickEvent(AnnotateEvent,GetMagickModule(),
-      "Font %s; pointsize %g",draw_info->font != (char *) NULL ?
-      draw_info->font : "none",draw_info->pointsize);
-  cache_info=(*draw_info);
-  annotate_info.font_info=font_info;
-  annotate_info.text=(char *) draw_info->text;
-  annotate_info.width=(unsigned int) XTextWidth(font_info,draw_info->text,
-    (int) strlen(draw_info->text));
-  annotate_info.height=(unsigned int) font_info->ascent+font_info->descent;
-  metrics->pixels_per_em.x=(double) font_info->max_bounds.width;
-  metrics->pixels_per_em.y=(double) font_info->ascent+font_info->descent;
-  metrics->ascent=(double) font_info->ascent+4;
-  metrics->descent=(double) (-font_info->descent);
-  metrics->width=annotate_info.width/ExpandAffine(&draw_info->affine);
-  metrics->height=font_info->ascent+font_info->descent;
-  metrics->max_advance=(double) font_info->max_bounds.width;
-  metrics->bounds.x1=0.0;
-  metrics->bounds.y1=metrics->descent;
-  metrics->bounds.x2=metrics->ascent+metrics->descent;
-  metrics->bounds.y2=metrics->ascent+metrics->descent;
-  metrics->underline_position=(-2.0);
-  metrics->underline_thickness=1.0;
-  if (draw_info->render == MagickFalse)
-    return(MagickTrue);
-  if (draw_info->fill.opacity == TransparentOpacity)
-    return(MagickTrue);
-  /*
-    Render fill color.
-  */
-  width=annotate_info.width;
-  height=annotate_info.height;
-  if ((draw_info->affine.rx != 0.0) || (draw_info->affine.ry != 0.0))
-    {
-      if (((draw_info->affine.sx-draw_info->affine.sy) == 0.0) &&
-          ((draw_info->affine.rx+draw_info->affine.ry) == 0.0))
-        annotate_info.degrees=(180.0/MagickPI)*
-          atan2(draw_info->affine.rx,draw_info->affine.sx);
-    }
-  (void) FormatMagickString(annotate_info.geometry,MaxTextExtent,
-    "%lux%lu+%ld+%ld",width,height,(long) (offset->x+0.5),
-    (long) (offset->y-metrics->ascent-metrics->descent+
-    draw_info->interline_spacing+0.5));
-  pixel.pen_color.red=ScaleQuantumToShort(draw_info->fill.red);
-  pixel.pen_color.green=ScaleQuantumToShort(draw_info->fill.green);
-  pixel.pen_color.blue=ScaleQuantumToShort(draw_info->fill.blue);
-  status=XAnnotateImage(display,&pixel,&annotate_info,image);
-  if (status == 0)
-    {
-      ThrowXWindowException(ResourceLimitError,"MemoryAllocationFailed",
-        image->filename);
-      return(MagickFalse);
-    }
-  return(MagickTrue);
+  if (annotate_semaphore == (SemaphoreInfo *) NULL)
+    AcquireSemaphoreInfo(&annotate_semaphore);
+  LockSemaphoreInfo(annotate_semaphore);
+  status=XRenderImage(image,draw_info,offset,metrics);
+  UnlockSemaphoreInfo(annotate_semaphore);
+  return(status);
 }
-#else
-static MagickBooleanType RenderX11(Image *image,const DrawInfo *draw_info,
-  const PointInfo *offset,TypeMetric *metrics)
-{
-  (void) draw_info;
-  (void) offset;
-  (void) metrics;
-  (void) ThrowMagickException(&image->exception,GetMagickModule(),
-    MissingDelegateError,"DelegateLibrarySupportNotBuiltIn","`%s' (X11)",
-    image->filename);
-  return(MagickFalse);
-}
-#endif

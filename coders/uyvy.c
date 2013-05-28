@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -54,6 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -91,7 +92,6 @@ static MagickBooleanType
 %
 %    o exception: return any errors or warnings in this structure.
 %
-%
 */
 static Image *ReadUYVYImage(const ImageInfo *image_info,
   ExceptionInfo *exception)
@@ -99,20 +99,17 @@ static Image *ReadUYVYImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
 
-  register long
-    i;
+  ssize_t
+    y;
 
   unsigned char
     u,
@@ -139,13 +136,9 @@ static Image *ReadUYVYImage(const ImageInfo *image_info,
   status=OpenBlob(image_info,image,ReadBinaryBlobMode,exception);
   if (status == MagickFalse)
     return((Image *) NULL);
-  for (i=0; i < image->offset; i++)
-    if (ReadBlobByte(image) == EOF)
-      {
-        ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
-          image->filename);
-        break;
-      }
+  if (DiscardBlobBytes(image,image->offset) == MagickFalse)
+    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+      image->filename);
   image->depth=8;
   if (image_info->ping != MagickFalse)
     {
@@ -155,33 +148,34 @@ static Image *ReadUYVYImage(const ImageInfo *image_info,
   /*
     Accumulate UYVY, then unpack into two pixels.
   */
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) (image->columns >> 1); x++)
+    for (x=0; x < (ssize_t) (image->columns >> 1); x++)
     {
       u=(unsigned char) ReadBlobByte(image);
       y1=(unsigned char) ReadBlobByte(image);
       v=(unsigned char) ReadBlobByte(image);
       y2=(unsigned char) ReadBlobByte(image);
-      q->red=ScaleCharToQuantum(y1);
-      q->green=ScaleCharToQuantum(u);
-      q->blue=ScaleCharToQuantum(v);
+      SetPixelRed(q,ScaleCharToQuantum(y1));
+      SetPixelGreen(q,ScaleCharToQuantum(u));
+      SetPixelBlue(q,ScaleCharToQuantum(v));
       q++;
-      q->red=ScaleCharToQuantum(y2);
-      q->green=ScaleCharToQuantum(u);
-      q->blue=ScaleCharToQuantum(v);
+      SetPixelRed(q,ScaleCharToQuantum(y2));
+      SetPixelGreen(q,ScaleCharToQuantum(u));
+      SetPixelBlue(q,ScaleCharToQuantum(v));
       q++;
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
-    status=SetImageProgress(image,LoadImageTag,y,image->rows);
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }
-  image->colorspace=YCbCrColorspace;
+  SetImageColorspace(image,YCbCrColorspace);
   if (EOFBlob(image) != MagickFalse)
     ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
       image->filename);
@@ -209,10 +203,10 @@ static Image *ReadUYVYImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterUYVYImage method is:
 %
-%      unsigned long RegisterUYVYImage(void)
+%      size_t RegisterUYVYImage(void)
 %
 */
-ModuleExport unsigned long RegisterUYVYImage(void)
+ModuleExport size_t RegisterUYVYImage(void)
 {
   MagickInfo
     *entry;
@@ -300,9 +294,6 @@ static MagickBooleanType WriteUYVYImage(const ImageInfo *image_info,
   Image
     *uyvy_image;
 
-  long
-    y;
-
   MagickBooleanType
     full,
     status;
@@ -310,8 +301,11 @@ static MagickBooleanType WriteUYVYImage(const ImageInfo *image_info,
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
+
+  ssize_t
+    y;
 
   /*
     Open output image file.
@@ -336,29 +330,31 @@ static MagickBooleanType WriteUYVYImage(const ImageInfo *image_info,
   (void) TransformImageColorspace(uyvy_image,YCbCrColorspace);
   full=MagickFalse;
   (void) ResetMagickMemory(&pixel,0,sizeof(MagickPixelPacket));
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(uyvy_image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       if (full != MagickFalse)
         {
-          pixel.green=(pixel.green+GetGreenPixelComponent(p))/2;
-          pixel.blue=(pixel.blue+GetBluePixelComponent(p))/2;
+          pixel.green=(pixel.green+GetPixelGreen(p))/2;
+          pixel.blue=(pixel.blue+GetPixelBlue(p))/2;
           (void) WriteBlobByte(image,ScaleQuantumToChar((Quantum) pixel.green));
           (void) WriteBlobByte(image,ScaleQuantumToChar((Quantum) pixel.red));
           (void) WriteBlobByte(image,ScaleQuantumToChar((Quantum) pixel.blue));
-          (void) WriteBlobByte(image,ScaleQuantumToChar(GetRedPixelComponent(p)));
+          (void) WriteBlobByte(image,ScaleQuantumToChar(
+             GetPixelRed(p)));
         }
-      pixel.red=(double) GetRedPixelComponent(p);
-      pixel.green=(double) GetGreenPixelComponent(p);
-      pixel.blue=(double) GetBluePixelComponent(p);
+      pixel.red=(double) GetPixelRed(p);
+      pixel.green=(double) GetPixelGreen(p);
+      pixel.blue=(double) GetPixelBlue(p);
       full=full == MagickFalse ? MagickTrue : MagickFalse;
       p++;
     }
-    status=SetImageProgress(image,LoadImageTag,y,image->rows);
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }

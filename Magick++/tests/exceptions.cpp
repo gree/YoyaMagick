@@ -18,7 +18,7 @@ int main( int /*argc*/, char ** argv)
   // Initialize ImageMagick install location for Windows
   InitializeMagick(*argv);
       
-  int failures=0;
+  volatile int failures=0;
       
   cout << "Checking for working exceptions (may crash) ... ";
   cout.flush();
@@ -53,8 +53,8 @@ int main( int /*argc*/, char ** argv)
     // A more complex test
     try
       {
-        unsigned int columns = 640;
-        unsigned int rows = 480;
+        size_t columns = 640;
+        size_t rows = 480;
         Geometry geometry(columns,rows);
         Color canvasColor( "red" );
         Image image( geometry, canvasColor);

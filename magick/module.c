@@ -17,7 +17,7 @@
 %                                March 2000                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -138,7 +138,7 @@ MagickExport ModuleInfo *AcquireModuleInfo(const char *path,const char *tag)
   ModuleInfo
     *module_info;
 
-  module_info=(ModuleInfo *) AcquireAlignedMemory(1,sizeof(*module_info));
+  module_info=(ModuleInfo *) AcquireMagickMemory(sizeof(*module_info));
   if (module_info == (ModuleInfo *) NULL)
     ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
   (void) ResetMagickMemory(module_info,0,sizeof(*module_info));
@@ -261,7 +261,7 @@ MagickExport ModuleInfo *GetModuleInfo(const char *tag,ExceptionInfo *exception)
 %  The format of the GetModuleInfoList function is:
 %
 %      const ModuleInfo **GetModuleInfoList(const char *pattern,
-%        unsigned long *number_modules,ExceptionInfo *exception)
+%        size_t *number_modules,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -295,7 +295,7 @@ static int ModuleInfoCompare(const void *x,const void *y)
 #endif
 
 MagickExport const ModuleInfo **GetModuleInfoList(const char *pattern,
-  unsigned long *number_modules,ExceptionInfo *exception)
+  size_t *number_modules,ExceptionInfo *exception)
 {
   const ModuleInfo
     **modules;
@@ -303,7 +303,7 @@ MagickExport const ModuleInfo **GetModuleInfoList(const char *pattern,
   register const ModuleInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -311,7 +311,7 @@ MagickExport const ModuleInfo **GetModuleInfoList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_modules != (unsigned long *) NULL);
+  assert(number_modules != (size_t *) NULL);
   *number_modules=0;
   p=GetModuleInfo("*",exception);
   if (p == (const ModuleInfo *) NULL)
@@ -336,7 +336,7 @@ MagickExport const ModuleInfo **GetModuleInfoList(const char *pattern,
   UnlockSemaphoreInfo(module_semaphore);
   qsort((void *) modules,(size_t) i,sizeof(*modules),ModuleInfoCompare);
   modules[i]=(ModuleInfo *) NULL;
-  *number_modules=(unsigned long) i;
+  *number_modules=(size_t) i;
   return(modules);
 }
 
@@ -356,12 +356,14 @@ MagickExport const ModuleInfo **GetModuleInfoList(const char *pattern,
 %
 %  The format of the GetModuleList function is:
 %
-%      char **GetModuleList(const char *pattern,unsigned long *number_modules,
-%        ExceptionInfo *exception)
+%      char **GetModuleList(const char *pattern,const MagickModuleType type,
+%        size_t *number_modules,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
 %    o pattern: Specifies a pointer to a text string containing a pattern.
+%
+%    o type: choose from MagickImageCoderModule or MagickImageFilterModule.
 %
 %    o number_modules:  This integer returns the number of modules in the
 %      list.
@@ -403,7 +405,7 @@ static inline int MagickReadDirectory(DIR *directory,struct dirent *entry,
 }
 
 MagickExport char **GetModuleList(const char *pattern,
-  unsigned long *number_modules,ExceptionInfo *exception)
+  const MagickModuleType type,size_t *number_modules,ExceptionInfo *exception)
 {
   char
     **modules,
@@ -417,26 +419,38 @@ MagickExport char **GetModuleList(const char *pattern,
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
 
   size_t
-    length;
+    max_entries;
 
   struct dirent
     *buffer,
     *entry;
 
-  unsigned long
-    max_entries;
-
   /*
-    Locate all modules in the coder path.
+    Locate all modules in the image coder or filter path.
   */
-  TagToCoderModuleName("magick",filename);
-  length=GetMagickModulePath(filename,MagickImageCoderModule,module_path,
-    exception);
-  if (length == 0)
+  switch (type)
+  {
+    case MagickImageCoderModule:
+    default:
+    {
+      TagToCoderModuleName("magick",filename);
+      status=GetMagickModulePath(filename,MagickImageCoderModule,module_path,
+        exception);
+      break;
+    }
+    case MagickImageFilterModule:
+    {
+      TagToFilterModuleName("analyze",filename);
+      status=GetMagickModulePath(filename,MagickImageFilterModule,module_path,
+        exception);
+      break;
+    }
+  }
+  if (status == MagickFalse)
     return((char **) NULL);
   GetPathComponent(module_path,HeadPath,path);
   max_entries=255;
@@ -451,7 +465,8 @@ MagickExport char **GetModuleList(const char *pattern,
       modules=(char **) RelinquishMagickMemory(modules);
       return((char **) NULL);
     }
-  buffer=(struct dirent *) AcquireAlignedMemory(1,sizeof(*buffer)+FILENAME_MAX+1);
+  buffer=(struct dirent *) AcquireMagickMemory(sizeof(*buffer)+
+    FILENAME_MAX+1);
   if (buffer == (struct dirent *) NULL)
     ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
   i=0;
@@ -463,7 +478,7 @@ MagickExport char **GetModuleList(const char *pattern,
       continue;
     if (GlobExpression(entry->d_name,pattern,MagickFalse) == MagickFalse)
       continue;
-    if (i >= (long) max_entries)
+    if (i >= (ssize_t) max_entries)
       {
         modules=(char **) NULL;
         if (~max_entries > max_entries)
@@ -478,7 +493,6 @@ MagickExport char **GetModuleList(const char *pattern,
     */
     modules[i]=AcquireString((char *) NULL);
     GetPathComponent(entry->d_name,BasePath,modules[i]);
-    LocaleUpper(modules[i]);
     if (LocaleNCompare("IM_MOD_",modules[i],7) == 0)
       {
         (void) CopyMagickString(modules[i],modules[i]+10,MaxTextExtent);
@@ -496,7 +510,7 @@ MagickExport char **GetModuleList(const char *pattern,
     }
   qsort((void *) modules,(size_t) i,sizeof(*modules),ModuleCompare);
   modules[i]=(char *) NULL;
-  *number_modules=(unsigned long) i;
+  *number_modules=(size_t) i;
   return(modules);
 }
 
@@ -595,7 +609,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
       module_path=DestroyString(module_path);
     }
 #if defined(MAGICKCORE_INSTALLED_SUPPORT)
-   else
+  else
 #if defined(MAGICKCORE_CODER_PATH)
     {
       const char
@@ -618,7 +632,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
           break;
         }
       }
-      (void) FormatMagickString(path,MaxTextExtent,"%s%s",directory,filename);
+      (void) FormatLocaleString(path,MaxTextExtent,"%s%s",directory,filename);
       if (IsPathAccessible(path) == MagickFalse)
         {
           ThrowFileException(exception,ConfigureWarning,
@@ -628,7 +642,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
       return(MagickTrue);
     }
 #else
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
     {
       const char
         *registery_key;
@@ -660,7 +674,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
             "RegistryKeyLookupFailed","`%s'",registery_key);
           return(MagickFalse);
         }
-      (void) FormatMagickString(path,MaxTextExtent,"%s%s%s",(char *) key_value,
+      (void) FormatLocaleString(path,MaxTextExtent,"%s%s%s",(char *) key_value,
         DirectorySeparator,filename);
       key_value=(unsigned char *) RelinquishMagickMemory(key_value);
       if (IsPathAccessible(path) == MagickFalse)
@@ -673,8 +687,8 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
     }
 #endif
 #endif
-#if !defined(MAGICKCORE_CODER_PATH) && !defined(__WINDOWS__)
-# error MAGICKCORE_CODER_PATH or __WINDOWS__ must be defined when MAGICKCORE_INSTALLED_SUPPORT is defined
+#if !defined(MAGICKCORE_CODER_PATH) && !defined(MAGICKCORE_WINDOWS_SUPPORT)
+# error MAGICKCORE_CODER_PATH or MAGICKCORE_WINDOWS_SUPPORT must be defined when MAGICKCORE_INSTALLED_SUPPORT is defined
 #endif
 #else
   {
@@ -688,7 +702,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
           Search MAGICK_HOME.
         */
 #if !defined(MAGICKCORE_POSIX_SUPPORT)
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s%s",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s%s",home,
           DirectorySeparator,filename);
 #else
         const char
@@ -708,7 +722,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
             break;
           }
         }
-        (void) FormatMagickString(path,MaxTextExtent,"%s/lib/%s/%s",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s/lib/%s/%s",home,
           directory,filename);
 #endif
         home=DestroyString(home);
@@ -722,7 +736,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
         Search based on executable directory.
       */
 #if !defined(MAGICKCORE_POSIX_SUPPORT)
-      (void) FormatMagickString(path,MaxTextExtent,"%s%s%s",GetClientPath(),
+      (void) FormatLocaleString(path,MaxTextExtent,"%s%s%s",GetClientPath(),
         DirectorySeparator,filename);
 #else
       char
@@ -736,7 +750,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
         case MagickImageCoderModule:
         default:
         {
-          directory="modules";
+          directory="coders";
           break;
         }
         case MagickImageFilterModule:
@@ -747,14 +761,13 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
       }
       (void) CopyMagickString(prefix,GetClientPath(),MaxTextExtent);
       ChopPathComponents(prefix,1);
-      (void) FormatMagickString(path,MaxTextExtent,
-        "%s/lib/%s/modules-Q%d/%s/%s",prefix,MAGICKCORE_LIBRARY_RELATIVE_PATH,
-        MAGICKCORE_QUANTUM_DEPTH,directory,filename);
+      (void) FormatLocaleString(path,MaxTextExtent,"%s/lib/%s/%s/%s",prefix,
+        MAGICKCORE_MODULES_RELATIVE_PATH,directory,filename);
 #endif
       if (IsPathAccessible(path) != MagickFalse)
         return(MagickTrue);
     }
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
   {
     /*
       Search module path.
@@ -782,7 +795,7 @@ static MagickBooleanType GetMagickModulePath(const char *filename,
         /*
           Search $HOME/.magick.
         */
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s.magick%s%s",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s.magick%s%s",home,
           DirectorySeparator,DirectorySeparator,filename);
         home=DestroyString(home);
         if (IsPathAccessible(path) != MagickFalse)
@@ -927,14 +940,14 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
   ImageFilterHandler
     *image_filter;
 
+  MagickBooleanType
+    status;
+
   ModuleHandle
     handle;
 
   PolicyRights
     rights;
-
-  size_t
-    length;
 
   /*
     Find the module.
@@ -963,9 +976,13 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
       return(MagickFalse);
     }
   TagToFilterModuleName(tag,name);
-  length=GetMagickModulePath(name,MagickImageFilterModule,path,exception);
-  if (length == 0)
-    return(MagickFalse);
+  status=GetMagickModulePath(name,MagickImageFilterModule,path,exception);
+  if (status == MagickFalse)
+    {
+      (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
+        "UnableToLoadModule","`%s': %s",name,path);
+      return(MagickFalse);
+    }
   /*
     Open the module.
   */
@@ -980,21 +997,22 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
     Locate the module.
   */
 #if !defined(MAGICKCORE_NAMESPACE_PREFIX)
-  (void) FormatMagickString(name,MaxTextExtent,"%sImage",tag);
+  (void) FormatLocaleString(name,MaxTextExtent,"%sImage",tag);
 #else
-  (void) FormatMagickString(name,MaxTextExtent,"%s%sImage",
+  (void) FormatLocaleString(name,MaxTextExtent,"%s%sImage",
     MAGICKCORE_NAMESPACE_PREFIX,tag);
 #endif
   /*
     Execute the module.
   */
+  ClearMagickException(exception);
   image_filter=(ImageFilterHandler *) lt_dlsym(handle,name);
   if (image_filter == (ImageFilterHandler *) NULL)
     (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
       "UnableToLoadModule","`%s': %s",name,lt_dlerror());
   else
     {
-      unsigned long
+      size_t
         signature;
 
       if ((*images)->debug != MagickFalse)
@@ -1005,23 +1023,17 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
         (void) LogMagickEvent(ModuleEvent,GetMagickModule(),"\"%s\" completes",
           tag);
       if (signature != MagickImageFilterSignature)
-        {
-          (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
-            "ImageFilterSignatureMismatch","`%s': %8lx != %8lx",tag,signature,
-            MagickImageFilterSignature);
-          return(MagickFalse);
-        }
+        (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
+          "ImageFilterSignatureMismatch","`%s': %8lx != %8lx",tag,
+          (unsigned long) signature,(unsigned long) MagickImageFilterSignature);
     }
   /*
     Close the module.
   */
   if (lt_dlclose(handle) != 0)
-    {
-      (void) ThrowMagickException(exception,GetMagickModule(),ModuleWarning,
-        "UnableToCloseModule","`%s': %s",name,lt_dlerror());
-      return(MagickFalse);
-    }
-  return(MagickTrue);
+    (void) ThrowMagickException(exception,GetMagickModule(),ModuleWarning,
+      "UnableToCloseModule","`%s': %s",name,lt_dlerror());
+  return(exception->severity < ErrorException ? MagickTrue : MagickFalse);
 }
 
 /*
@@ -1051,41 +1063,74 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
 MagickExport MagickBooleanType ListModuleInfo(FILE *file,
   ExceptionInfo *exception)
 {
-  const ModuleInfo
-    **module_info;
+  char
+    filename[MaxTextExtent],
+    module_path[MaxTextExtent],
+    **modules,
+    path[MaxTextExtent];
 
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_modules;
 
   if (file == (const FILE *) NULL)
     file=stdout;
-  module_info=GetModuleInfoList("*",&number_modules,exception);
-  if (module_info == (const ModuleInfo **) NULL)
+  /*
+    List image coders.
+  */
+  modules=GetModuleList("*",MagickImageCoderModule,&number_modules,exception);
+  if (modules == (char **) NULL)
     return(MagickFalse);
-  if (module_info[0]->path != (char *) NULL)
-    {
-      char
-        path[MaxTextExtent];
-
-      GetPathComponent(module_info[0]->path,HeadPath,path);
-      (void) fprintf(file,"\nPath: %s\n\n",path);
-    }
-  (void) fprintf(file,"Module\n");
-  (void) fprintf(file,"-------------------------------------------------"
+  TagToCoderModuleName("magick",filename);
+  (void) GetMagickModulePath(filename,MagickImageCoderModule,module_path,
+    exception);
+  GetPathComponent(module_path,HeadPath,path);
+  (void) FormatLocaleFile(file,"\nPath: %s\n\n",path);
+  (void) FormatLocaleFile(file,"Image Coder\n");
+  (void) FormatLocaleFile(file,
+    "-------------------------------------------------"
     "------------------------------\n");
-  for (i=0; i < (long) number_modules; i++)
+  for (i=0; i < (ssize_t) number_modules; i++)
   {
-    if (module_info[i]->stealth != MagickFalse)
-      continue;
-    (void) fprintf(file,"%s",module_info[i]->tag);
-    (void) fprintf(file,"\n");
+    (void) FormatLocaleFile(file,"%s",modules[i]);
+    (void) FormatLocaleFile(file,"\n");
   }
   (void) fflush(file);
-  module_info=(const ModuleInfo **)
-    RelinquishMagickMemory((void *) module_info);
+  /*
+    Relinquish resources.
+  */
+  for (i=0; i < (ssize_t) number_modules; i++)
+    modules[i]=DestroyString(modules[i]);
+  modules=(char **) RelinquishMagickMemory(modules);
+  /*
+    List image filters.
+  */
+  modules=GetModuleList("*",MagickImageFilterModule,&number_modules,exception);
+  if (modules == (char **) NULL)
+    return(MagickFalse);
+  TagToFilterModuleName("analyze",filename);
+  (void) GetMagickModulePath(filename,MagickImageFilterModule,module_path,
+    exception);
+  GetPathComponent(module_path,HeadPath,path);
+  (void) FormatLocaleFile(file,"\nPath: %s\n\n",path);
+  (void) FormatLocaleFile(file,"Image Filter\n");
+  (void) FormatLocaleFile(file,
+    "-------------------------------------------------"
+    "------------------------------\n");
+  for (i=0; i < (ssize_t) number_modules; i++)
+  {
+    (void) FormatLocaleFile(file,"%s",modules[i]);
+    (void) FormatLocaleFile(file,"\n");
+  }
+  (void) fflush(file);
+  /*
+    Relinquish resources.
+  */
+  for (i=0; i < (ssize_t) number_modules; i++)
+    modules[i]=DestroyString(modules[i]);
+  modules=(char **) RelinquishMagickMemory(modules);
   return(MagickTrue);
 }
 
@@ -1112,11 +1157,14 @@ MagickExport MagickBooleanType ModuleComponentGenesis(void)
   ExceptionInfo
     *exception;
 
+  MagickBooleanType
+    status;
+
   AcquireSemaphoreInfo(&module_semaphore);
   exception=AcquireExceptionInfo();
-  InitializeModuleList(exception);
+  status=InitializeModuleList(exception);
   exception=DestroyExceptionInfo(exception);
-  return(MagickTrue);
+  return(status);
 }
 
 /*
@@ -1179,6 +1227,9 @@ MagickExport MagickBooleanType OpenModule(const char *module,
     name[MaxTextExtent],
     path[MaxTextExtent];
 
+  MagickBooleanType
+    status;
+
   ModuleHandle
     handle;
 
@@ -1189,9 +1240,6 @@ MagickExport MagickBooleanType OpenModule(const char *module,
     *p;
 
   size_t
-    length;
-
-  unsigned long
     signature;
 
   /*
@@ -1215,8 +1263,8 @@ MagickExport MagickBooleanType OpenModule(const char *module,
   (void) LogMagickEvent(ModuleEvent,GetMagickModule(),
     "Searching for module \"%s\" using filename \"%s\"",module_name,filename);
   *path='\0';
-  length=GetMagickModulePath(filename,MagickImageCoderModule,path,exception);
-  if (length == 0)
+  status=GetMagickModulePath(filename,MagickImageCoderModule,path,exception);
+  if (status == MagickFalse)
     return(MagickFalse);
   /*
     Load module
@@ -1241,8 +1289,8 @@ MagickExport MagickBooleanType OpenModule(const char *module,
     Define RegisterFORMATImage method.
   */
   TagToModuleName(module_name,"Register%sImage",name);
-  module_info->register_module=(unsigned long (*)(void)) lt_dlsym(handle,name);
-  if (module_info->register_module == (unsigned long (*)(void)) NULL)
+  module_info->register_module=(size_t (*)(void)) lt_dlsym(handle,name);
+  if (module_info->register_module == (size_t (*)(void)) NULL)
     {
       (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
         "UnableToRegisterImageFormat","`%s': %s",module_name,lt_dlerror());
@@ -1270,7 +1318,7 @@ MagickExport MagickBooleanType OpenModule(const char *module,
     {
       (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
         "ImageCoderSignatureMismatch","`%s': %8lx != %8lx",module_name,
-        signature,MagickImageCoderSignature);
+        (unsigned long) signature,(unsigned long) MagickImageCoderSignature);
       return(MagickFalse);
     }
   return(MagickTrue);
@@ -1303,10 +1351,10 @@ MagickExport MagickBooleanType OpenModules(ExceptionInfo *exception)
   char
     **modules;
 
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_modules;
 
   /*
@@ -1314,15 +1362,15 @@ MagickExport MagickBooleanType OpenModules(ExceptionInfo *exception)
   */
   (void) GetMagickInfo((char *) NULL,exception);
   number_modules=0;
-  modules=GetModuleList("*",&number_modules,exception);
+  modules=GetModuleList("*",MagickImageCoderModule,&number_modules,exception);
   if (modules == (char **) NULL)
     return(MagickFalse);
-  for (i=0; i < (long) number_modules; i++)
+  for (i=0; i < (ssize_t) number_modules; i++)
     (void) OpenModule(modules[i],exception);
   /*
     Relinquish resources.
   */
-  for (i=0; i < (long) number_modules; i++)
+  for (i=0; i < (ssize_t) number_modules; i++)
     modules[i]=DestroyString(modules[i]);
   modules=(char **) RelinquishMagickMemory(modules);
   return(MagickTrue);
@@ -1405,18 +1453,18 @@ static void TagToCoderModuleName(const char *tag,char *name)
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",tag);
   assert(name != (char *) NULL);
 #if defined(MAGICKCORE_LTDL_DELEGATE)
-  (void) FormatMagickString(name,MaxTextExtent,"%s.la",tag);
+  (void) FormatLocaleString(name,MaxTextExtent,"%s.la",tag);
   (void) LocaleLower(name);
 #else
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
   if (LocaleNCompare("IM_MOD_",tag,7) == 0)
     (void) CopyMagickString(name,tag,MaxTextExtent);
   else
     {
 #if defined(_DEBUG)
-      (void) FormatMagickString(name,MaxTextExtent,"IM_MOD_DB_%s_.dll",tag);
+      (void) FormatLocaleString(name,MaxTextExtent,"IM_MOD_DB_%s_.dll",tag);
 #else
-      (void) FormatMagickString(name,MaxTextExtent,"IM_MOD_RL_%s_.dll",tag);
+      (void) FormatLocaleString(name,MaxTextExtent,"IM_MOD_RL_%s_.dll",tag);
 #endif
     }
 #endif
@@ -1454,10 +1502,9 @@ static void TagToFilterModuleName(const char *tag,char *name)
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",tag);
   assert(name != (char *) NULL);
 #if !defined(MAGICKCORE_LTDL_DELEGATE)
-  (void) FormatMagickString(name,MaxTextExtent,"%s.dll",tag);
+  (void) FormatLocaleString(name,MaxTextExtent,"%s.dll",tag);
 #else
-  (void) FormatMagickString(name,MaxTextExtent,"%s.la",tag);
-  (void) LocaleLower(name);
+  (void) FormatLocaleString(name,MaxTextExtent,"%s.la",tag);
 #endif
 }
 
@@ -1501,15 +1548,15 @@ static void TagToModuleName(const char *tag,const char *format,char *module)
   (void) CopyMagickString(name,tag,MaxTextExtent);
   LocaleUpper(name);
 #if !defined(MAGICKCORE_NAMESPACE_PREFIX)
-  (void) FormatMagickString(module,MaxTextExtent,format,name);
+  (void) FormatLocaleString(module,MaxTextExtent,format,name);
 #else
   {
     char
       prefix_format[MaxTextExtent];
 
-    (void) FormatMagickString(prefix_format,MaxTextExtent,"%s%s",
+    (void) FormatLocaleString(prefix_format,MaxTextExtent,"%s%s",
       MAGICKCORE_NAMESPACE_PREFIX,format);
-    (void) FormatMagickString(module,MaxTextExtent,prefix_format,name);
+    (void) FormatLocaleString(module,MaxTextExtent,prefix_format,name);
   }
 #endif
 }
@@ -1570,9 +1617,29 @@ MagickExport MagickBooleanType ListModuleInfo(FILE *magick_unused(file),
 MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
   Image **image,const int argc,const char **argv,ExceptionInfo *exception)
 {
-#if !defined(MAGICKCORE_BUILD_MODULES)
+  PolicyRights
+    rights;
+
+  assert(image != (Image **) NULL);
+  assert((*image)->signature == MagickSignature);
+  if ((*image)->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",(*image)->filename);
+  rights=ReadPolicyRights;
+  if (IsRightsAuthorized(FilterPolicyDomain,rights,tag) == MagickFalse)
+    {
+      errno=EPERM;
+      (void) ThrowMagickException(exception,GetMagickModule(),PolicyError,
+        "NotAuthorized","`%s'",tag);
+      return(MagickFalse);
+    }
+#if defined(MAGICKCORE_BUILD_MODULES)
+  (void) tag;
+  (void) argc;
+  (void) argv;
+  (void) exception;
+#else
   {
-    extern unsigned long
+    extern size_t
       analyzeImage(Image **,const int,const char **,ExceptionInfo *);
 
     ImageFilterHandler
@@ -1580,17 +1647,27 @@ MagickExport MagickBooleanType InvokeDynamicImageFilter(const char *tag,
 
     image_filter=(ImageFilterHandler *) NULL;
     if (LocaleCompare("analyze",tag) == 0)
-      image_filter=analyzeImage;
-    if (image_filter != (ImageFilterHandler *) NULL)
+      image_filter=(ImageFilterHandler *) analyzeImage;
+    if (image_filter == (ImageFilterHandler *) NULL)
+      (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
+        "UnableToLoadModule","`%s'",tag);
+    else
       {
-        unsigned long
+        size_t
           signature;
 
+        if ((*image)->debug != MagickFalse)
+          (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+            "Invoking \"%s\" static image filter",tag);
         signature=image_filter(image,argc,argv,exception);
+        if ((*image)->debug != MagickFalse)
+          (void) LogMagickEvent(CoderEvent,GetMagickModule(),"\"%s\" completes",
+            tag);
         if (signature != MagickImageFilterSignature)
           {
             (void) ThrowMagickException(exception,GetMagickModule(),ModuleError,
-              "ImageFilterSignatureMismatch","`%s': %8lx != %8lx",tag,signature,
+              "ImageFilterSignatureMismatch","`%s': %8lx != %8lx",tag,
+              (unsigned long) signature,(unsigned long)
               MagickImageFilterSignature);
             return(MagickFalse);
           }

@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ extern "C" {
 #endif
 
 #include "magick/log.h"
+#include "magick/magick.h"
+#include "magick/string_.h"
 
 #define ThrowBinaryException(severity,tag,context) \
 { \
@@ -33,22 +35,31 @@ extern "C" {
 }
 #define ThrowFatalException(severity,tag) \
 { \
+  char \
+    *message; \
+ \
   ExceptionInfo \
     exception; \
  \
   GetExceptionInfo(&exception); \
+  message=GetExceptionMessage(errno); \
   (void) ThrowMagickException(&exception,GetMagickModule(),severity, \
-    tag == (const char *) NULL ? "unknown" : tag,"`%s'", \
-    GetExceptionMessage(errno)); \
+    tag == (const char *) NULL ? "unknown" : tag,"`%s'",message); \
+  message=DestroyString(message); \
   CatchException(&exception); \
   (void) DestroyExceptionInfo(&exception); \
-  _exit(1); \
+  MagickCoreTerminus(); \
+  _exit((int) (severity-FatalErrorException)+1); \
 }
 #define ThrowFileException(exception,severity,tag,context) \
 { \
+  char \
+    *message; \
+ \
+  message=GetExceptionMessage(errno); \
   (void) ThrowMagickException(exception,GetMagickModule(),severity, \
-    tag == (const char *) NULL ? "unknown" : tag,"`%s': %s",context, \
-    GetExceptionMessage(errno)); \
+    tag == (const char *) NULL ? "unknown" : tag,"`%s': %s",context,message); \
+  message=DestroyString(message); \
 }
 #define ThrowImageException(severity,tag) \
 { \

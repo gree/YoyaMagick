@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -50,6 +50,7 @@
 #include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -57,9 +58,7 @@
 #include "magick/type.h"
 #include "wand/MagickWand.h"
 #if defined(MAGICKCORE_FREETYPE_DELEGATE)
-#if defined(MAGICKCORE_HAVE_FT2BUILD_H)
-#  include <ft2build.h>
-#endif
+#include <ft2build.h>
 #if defined(FT_FREETYPE_H)
 #  include FT_FREETYPE_H
 #else
@@ -97,7 +96,7 @@ static MagickBooleanType IsPFA(const unsigned char *magick,const size_t length)
 {
   if (length < 14)
     return(MagickFalse);
-  if (LocaleNCompare((char *) magick,"%!PS-AdobeFont-1.0",14) == 0)
+  if (LocaleNCompare((char *) magick,"%!PS-AdobeFont",14) == 0)
     return(MagickTrue);
   return(MagickFalse);
 }
@@ -134,7 +133,7 @@ static MagickBooleanType IsTTF(const unsigned char *magick,const size_t length)
     return(MagickFalse);
   if (((int) magick[0] == 0x00) && ((int) magick[1] == 0x01) &&
       ((int) magick[2] == 0x00) && ((int) magick[3] == 0x00) &&
-      ((int) magick[4] == 0x0))
+      ((int) magick[4] == 0x00))
     return(MagickTrue);
   return(MagickFalse);
 }
@@ -187,21 +186,21 @@ static Image *ReadTTFImage(const ImageInfo *image_info,ExceptionInfo *exception)
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   PixelPacket
     background_color;
 
-  register long
+  register ssize_t
     i,
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   /*
     Open image file.
@@ -230,12 +229,12 @@ static Image *ReadTTFImage(const ImageInfo *image_info,ExceptionInfo *exception)
     Color canvas with background color
   */
   background_color=image_info->background_color;
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
       *q++=background_color;
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
@@ -249,28 +248,30 @@ static Image *ReadTTFImage(const ImageInfo *image_info,ExceptionInfo *exception)
   draw_info=CloneDrawInfo(image_info,(DrawInfo *) NULL);
   draw_info->font=AcquireString(image->filename);
   ConcatenateString(&draw_info->primitive,"push graphic-context\n");
-  (void) FormatMagickString(buffer,MaxTextExtent," viewbox 0 0 %lu %lu\n",
-    image->columns,image->rows);
+  (void) FormatLocaleString(buffer,MaxTextExtent," viewbox 0 0 %.20g %.20g\n",
+    (double) image->columns,(double) image->rows);
   ConcatenateString(&draw_info->primitive,buffer);
   ConcatenateString(&draw_info->primitive," font-size 18\n");
-  (void) FormatMagickString(buffer,MaxTextExtent," text 10,%ld '",y);
+  (void) FormatLocaleString(buffer,MaxTextExtent," text 10,%.20g '",(double) y);
   ConcatenateString(&draw_info->primitive,buffer);
   text=EscapeString(Text,'"');
   ConcatenateString(&draw_info->primitive,text);
   text=DestroyString(text);
-  (void) FormatMagickString(buffer,MaxTextExtent,"'\n");
+  (void) FormatLocaleString(buffer,MaxTextExtent,"'\n");
   ConcatenateString(&draw_info->primitive,buffer);
-  y+=20*MultilineCensus((char *) Text)+20;
+  y+=20*(ssize_t) MultilineCensus((char *) Text)+20;
   for (i=12; i <= 72; i+=6)
   {
     y+=i+12;
     ConcatenateString(&draw_info->primitive," font-size 18\n");
-    (void) FormatMagickString(buffer,MaxTextExtent," text 10,%ld '%ld'\n",y,i);
+    (void) FormatLocaleString(buffer,MaxTextExtent," text 10,%.20g '%.20g'\n",
+      (double) y,(double) i);
     ConcatenateString(&draw_info->primitive,buffer);
-    (void) FormatMagickString(buffer,MaxTextExtent," font-size %ld\n",i);
+    (void) FormatLocaleString(buffer,MaxTextExtent," font-size %.20g\n",
+      (double) i);
     ConcatenateString(&draw_info->primitive,buffer);
-    (void) FormatMagickString(buffer,MaxTextExtent," text 50,%ld "
-      "'That which does not destroy me, only makes me stronger.'\n",y);
+    (void) FormatLocaleString(buffer,MaxTextExtent," text 50,%.20g "
+      "'That which does not destroy me, only makes me stronger.'\n",(double) y);
     ConcatenateString(&draw_info->primitive,buffer);
     if (i >= 24)
       i+=6;
@@ -306,10 +307,10 @@ static Image *ReadTTFImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterTTFImage method is:
 %
-%      unsigned long RegisterTTFImage(void)
+%      size_t RegisterTTFImage(void)
 %
 */
-ModuleExport unsigned long RegisterTTFImage(void)
+ModuleExport size_t RegisterTTFImage(void)
 {
   char
     version[MaxTextExtent];
@@ -319,7 +320,7 @@ ModuleExport unsigned long RegisterTTFImage(void)
 
   *version='\0';
 #if defined(FREETYPE_MAJOR) && defined(FREETYPE_MINOR) && defined(FREETYPE_PATCH)
-  (void) FormatMagickString(version,MaxTextExtent,"Freetype %d.%d.%d",
+  (void) FormatLocaleString(version,MaxTextExtent,"Freetype %d.%d.%d",
     FREETYPE_MAJOR,FREETYPE_MINOR,FREETYPE_PATCH);
 #endif
   entry=SetMagickInfo("DFONT");

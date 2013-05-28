@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -22,6 +22,11 @@
 extern "C" {
 #endif
 
+#include "magick/draw.h"
+#include "magick/exception.h"
+#include "magick/geometry.h"
+#include "magick/quantize.h"
+
 #if defined(MAGICKCORE_X11_DELEGATE)
 
 #include <X11/Xos.h>
@@ -31,9 +36,6 @@ extern "C" {
 #include <X11/keysym.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
-#include "magick/exception.h"
-#include "magick/geometry.h"
-#include "magick/quantize.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 # define klass  c_class
@@ -208,8 +210,10 @@ typedef struct _XAnnotateInfo
 
 typedef struct _XPixelInfo
 {
+  ssize_t
+    colors;
+
   unsigned long
-    colors,
     *pixels;
 
   XColor
@@ -246,7 +250,7 @@ typedef struct _XResourceInfo
   QuantizeInfo
     *quantize_info;
 
-  unsigned long
+  size_t
     colors;
 
   MagickBooleanType
@@ -266,7 +270,7 @@ typedef struct _XResourceInfo
   unsigned int
     border_width;
 
-  unsigned long
+  size_t
     delay;
 
   MagickBooleanType
@@ -322,7 +326,7 @@ typedef struct _XResourceInfo
     use_pixmap,
     use_shared_memory;
 
-  unsigned long
+  size_t
     undo_cache;
 
   char
@@ -384,7 +388,7 @@ typedef struct _XWindowInfo
     *icon_geometry,
     *crop_geometry;
 
-  unsigned long
+  size_t
     data,
     flags;
 
@@ -431,7 +435,7 @@ typedef struct _XWindowInfo
   void
     *segment_info;
 
-  unsigned long
+  long
     mask;
 
   MagickBooleanType
@@ -536,7 +540,7 @@ extern MagickExport void
   XComponentTerminus(void),
   XConfigureImageColormap(Display *,XResourceInfo *,XWindows *,Image *),
   XConstrainWindowPosition(Display *,XWindowInfo *),
-  XDelay(Display *,const unsigned long),
+  XDelay(Display *,const size_t),
   XDisplayImageInfo(Display *,const XResourceInfo *,XWindows *,Image *,Image *),
   XDestroyResourceInfo(XResourceInfo *),
   XDestroyWindowColors(Display *,Window),
@@ -567,7 +571,7 @@ extern MagickExport void
   XWarning(const ExceptionType,const char *,const char *);
 
 extern MagickExport Window
-  XWindowByID(Display *,const Window,const unsigned long),
+  XWindowByID(Display *,const Window,const size_t),
   XWindowByName(Display *,const Window,const char *),
   XWindowByProperty(Display *,const Window,const Atom);
 
@@ -589,11 +593,15 @@ static inline MagickRealType XPixelIntensity(const XColor *pixel)
   MagickRealType
     intensity;
 
-  intensity=0.299*pixel->red+0.587*pixel->green+0.114*pixel->blue;
+  if ((pixel->red  == pixel->green) && (pixel->green == pixel->blue))
+    return((MagickRealType) pixel->red);
+  intensity=0.298839*pixel->red+0.586811*pixel->green+0.114350*pixel->blue;
   return(intensity);
 }
-
 #endif
+
+extern MagickPrivate MagickBooleanType
+  XRenderImage(Image *,const DrawInfo *,const PointInfo *,TypeMetric *);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

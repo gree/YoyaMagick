@@ -1,182 +1,268 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" 
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html version="-//W3C//DTD XHTML 1.1//EN"
+      xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.w3.org/1999/xhtml
+                          http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd">
 <head>
-  <meta http-equiv="Content-Type" value="application/xhtml+xml" />
-  <meta name="verify-v1" content="g222frIIxcQTrvDR3NBRUSKP3AnMNoqxOkIniCEkV7U=" />
-  <link rel="meta" type="application/rdf+xml" title="ICI" href="http://imagemagick.org/ici.rdf" />
-  <style type="text/css" media="screen,projection"><!--
-    @import url("../www/magick.css");
-  --></style>
-  <link rel="shortcut icon" href="../images/wand.ico"  type="images/vnd.microsoft.icon"/>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="google-site-verification" content="MxsMq6bdLOx0KSuz1MY6yG9ZTIJ7_7DVRfl5NCAT5Yg"/>
   <title>ImageMagick: Advanced Windows Source Installation</title>
   <meta http-equiv="Content-Language" content="en-US"/>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
   <meta http-equiv="Reply-to" content="magick-users@imagemagick.org"/>
+  <meta name="Application-name" content="ImageMagick"/>
+  <meta name="Description" content="Use ImageMagick to convert, edit, or compose bitmap images in a variety of formats.  In addition resize, rotate, shear, distort and transform images automagically."/>
+  <meta name="Application-url" content="http://www.imagemagick.org"/>
   <meta name="Generator" content="PHP"/>
-  <meta name="Keywords" content="advanced, windows, source, installation, ImageMagick, ImageMagic, MagickCore, MagickWand, PerlMagick, Magick++, RMagick, PythonMagick, JMagick, TclMagick, Image, Magick, Magic, Wand, ImageMagickObject, Swiss, Army, Knife, Image, Processing"/>
-  <meta name="Description" content="ImageMagick® is a software suite to create, edit, and compose bitmap images. It can read, convert and write images in a variety of formats (about 100) including GIF, JPEG, JPEG-2000, PNG, PDF, PhotoCD, TIFF, and DPX. Use ImageMagick to translate, flip, mirror, rotate, scale, shear and transform images, adjust image colors, apply various special effects, or draw text, lines, polygons, ellipses and Bézier curves.  ImageMagick is free software delivered as a ready-to-run binary distribution or as source code that you can freely use, copy, modify, and distribute. Its license is compatible with the GPL. It runs on all major operating systems.  The functionality of ImageMagick is typically utilized from the command line or you can use the features from programs written in your favorite programming language. Choose from these interfaces: MagickCore (C), MagickWand (C), ChMagick (Ch), Magick++ (C++), JMagick (Java), L-Magick (Lisp), PascalMagick (Pascal), PerlMagick (Perl), MagickWand for PHP (PHP), PythonMagick (Python), RMagick (Ruby), or TclMagick (Tcl/TK). With a language interface, use ImageMagick to modify or create images automagically and dynamically."/>
+  <meta name="Keywords" content="advanced, windows, source, installation, ImageMagick, PerlMagick, image processing, OpenMP, software development library, image, photo, software, Magick++, MagickWand"/>
   <meta name="Rating" content="GENERAL"/>
   <meta name="Robots" content="INDEX, FOLLOW"/>
   <meta name="Generator" content="ImageMagick Studio LLC"/>
   <meta name="Author" content="ImageMagick Studio LLC"/>
   <meta name="Revisit-after" content="2 DAYS"/>
   <meta name="Resource-type" content="document"/>
-  <meta name="Copyright" content="Copyright (c) 1999-2010 ImageMagick Studio LLC"/>
+  <meta name="Copyright" content="Copyright (c) 1999-2013 ImageMagick Studio LLC"/>
   <meta name="Distribution" content="Global"/>
+  <link rel="icon" href="../images/wand.png"/>
+  <link rel="shortcut icon" href="../images/wand.ico"  type="images/x-icon"/>
+  <link rel="canonical" href="http://www.imagemagick.org" />
+  <link rel="meta" type="application/rdf+xml" title="ICI" href="http://imagemagick.org/ici.rdf"/>
+  <!-- Add jQuery library -->
+  <script type="text/javascript" src="http://localhost/ajax/libs/jquery/1.7/jquery.min.js"></script>
+  
+  <!-- Optionaly include easing and/or mousewheel plugins -->
+  <script type="text/javascript" src="http://www.imagemagick.org/fancybox/jquery.easing-1.3.pack.js"></script>
+  <script type="text/javascript" src="http://www.imagemagick.org/fancybox/jquery.mousewheel-3.0.6.pack.js"></script>
+  
+  <!-- Add fancyBox -->
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/jquery.fancybox.css?v=2.0.3" type="text/css" media="screen" />
+  <script type="text/javascript" src="http://www.imagemagick.org/fancybox/jquery.fancybox.pack.js?v=2.0.3"></script>
+  
+  <!-- Optionaly include button and/or thumbnail helpers -->
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/helpers/jquery.fancybox-buttons.css?v=2.0.3" type="text/css" media="screen" />
+  <script type="text/javascript" src="http://www.imagemagick.org/fancybox/helpers/jquery.fancybox-buttons.js?v=2.0.3"></script>
+  
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/helpers/jquery.fancybox-thumbs.css?v=2.0.3" type="text/css" media="screen" />
+  <script type="text/javascript" src="http://www.imagemagick.org/fancybox/helpers/jquery.fancybox-thumbs.js?v=2.0.3"></script>
+  <script type="text/javascript">
+  	$(document).ready(function() {
+  		$(".fancybox").fancybox();
+  	});
+  </script>
+  <!-- ImageMagick style -->
+  <link rel="stylesheet" href="http://www.localhost/cse/style/look/default.css" type="text/css" />
+  <style type="text/css" media="all">
+    @import url("../www/magick.css");
+  </style>
 </head>
 
 <body id="www-imagemagick-org">
 <div class="titlebar">
-<a href="../index.html">
-  <img src="../images/script.png" alt="[ImageMagick]"
-  style="width: 350px; height: 60px; margin: 28px auto; float: left;" /></a>
-<a href="http://www.networkredux.com">
-  <img src="../images/networkredux.png" alt="[sponsor]"
-  style="margin: 45px auto; border: 0px; float: left;" /></a>
+<div style="margin: 17px auto; float: left;">
+  <script type="text/javascript">
+  <!--
+    google_ad_client = "pub-3129977114552745";
+    google_ad_slot = "5439289906";
+    google_ad_width = 728;
+    google_ad_height = 90;
+  //-->
+  </script>
+  <script type="text/javascript"
+    src="http://localhost/pagead/show_ads.js">
+  </script>
+</div>
 <a href="http://www.imagemagick.org/discourse-server/">
-  <img src="../images/logo.jpg" alt=""
-  style="width: 114px; height: 118px; border: 0px; float: right;" /></a>
+  <img src="../images/logo.jpg"
+  alt="ImageMagick Logo"
+  style="width: 123px; height: 118px; border: 0px; float: right;" /></a>
 <a href="../index.html">
-  <img src="../images/sprite.jpg" alt=""
+  <img src="../images/sprite.jpg"
+  alt="ImageMagick Sprite"
   style="width: 114px; height: 118px; border: 0px; float: right;" /></a>
+</div>
+
+<div class="westbar">
+
+<div class="menu">
+  <a title="About ImageMagick" href="../index.html">About ImageMagick</a>
+</div>
+<div class="menu">
+  <a title="Binary Releases" href="../www/binary-releases.html">Binary Releases</a>
+</div>
+<div class="sub">
+    <a title="Binary Release: Unix" href="../www/binary-releases.html#unix">Unix</a>
+</div>
+<div class="sub">
+    <a title="Binary Release: MacOS X" href="../www/binary-releases.html#macosx">Mac OS X</a>
+</div>
+<div class="sub">
+    <a title="Binary Release: iOS" href="../www/binary-releases.html#iOS">iOS</a>
+</div>
+<div class="sub">
+    <a title="Binary Release: Windows" href="../www/binary-releases.html#windows">Windows</a>
+</div>
+<div class="sep"></div>
+<div class="menu">
+  <a title="Command-line Tools" href="../www/command-line-tools.html">Command-line Tools</a>
+</div>
+<div class="sub">
+    <a title="Command-line Tools: Processing" href="../www/command-line-processing.html">Processing</a>
+</div>
+<div class="sub">
+    <a title="Command-line Tools: Options" href="../www/command-line-options.html">Options</a>
+</div>
+<div class="sub">
+    <a title="Command-line Tools: Usage" href="http://www.imagemagick.org/Usage/">Usage</a>
+</div>
+<div class="menu">
+  <a title="Program Interfaces" href="../www/api.html">Program Interfaces</a>
+</div>
+<div class="sub">
+    <a title="Program Interface: MagickWand" href="../www/magick-wand.html">MagickWand</a>
+</div>
+<div class="sub">
+    <a title="Program Interface: MagickCore" href="../www/magick-core.html">MagickCore</a>
+</div>
+<div class="sub">
+    <a title="Program Interface: PerlMagick" href="../www/perl-magick.html">PerlMagick</a>
+</div>
+<div class="sub">
+    <a title="Program Interface: Magick++" href="../www/magick++.html">Magick++</a>
+</div>
+<div class="sep"></div>
+<div  class="menu">
+   <a title="Install from Source" href="../www/install-source.html">Install from Source</a>
+</div>
+<div class="sub">
+    <a title="Install from Source: Unix" href="../www/install-source.html#unix">Unix</a>
+</div>
+<div class="sub">
+    <a title="Install from Source: Windows" href="../www/install-source.html#windows">Windows</a>
+ </div>
+<div class="menu">
+  <a title="Resources" href="../www/resources.html">Resources</a>
+</div>
+<div class="menu">
+  <a title="Architecture" href="../www/architecture.html">Architecture</a>
+</div>
+<div class="menu">
+  <a title="Download" href="../www/download.html">Download</a>
+</div>
+<div class="sep"></div>
+<div class="menu">
+  <a title="Search" href="http://www.imagemagick.org/http://www.imagemagick.org/script/search.php">Search</a>
+</div>
+<div class="sep"></div>
+<div class="menu">
+  <a title="Site Map" href="../www/sitemap.html">Site Map</a>
+</div>
+<div  class="sub">
+  <a title="Site Map: Links" href="../www/links.html">Links</a>
+</div>
+<div class="sep"></div>
+<div class="menu">
+  <a rel="follow" title="Sponsors" href="../www/sponsors.html">Sponsors:</a>
+
+  <a href="http://www.networkredux.com"> <img src="../images/networkredux.png" width="140" height="31" alt="[sponsor]" style="margin-top: 4px; margin-left: 4px; border: 0px; float: left;" /></a>
+  <a href="http://www.dinodirect.com/ipads-tablets/"> <img src="../images/dino-direct.jpg" width="140" height="90" alt="[sponsor]" style="margin-top: 4px; margin-left: 4px; border: 0px; float: left;" /></a><!-- 201204010120 mickey@163... -->
+<div class="sponsbox">
+<div class="sponsor">
+  <a rel="follow" title="Android Tablet" href="http://www.dinodirect.com/ipads-tablets/">Android Tablet</a><!-- 201204010120 mickey@163... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Web Hosting" href="http://www.micfo.com">Web Hosting</a><!-- 209901010090s golestan -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Autos Part" href="http://www.pkwteile.de/autoteile">Autos Part</a><!-- 201203010270 info@pkwte... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Web Site Hosting" href="http://webhostinggeeks.com">Web Site Hosting</a><!-- 201302010900 funds@enmob... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Tenant Check" href="http://www.rentmethod.com/">Tenant Check</a><!-- 201203010090 chris@rentm... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: VPS" href="http://www.interdominios.com/vps">VPS</a><!-- 201204010090 barsh@inter... -->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Premium Quality Stock Photos" href="http://www.f1online.pro/en/">Premium Quality Stock Photos</a><!-- 2012080100540 ... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Search engine optimisation" href="http://www.seomoves.com.au">Search engine optimisation</a><!-- 201301010090s jen@seo lowprofilelinks -->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Druckerei" href="http://print24.com/de/">Druckerei</a><!-- 2012070100250 ... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Managed Server" href="http://www.robhost.de">Managed Server</a><!-- 201210010720 klikics... -->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Stock Photography" href="http://www.fotosearch.com/">Stock Photography</a><!-- 2012040100250 ... -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Autoteile" href="http://www.q11-shop.de">Autoteile</a><!-- 201205010540 suvalj -->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Royalty Free Stock Images" href="http://www.canstockphoto.com/">Royalty Free Stock Images</a><!-- 2012050100360 support@can -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Web Hosting Reviews" href="http://www.webhostingsecretrevealed.com">Web Hosting Secret Revealed</a><!-- 201204010540 iamchee jerry -->
+</div>
+<div class="sponsor">
+  <a rel="follow" title="Sponsor: Druckerei" href="http://www.allesdruck.de">Druckerei</a><!-- 201303011500 r.leo -->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Got Stripes" href="http://www.stripeslawncare.org">Got Stripes?</a><!-- 2012090100150 brooks@stripes...-->
+</div>
+<div class="sponsor">
+   <a rel="follow" title="Sponsor: Best Web Hosting" href="http://www.webhostingclue.com">Best Web Hosting</a><!-- 2012030100300 accounting@webhostingclue -->
+</div>
+</div>
+</div>
 </div>
 
 <div class="eastbar">
+  <div class="g-plusone" data-size="standard" data-count="false"></div>
+  <script type="text/javascript">
+    window.___gcfg = {
+      lang: 'en-US'
+    };
 
-<div class="menu">
-  <a href="../index.html">About ImageMagick</a>
-</div>
-<div class="sep"></div>
-<div class="menu">
-  <a href="../www/command-line-tools.html">Command-line Tools</a>
-</div>
-<div class="sub">
-    <a href="../www/command-line-processing.html">Processing</a>
-</div>
-<div class="sub">
-    <a href="../www/command-line-options.html">Options</a>
-</div>
-<div class="sub">
-    <a href="http://www.imagemagick.org/Usage/">Usage</a>
-</div>
-<div class="menu">
-  <a href="../www/api.html">Program Interfaces</a>
-</div>
-<div class="sub">
-    <a href="../www/magick-wand.html">MagickWand</a>
-</div>
-<div class="sub">
-    <a href="../www/magick-core.html">MagickCore</a>
-</div>
-<div class="sub">
-    <a href="../www/perl-magick.html">PerlMagick</a>
-</div>
-<div class="sub">
-    <a href="../Magick++/">Magick++</a>
-</div>
-<div class="menu">
-  <a href="../www/architecture.html">Architecture</a>
-</div>
-<div class="sep"></div>
-<div  class="menu">
-   <a href="../www/install-source.html">Install from Source</a>
-</div>
-<div class="sub">
-    <a href="../www/install-source.html#unix">Unix</a>
-</div>
-<div class="sub">
-    <a href="../www/install-source.html#windows">Windows</a>
- </div>
-<div class="menu">
-  <a href="../www/binary-releases.html">Binary Releases</a>
-</div>
-<div class="sub">
-    <a href="../www/binary-releases.html#unix">Unix</a>
-</div>
-<div class="sub">
-    <a href="../www/binary-releases.html#macosx">Mac OS X</a>
-</div>
-<div class="sub">
-    <a href="../www/binary-releases.html#windows">Windows</a>
-</div>
-<div class="menu">
-  <a href="../www/resources.html">Resources</a>
-</div>
-<div class="sep"></div>
-<div class="menu">
-  <a href="../www/download.html">Download</a>
-</div>
-<div class="sep"></div>
-<div class="menu">
-  <a href="http://www.imagemagick.org/script/search.php">Search</a>
-</div>
-<div class="sep"></div>
-<div class="menu">
-  <a href="../www/sitemap.html">Site Map</a>
-</div>
-<div  class="sub">
-    <a href="../www/links.html">Links</a>
-</div>
-<div class="sep"></div>
-<div  class="menu">
-  <a href="../www/sponsors.html">Sponsors:</a>
-
-<div class="sponsbox">
-<div  class="sponsor">
-   <a href="http://www.abi-stoff.de/abizeitung/" title="Abibuch">Abizeitung</a><!-- 20101101000200 -->
-</div>
-<div  class="sponsor">
-  <a href="http://www.deko.net">Deko.net</a><!-- 201101010600 Peterssen-->
-</div>
-<div  class="sponsor">
-  <a href="http://www.tomsgutscheine.de">Tom's Gutscheine</a><!-- 201005010360 invendio.de-->
-</div>
-<div  class="sponsor">
-  <a href="http://www.online-kredit-index.de">Kredit</a><!-- 201007010120 Buchhorn -->
-</div>
-<div  class="sponsor">
-  <a href="http://www.blumenversender.com">Blumenversand</a><!-- 201005010120 -->
-</div>
-<div  class="sponsor">
-  <a href="http://www.print24.de/">Druckerei</a><!-- 201009010720 -->
-</div>
-<div  class="sponsor">
-   <a href="http://www.goyax.de">Börse</a><!-- 201004010240 Gewiese digital-finance.de -->
-</div>
-<div  class="sponsor">
-   <a href="http://www.allesdruck.de">Druckerei Online</a><!-- 201012011200 allesdruck.de-->
-</div>
-</div>
-</div>
-
-
+    (function() {
+      var po = document.createElement('offline-script'); po.type = 'text/javascript'; po.async = true;
+      po.src = 'https://apis.localhost/js/plusone.js';
+      var s = document.getElementsByTagName('offline-script')[0]; s.parentNode.insertBefore(po, s);
+    })();
+  </script>
 </div>
 
 <div class="main">
 
 
+<h1>ImageMagick Advanced Windows Installation</h1>
 <p class="navigation-index">[<a href="#download">Download &amp; Unpack</a> &bull; <a href="#configure">Configure</a>  &bull; <a href="#build">Build</a> &bull; <a href="#install">Install</a> &bull; <a href="#binary">Create a Self-installing Binary Distribution</a> &bull; <a href="#problems">Dealing with Unexpected Problems</a> &bull; <a href="#project">Building Your Custom Project</a>]</p>
 
 <div class="doc-section">
 <p>It's possible you don't want to concern yourself with advanced installation under Windows.  If so, you also have the option of installing a self-installing <a href="../www/binary-releases.html#windows">binary release</a> or if you still want to install from source without all the fuss see the simple <a href="../www/install-source.html#windows">Install From Source</a> instructions.  However, if you want to customize the configuration and installation of ImageMagick under Windows, lets begin.</p>
 </div>
 
-<h2><a name="download"></a>Download &amp; Unpack</h2>
+<h2><a id="download"></a>Download &amp; Unpack</h2>
 <div class="doc-section">
 
 <p>Building ImageMagick source for Windows requires a modern version of Microsoft Visual Studio IDE.  Users have reported success with the Borland C++ compiler as well.  If you don't have a compiler you can still install a self-installing <a href="../www/binary-releases.html#windows">binary release</a>.</p>
 
-<p>Download <a href="ftp://ftp.imagemagick.org/pub/ImageMagick/windows/ImageMagick-windows.zip">ImageMagick-windows.zip</a> from <a href="ftp://ftp.imagemagick.org/pub/ImageMagick/windows">ftp.imagemagick.org</a> or its <a href="../www/download.html">mirrors</a> and verify the distribution against its <a href="http://www.imagemagick.org/download/windows/digest.rdf">message digest</a>.</p>
+<p>Download <a href="http://www.imagemagick.org/download/windows/ImageMagick-windows.zip">ImageMagick-windows.zip</a> from <a href="http://www.imagemagick.org/download/windows">ftp.imagemagick.org</a> or its <a href="../www/download.html">mirrors</a> and verify the distribution against its <a href="http://www.imagemagick.org/download/windows/digest.rdf">message digest</a>.</p>
 
 <p>You can unpack the distribution with <a href="http://www.winzip.com">WinZip</a> or type the following from any MS-DOS Command Prompt window:</p>
 
-<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>unzip ImageMagick-windows.zip</span></p>
+<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>unzip ImageMagick-windows.zip</span></p>
 <p>Now that you have the ImageMagick Windows source distribution unpacked, let's configure it.</p>
 
 </div>
 
-<h2><a name="configure"></a>Configure</h2>
+<h2><a id="configure"></a>Configure</h2>
 <div class="doc-section">
 
 <p>These instructions are specific to building ImageMagick with the <a href="http://msdn.microsoft.com/vstudio/">Visual Studio</a> under Windows XP, Win2K, or Windows 98.  ImageMagick does not include any workspace (DSW) or project files (DSP) except for those included with third party libraries. Instead, there is a <kbd>configure</kbd> program that must be built and run which creates the Visual Studio workspaces for ImageMagick.  The Visual Studio system provides four different types of <em>runtime</em> environments that must match across all application, library, and dynamic-library (DLL) code that is built. The <kbd>configure</kbd> program creates a set of build files that are consistent for a specific runtime selection listed here:</p>
@@ -212,7 +298,7 @@
 <dt>MAGICKCORE_INSTALLED_SUPPORT (default undefined)</dt>
   <dd>Define to build a ImageMagick which uses registry settings or embedded paths to locate installed components (coder modules and configuration files). The default is to look for all files in the same directory as the executable.  You will wand to define this value if you intend on <a href="#install">installing</a> ImageMagick on your system.</dd>
 <dt>ProvideDllMain (default defined)</dt>
-  <dd>Define to include a DllMain() function ensures that the ImageMagick DLL is properly initialized without participation from dependent applications. This avoids the requirement to invoke IntializeMagick() from dependent applications is only useful for DLL builds.</dd>
+  <dd>Define to include a DllMain() function ensures that the ImageMagick DLL is properly initialized without participation from dependent applications. This avoids the requirement to invoke InitializeMagick() from dependent applications is only useful for DLL builds.</dd>
 </dl>
 
 <p>ImageMagick is now configured and ready to build.</p>
@@ -221,7 +307,7 @@
 
 </div>
 
-<h2><a name="Build"></a>Build</h2>
+<h2><a id="Build"></a>Build</h2>
 <div class="doc-section">
 
 <p>After creating your build environment, proceed to open the DSW (or SLN) workspace in the <kbd>VisualMagick</kbd> folder.  In the DSW file choose the <em>All</em> project to make it the <em>active</em> project.  Set the build configuration to the desired one (Debug, or Release) and <em>clean</em> and <em>build:</em></p>
@@ -354,7 +440,7 @@
 
 <p>To view any image in a Microsoft window, type</p>
 
-<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>convert image.ext win:</span></p>
+<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>convert image.ext win:</span></p>
 <p>Make sure <a href="http://www.cs.wisc.edu/~ghost/">Ghostscript</a> is installed, otherwise, you will be unable to convert or view a Postscript document, and Postscript standard fonts will not be available.</p>
 
 <p>You may use any standard web browser (e.g. Internet Explorer) to browse the ImageMagick documentation.</p>
@@ -367,7 +453,7 @@
 
 </div>
 
-<h2><a name="Install"></a>Install</h2>
+<h2><a id="Install"></a>Install</h2>
 <div class="doc-section">
 
 <p>You can run ImageMagick command line utilities directly from the <kbd>VisualMagick\bin</kbd> folder, however, in most cases you may want the convenience of an installer script.  ImageMagick provides <a href="http://www.jrsoftware.org">Inno Setup</a> scripts for this purpose.  Note, you must define MAGICKCORE_INSTALLED_SUPPORT at <a href="#configure">configure</a> time to utilize the installer scripts.</p>
@@ -376,14 +462,14 @@
 
 </div>
 
-<h2><a name="binary"></a>Create a Self-Installing Binary Distribution</h2>
+<h2><a id="binary"></a>Create a Self-Installing Binary Distribution</h2>
 <div class="doc-section">
 
 <h3>Prerequisites</h3>
 
 	<ol>
-	<li>Download and install <a href="http://www.jrsoftware.org/isinfo.html">Inno Setup 5</a>.</li>
-	<li>Download and install <a href="http://www.activestate.com/activeperl/download/">ActiveState ActivePerl</a>.</li>
+	<li>Download and install <a href="http://www.jrsoftware.org/isdl.html">Inno Setup 5</a>.</li>
+	<li>Download and install <a href="http://www.activestate.com/activeperl/downloads">ActiveState ActivePerl</a>.</li>
 	</ol>
 
 <h3>Run the Configure Wizard</h3>
@@ -409,7 +495,7 @@
 	<ol>
 	<li>Launch the MS-DOS Command Prompt application and move to the <kbd>contrib\win32\ATL7\ImageMagickObject</kbd> folder.</li>
 	<li>Build ImageMagickObject with these commands:
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>BuildImageMagickObject clean</span><span class='crtout'></span><span class="crtprompt"> $magick&gt; </span><span class='crtin'>BuildImageMagickObject release</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>BuildImageMagickObject clean</span><span class='crtout'></span><span class="crtprompt"> $ </span><span class='crtin'>BuildImageMagickObject release</span></p></li>
 	</ol>
 
 <h3>Build PerlMagick</h3>
@@ -417,7 +503,7 @@
 	<ol>
 	<li>Launch the MS-DOS Command Prompt application and move to the <kbd>PerlMagick</kbd> folder.</li>
 	<li>Build PerlMagick with these commands:
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>perl Makefile.nt</span><span class='crtout'></span><span class="crtprompt"> $magick&gt; </span><span class='crtin'>nmake release</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>perl Makefile.nt</span><span class='crtout'></span><span class="crtprompt"> $ </span><span class='crtin'>nmake release</span></p></li>
 	</ol>
 
 <h3>Create the Self-installing ImageMagick Binary Distribution</h3>
@@ -431,7 +517,7 @@
 
 	<ol>
 	<li>Double-click on
-	<kbd>VisualMagick/bin/ImageMagick-6.6.0-4-Q16-windows-dll.exe</kbd>
+	<kbd>VisualMagick/bin/ImageMagick-6.7.5-0-Q16-windows-dll.exe</kbd>
 	to launch the ImageMagick binary distribution.</li>
 	<li>Complete the installer screens to install ImageMagick on your system.</li>
 	</ol>
@@ -440,21 +526,21 @@
 
 	<ol>
 	<li>Launch the MS-DOS Command Prompt application and move to the <kbd>PerlMagick</kbd> folder and type
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>nmake test</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>nmake test</span></p></li>
 
 	<li>Move to the <kbd>VisualMagick/tests</kbd> folder and type
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>validate</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>validate</span></p></li>
 	<li>Move to the <kbd>VisualMagick/Magick++/tests</kbd> folder and type
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>run_tests.bat</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>run_tests.bat</span></p></li>
 	<li>Move to the <kbd>VisualMagick/Magick++/demo</kbd> folder and type
-	<p class='crt'><span class="crtprompt"> $magick&gt; </span><span class='crtin'>run_demos.bat</span></p></li>
+	<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>run_demos.bat</span></p></li>
 	</ol>
 
 <p>If all the tests pass without complaint, the ImageMagick self-install binary distribution is ready for use.</p>
 
 </div>
 
-<h2><a name="problems"></a>Dealing with Unexpected Problems</h2>
+<h2><a id="problems"></a>Dealing with Unexpected Problems</h2>
 <div class="doc-section">
 
 <p>Chances are the download, configure, build, and install of ImageMagick went flawlessly as it is intended, however, certain systems and environments may cause one or more steps to fail.  We discuss a few problems we've run across and how to take corrective action to ensure you have a working release of ImageMagick.</p>
@@ -463,11 +549,11 @@
 
 </div>
 
-<h2><a name="project"></a>Building Your Custom Project</h2>
+<h2><a id="project"></a>Building Your Custom Project</h2>
 <div class="doc-section">
 
 <p>The Windows <a href="../www/binary-releases.html#windows">binary</a> distribution includes a number of demo projects that you can use as a template for your own custom project.  For example, start with the Button project, generally located in the <kbd>c:/Program Files/ImageMagick-6.5.5-0/Magick++_demos</kbd> folder.  If not, be sure to select <kbd>Configuration Properties->C/C++->Preprocessor</kbd> and set these definitions:</p>
-</p
+
 <pre class="text">
   NDEBUG
   WIN32
@@ -483,17 +569,28 @@
 </div>
 
 <div id="linkbar">
- <!--    <span id="linkbar-west">&nbsp;</span>  -->
+    <span id="linkbar-west">&nbsp;</span>
     <span id="linkbar-center">
       <a href="http://www.imagemagick.org/discourse-server/">Discourse Server</a> &bull;
-    <a href="http://www.imagemagick.org/MagickStudio/scripts/MagickStudio.cgi">Studio</a>
+      <a href="http://www.imagemagick.org/MagickStudio/scripts/MagickStudio.cgi">Studio</a>
     </span>
     <span id="linkbar-east">&nbsp;</span>
   </div>
   <div class="footer">
-    <span id="footer-west">&copy; 1999-2010 ImageMagick Studio LLC</span>
-    <span id="footer-east"> <a href="http://www.imagemagick.org/script/contact.php">Contact the Wizards</a></span>
+    <span id="footer-west">&copy; 1999-2011 ImageMagick Studio LLC</span>
+    <span id="footer-east"> <a href="http://www.imagemagick.org/www/contact.html">Contact the Wizards</a></span>
   </div>
   <div style="clear: both; margin: 0; width: 100%; "></div>
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-17690367-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('offline-script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.localhost/ga.js';
+      var s = document.getElementsByTagName('offline-script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
 </body>
 </html>

@@ -16,7 +16,7 @@
 %                              Bill Radcliffe                                 %
 %                                   2001                                      %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -38,15 +38,17 @@
  */
 
 #include "magick/studio.h"
-#if defined(MAGICKCORE_WINGDI32_DELEGATE)
+#if defined(MAGICKCORE_WINGDI32_DELEGATE) && defined(__CYGWIN__)
+#  define MAGICKCORE_EMF_DELEGATE
+#endif
+
+#if defined(MAGICKCORE_EMF_DELEGATE)
 #  if defined(__CYGWIN__)
 #    include <windows.h>
 #  else
-     /* All MinGW needs ... */
 #    include <wingdi.h>
 #  endif
 #endif
-
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
@@ -58,6 +60,8 @@
 #include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
+#include "magick/pixel.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -257,17 +261,17 @@ static wchar_t *ConvertUTF8ToUTF16(const unsigned char *source)
   length=UTF8ToUTF16(source,(wchar_t *) NULL);
   if (length == 0)
     {
-      register long
+      register ssize_t
         i;
 
       /*
         Not UTF-8, just copy.
       */
-      length=strlen(source);
+      length=strlen((char *) source);
       utf16=(wchar_t *) AcquireQuantumMemory(length+1,sizeof(*utf16));
       if (utf16 == (wchar_t *) NULL)
         return((wchar_t *) NULL);
-      for (i=0; i <= (long) length; i++)
+      for (i=0; i <= (ssize_t) length; i++)
         utf16[i]=source[i];
       return(utf16);
     }
@@ -284,9 +288,9 @@ static wchar_t *ConvertUTF8ToUTF16(const unsigned char *source)
   metafile, or an Aldus Placeable metafile and converts it into an enhanced
   metafile.  Width and height are returned in .01mm units.
 */
-#if defined(MAGICKCORE_WINGDI32_DELEGATE)
-static HENHMETAFILE ReadEnhMetaFile(const char *path,long *width,
-  long *height)
+#if defined(MAGICKCORE_EMF_DELEGATE)
+static HENHMETAFILE ReadEnhMetaFile(const char *path,ssize_t *width,
+  ssize_t *height)
 {
 #pragma pack( push, 2 )
   typedef struct
@@ -333,7 +337,7 @@ static HENHMETAFILE ReadEnhMetaFile(const char *path,long *width,
       wchar_t
         *unicode_path;
 
-      unicode_path=ConvertUTF8ToUTF16(path);
+      unicode_path=ConvertUTF8ToUTF16((const unsigned char *) path);
       if (unicode_path != (wchar_t *) NULL)
         {
           hTemp=GetEnhMetaFileW(unicode_path);
@@ -447,15 +451,10 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    height,
-    width,
-    y;
-
   RECT
     rect;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
@@ -464,6 +463,11 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
   RGBQUAD
     *pBits,
     *ppBits;
+
+  ssize_t
+    height,
+    width,
+    y;
 
   image=AcquireImage(image_info);
   hemf=ReadEnhMetaFile(image_info->filename,&width,&height);
@@ -489,14 +493,13 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
           if (image->units == PixelsPerCentimeterResolution)
             x_resolution*=CENTIMETERS_INCH;
         }
-      image->rows=(unsigned long) ((height/1000.0/CENTIMETERS_INCH)*
-        y_resolution+0.5);
-      image->columns=(unsigned long) ((width/1000.0/CENTIMETERS_INCH)*
+      image->rows=(size_t) ((height/1000.0/CENTIMETERS_INCH)*y_resolution+0.5);
+      image->columns=(size_t) ((width/1000.0/CENTIMETERS_INCH)*
         x_resolution+0.5);
     }
   if (image_info->size != (char *) NULL)
     {
-      long
+      ssize_t
         x;
 
       image->columns=width;
@@ -510,14 +513,14 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
       char
         *geometry;
 
-      long
-        sans;
-
       register char
         *p;
 
       MagickStatusType
         flags;
+
+      ssize_t
+        sans;
 
       geometry=GetPageGeometry(image_info->page);
       p=strchr(geometry,'>');
@@ -526,10 +529,10 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
           flags=ParseMetaGeometry(geometry,&sans,&sans,&image->columns,
             &image->rows);
           if (image->x_resolution != 0.0)
-            image->columns=(unsigned long) ((image->columns*
-              image->x_resolution)+0.5);
+            image->columns=(size_t) floor((image->columns*image->x_resolution)+
+              0.5);
           if (image->y_resolution != 0.0)
-            image->rows=(unsigned long) ((image->rows*image->y_resolution)+0.5);
+            image->rows=(size_t) floor((image->rows*image->y_resolution)+0.5);
         }
       else
         {
@@ -537,12 +540,13 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
           flags=ParseMetaGeometry(geometry,&sans,&sans,&image->columns,
             &image->rows);
           if (image->x_resolution != 0.0)
-            image->columns=(unsigned long) (((image->columns*
-              image->x_resolution)/DefaultResolution)+0.5);
+            image->columns=(size_t) floor(((image->columns*image->x_resolution)/
+              DefaultResolution)+0.5);
           if (image->y_resolution != 0.0)
-            image->rows=(unsigned long) (((image->rows*image->y_resolution)/
+            image->rows=(size_t) floor(((image->rows*image->y_resolution)/
               DefaultResolution)+0.5);
         }
+      (void) flags;
       geometry=DestroyString(geometry);
     }
   hDC=GetDC(NULL);
@@ -556,13 +560,13 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
   */
   (void) ResetMagickMemory(&DIBinfo,0,sizeof(BITMAPINFO));
   DIBinfo.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-  DIBinfo.bmiHeader.biWidth=image->columns;
-  DIBinfo.bmiHeader.biHeight=(-1)*image->rows;
+  DIBinfo.bmiHeader.biWidth=(LONG) image->columns;
+  DIBinfo.bmiHeader.biHeight=(-1)*(LONG) image->rows;
   DIBinfo.bmiHeader.biPlanes=1;
   DIBinfo.bmiHeader.biBitCount=32;
   DIBinfo.bmiHeader.biCompression=BI_RGB;
-  hBitmap=CreateDIBSection(hDC,&DIBinfo,DIB_RGB_COLORS,(void **) &ppBits,
-    NULL,0);
+  hBitmap=CreateDIBSection(hDC,&DIBinfo,DIB_RGB_COLORS,(void **) &ppBits,NULL,
+    0);
   ReleaseDC(NULL,hDC);
   if (hBitmap == (HBITMAP) NULL)
     {
@@ -588,9 +592,9 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
     Initialize the bitmap to the image background color.
   */
   pBits=ppBits;
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       pBits->rgbRed=ScaleQuantumToChar(image->background_color.red);
       pBits->rgbGreen=ScaleQuantumToChar(image->background_color.green);
@@ -600,24 +604,24 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
   }
   rect.top=0;
   rect.left=0;
-  rect.right=image->columns;
-  rect.bottom=image->rows;
+  rect.right=(LONG) image->columns;
+  rect.bottom=(LONG) image->rows;
   /*
     Convert metafile pixels.
   */
   PlayEnhMetaFile(hDC,hemf,&rect);
   pBits=ppBits;
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      q->red=ScaleCharToQuantum(pBits->rgbRed);
-      q->green=ScaleCharToQuantum(pBits->rgbGreen);
-      q->blue=ScaleCharToQuantum(pBits->rgbBlue);
-      SetOpacityPixelComponent(q,OpaqueOpacity);
+      SetPixelRed(q,ScaleCharToQuantum(pBits->rgbRed));
+      SetPixelGreen(q,ScaleCharToQuantum(pBits->rgbGreen));
+      SetPixelBlue(q,ScaleCharToQuantum(pBits->rgbBlue));
+      SetPixelOpacity(q,OpaqueOpacity);
       pBits++;
       q++;
     }
@@ -630,7 +634,7 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
   DeleteObject(hBitmap);
   return(GetFirstImageInList(image));
 }
-#endif /* MAGICKCORE_WINGDI32_DELEGATE */
+#endif /* MAGICKCORE_EMF_DELEGATE */
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -652,16 +656,16 @@ static Image *ReadEMFImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterEMFImage method is:
 %
-%      unsigned long RegisterEMFImage(void)
+%      size_t RegisterEMFImage(void)
 %
 */
-ModuleExport unsigned long RegisterEMFImage(void)
+ModuleExport size_t RegisterEMFImage(void)
 {
   MagickInfo
     *entry;
 
   entry=SetMagickInfo("EMF");
-#if defined(MAGICKCORE_WINGDI32_DELEGATE)
+#if defined(MAGICKCORE_EMF_DELEGATE)
   entry->decoder=ReadEMFImage;
 #endif
   entry->description=ConstantString(
@@ -671,7 +675,7 @@ ModuleExport unsigned long RegisterEMFImage(void)
   entry->module=ConstantString("WMF");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("WMFWIN32");
-#if defined(MAGICKCORE_WINGDI32_DELEGATE)
+#if defined(MAGICKCORE_EMF_DELEGATE)
   entry->decoder=ReadEMFImage;
 #endif
   entry->description=ConstantString("Windows WIN32 API rendered Meta File");

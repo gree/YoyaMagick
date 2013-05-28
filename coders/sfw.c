@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -50,13 +50,15 @@
 #include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
-#include "magick/resource_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
 #include "magick/transform.h"
 #include "magick/utility.h"
+#include "magick/utility-private.h"
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -120,23 +122,21 @@ static MagickBooleanType IsSFW(const unsigned char *magick,const size_t length)
 */
 
 static unsigned char *SFWScan(unsigned char *p,const unsigned char *q,
-  const unsigned char *target,const int length)
+  const unsigned char *target,const size_t length)
 {
-  register long
+  register ssize_t
     i;
 
-  for ( ; p < q; p++)
-  {
-    if (*p != *target)
-      continue;
-    if (length == 1)
-      return(p);
-    for (i=1; i < length; i++)
-      if (*(p+i) != *(target+i))
-        break;
-    if (i == length)
-      return(p);
-  }
+  if ((p+length) < q)
+    while (p < q)
+    {
+      for (i=0; i < (ssize_t) length; i++)
+        if (p[i] != target[i])
+          break;
+      if (i == (ssize_t) length)
+        return((unsigned char *) p);
+      p++;
+    }
   return((unsigned char *) NULL);
 }
 
@@ -206,6 +206,7 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
 
   Image
     *flipped_image,
+    *jpeg_image,
     *image;
 
   ImageInfo
@@ -251,15 +252,17 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Read image into a buffer.
   */
+  if (GetBlobSize(image) != (size_t) GetBlobSize(image))
+    ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   buffer=(unsigned char *) AcquireQuantumMemory((size_t) GetBlobSize(image),
     sizeof(*buffer));
   if (buffer == (unsigned char *) NULL)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   count=ReadBlob(image,(size_t) GetBlobSize(image),buffer);
-  if ((count == 0) || (LocaleNCompare((char *) buffer,"SFW",3) != 0))
+  if ((count != (ssize_t) GetBlobSize(image)) ||
+      (LocaleNCompare((char *) buffer,"SFW",3) != 0))
     ThrowReaderException(CorruptImageError,"ImproperImageHeader");
   (void) CloseBlob(image);
-  image=DestroyImage(image);
   /*
     Find the start of the JFIF data
   */
@@ -277,13 +280,18 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
     Translate remaining markers.
   */
   offset=header+2;
-  offset+=(offset[2] << 8)+offset[3]+2;
+  offset+=(((unsigned int) offset[2]) << 8)+offset[3]+2;
   for ( ; ; )
   {
+    if ((offset+4) > (buffer+count-1))
+      {
+        buffer=(unsigned char *) RelinquishMagickMemory(buffer);
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
+      }
     TranslateSFWMarker(offset);
     if (offset[1] == 0xda)
       break;
-    offset+=(offset[2] << 8)+offset[3]+2;
+    offset+=(((unsigned int) offset[2]) << 8)+offset[3]+2;
   }
   offset--;
   data=SFWScan(offset,buffer+count-1,(const unsigned char *) "\377\311",2);
@@ -297,12 +305,11 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
     Write JFIF file.
   */
   read_info=CloneImageInfo(image_info);
-  read_info->blob=(void *) NULL;
-  read_info->length=0;
+  SetImageInfoBlob(read_info,(void *) NULL,0);
   file=(FILE *) NULL;
   unique_file=AcquireUniqueFileResource(read_info->filename);
   if (unique_file != -1)
-    file=OpenMagickStream(read_info->filename,"wb");
+    file=fopen_utf8(read_info->filename,"wb");
   if ((unique_file == -1) || (file == (FILE *) NULL))
     {
       buffer=(unsigned char *) RelinquishMagickMemory(buffer);
@@ -315,6 +322,7 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
       return((Image *) NULL);
     }
   extent=fwrite(header,(size_t) (offset-header+1),1,file);
+  (void) extent;
   extent=fwrite(HuffmanTable,1,sizeof(HuffmanTable)/sizeof(*HuffmanTable),file);
   extent=fwrite(offset+1,(size_t) (data-offset),1,file);
   status=ferror(file) == -1 ? MagickFalse : MagickTrue;
@@ -325,7 +333,7 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
       char
         *message;
 
-      (void) remove(read_info->filename);
+      (void) remove_utf8(read_info->filename);
       read_info=DestroyImageInfo(read_info);
       message=GetExceptionMessage(errno);
       (void) ThrowMagickException(&image->exception,GetMagickModule(),
@@ -337,20 +345,29 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Read JPEG image.
   */
-  image=ReadImage(read_info,exception);
+  jpeg_image=ReadImage(read_info,exception);
   (void) RelinquishUniqueFileResource(read_info->filename);
   read_info=DestroyImageInfo(read_info);
-  if (image == (Image *) NULL)
-    return(GetFirstImageInList(image));
+  if (jpeg_image == (Image *) NULL)
+    {
+      image=DestroyImageList(image);
+      return(jpeg_image);
+    }
+  (void) CopyMagickString(jpeg_image->filename,image->filename,MaxTextExtent);
+  (void) CopyMagickString(jpeg_image->magick,image->magick,MaxTextExtent);
+  image=DestroyImageList(image);
+  image=jpeg_image;
   /*
     Correct image orientation.
   */
   flipped_image=FlipImage(image,exception);
-  if (flipped_image == (Image *) NULL)
-    return(GetFirstImageInList(image));
-  DuplicateBlob(flipped_image,image);
-  image=DestroyImage(image);
-  return(flipped_image);
+  if (flipped_image != (Image *) NULL)
+    {
+      DuplicateBlob(flipped_image,image);
+      image=DestroyImage(image);
+      image=flipped_image;
+    }
+  return(GetFirstImageInList(image));
 }
 
 /*
@@ -373,10 +390,10 @@ static Image *ReadSFWImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterSFWImage method is:
 %
-%      unsigned long RegisterSFWImage(void)
+%      size_t RegisterSFWImage(void)
 %
 */
-ModuleExport unsigned long RegisterSFWImage(void)
+ModuleExport size_t RegisterSFWImage(void)
 {
   MagickInfo
     *entry;

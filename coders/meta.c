@@ -17,7 +17,7 @@
 %                                 July 2001                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -50,9 +50,10 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/module.h"
+#include "magick/pixel-accessor.h"
 #include "magick/profile.h"
-#include "magick/splay-tree.h"
 #include "magick/quantum-private.h"
+#include "magick/splay-tree.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/string-private.h"
@@ -162,7 +163,7 @@ static html_code html_codes[] = {
 
 static int stringnicmp(const char *p,const char *q,size_t n)
 {
-  register long
+  register ssize_t
     i,
     j;
 
@@ -288,7 +289,7 @@ static char *super_fgets(char **b, int *blen, Image *file)
 #define IPTC_ID 1028
 #define THUMBNAIL_ID 1033
 
-static long parse8BIM(Image *ifile, Image *ofile)
+static ssize_t parse8BIM(Image *ifile, Image *ofile)
 {
   char
     brkused,
@@ -311,13 +312,13 @@ static long parse8BIM(Image *ifile, Image *ofile)
   int
     inputlen = BUFFER_SZ;
 
-  long
-    savedolen = 0L,
-    outputlen = 0L;
-
   MagickOffsetType
     savedpos,
     currentpos;
+
+  ssize_t
+    savedolen = 0L,
+    outputlen = 0L;
 
   TokenInfo
     *token_info;
@@ -380,7 +381,7 @@ static long parse8BIM(Image *ifile, Image *ofile)
             int
               next;
 
-            long
+            ssize_t
               len;
 
             char
@@ -388,7 +389,7 @@ static long parse8BIM(Image *ifile, Image *ofile)
               quoted;
 
             next=0;
-            len = (long) strlen(token);
+            len = (ssize_t) strlen(token);
             while (Tokenizer(token_info,0,newstr,(size_t) inputlen,token,"","&",
               "",0,&brkused,&next,&quoted)==0)
             {
@@ -397,7 +398,7 @@ static long parse8BIM(Image *ifile, Image *ofile)
                   char
                     *s = &token[next-1];
 
-                  len -= (long) convertHTMLcodes(s,(int) strlen(s));
+                  len -= (ssize_t) convertHTMLcodes(s,(int) strlen(s));
                 }
             }
 
@@ -414,12 +415,12 @@ static long parse8BIM(Image *ifile, Image *ofile)
                     MagickOffsetType
                       offset;
 
-                    long diff = outputlen - savedolen;
+                    ssize_t diff = outputlen - savedolen;
                     currentpos = TellBlob(ofile);
                     offset=SeekBlob(ofile,savedpos,SEEK_SET);
                     if (offset < 0)
                       return(-1);
-                    (void) WriteBlobMSBLong(ofile,(unsigned long) diff);
+                    (void) WriteBlobMSBLong(ofile,(unsigned int) diff);
                     offset=SeekBlob(ofile,currentpos,SEEK_SET);
                     if (offset < 0)
                       return(-1);
@@ -447,7 +448,7 @@ static long parse8BIM(Image *ifile, Image *ofile)
                   }
                 if (recnum != IPTC_ID)
                   {
-                    (void) WriteBlobMSBLong(ofile, (unsigned long) len);
+                    (void) WriteBlobMSBLong(ofile, (unsigned int) len);
                     outputlen += 4;
 
                     next=0;
@@ -465,7 +466,7 @@ static long parse8BIM(Image *ifile, Image *ofile)
                   {
                     /* patch in a fake length for now and fix it later */
                     savedpos = TellBlob(ofile);
-                    (void) WriteBlobMSBLong(ofile,0xFFFFFFFFUL);
+                    (void) WriteBlobMSBLong(ofile,0xFFFFFFFFU);
                     outputlen += 4;
                     savedolen = outputlen;
                   }
@@ -500,13 +501,13 @@ static long parse8BIM(Image *ifile, Image *ofile)
       MagickOffsetType
         offset;
 
-      long diff = outputlen - savedolen;
+      ssize_t diff = outputlen - savedolen;
 
       currentpos = TellBlob(ofile);
       offset=SeekBlob(ofile,savedpos,SEEK_SET);
       if (offset < 0)
         return(-1);
-      (void) WriteBlobMSBLong(ofile,(unsigned long) diff);
+      (void) WriteBlobMSBLong(ofile,(unsigned int) diff);
       offset=SeekBlob(ofile,currentpos,SEEK_SET);
       if (offset < 0)
         return(-1);
@@ -564,7 +565,7 @@ static char *super_fgets_w(char **b, int *blen, Image *file)
   return((char *) p);
 }
 
-static long parse8BIMW(Image *ifile, Image *ofile)
+static ssize_t parse8BIMW(Image *ifile, Image *ofile)
 {
   char
     brkused,
@@ -587,7 +588,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
   int
     inputlen = BUFFER_SZ;
 
-  long
+  ssize_t
     savedolen = 0L,
     outputlen = 0L;
 
@@ -656,7 +657,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
             int
               next;
 
-            long
+            ssize_t
               len;
 
             char
@@ -664,7 +665,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
               quoted;
 
             next=0;
-            len = (long) strlen(token);
+            len = (ssize_t) strlen(token);
             while (Tokenizer(token_info,0,newstr,(size_t) inputlen,token,"","&",
               "",0,&brkused,&next,&quoted)==0)
             {
@@ -673,7 +674,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
                   char
                     *s = &token[next-1];
 
-                  len -= (long) convertHTMLcodes(s,(int) strlen(s));
+                  len -= (ssize_t) convertHTMLcodes(s,(int) strlen(s));
                 }
             }
 
@@ -690,12 +691,12 @@ static long parse8BIMW(Image *ifile, Image *ofile)
                     MagickOffsetType
                       offset;
 
-                    long diff = outputlen - savedolen;
+                    ssize_t diff = outputlen - savedolen;
                     currentpos = TellBlob(ofile);
                     offset=SeekBlob(ofile,savedpos,SEEK_SET);
                     if (offset < 0)
                       return(-1);
-                    (void) WriteBlobMSBLong(ofile,(unsigned long) diff);
+                    (void) WriteBlobMSBLong(ofile,(unsigned int) diff);
                     offset=SeekBlob(ofile,currentpos,SEEK_SET);
                     if (offset < 0)
                       return(-1);
@@ -723,7 +724,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
                   }
                 if (recnum != IPTC_ID)
                   {
-                    (void) WriteBlobMSBLong(ofile,(unsigned long) len);
+                    (void) WriteBlobMSBLong(ofile,(unsigned int) len);
                     outputlen += 4;
 
                     next=0;
@@ -741,7 +742,7 @@ static long parse8BIMW(Image *ifile, Image *ofile)
                   {
                     /* patch in a fake length for now and fix it later */
                     savedpos = TellBlob(ofile);
-                    (void) WriteBlobMSBLong(ofile,0xFFFFFFFFUL);
+                    (void) WriteBlobMSBLong(ofile,0xFFFFFFFFU);
                     outputlen += 4;
                     savedolen = outputlen;
                   }
@@ -775,13 +776,13 @@ static long parse8BIMW(Image *ifile, Image *ofile)
       MagickOffsetType
         offset;
 
-      long diff = outputlen - savedolen;
+      ssize_t diff = outputlen - savedolen;
 
       currentpos = TellBlob(ofile);
       offset=SeekBlob(ofile,savedpos,SEEK_SET);
       if (offset < 0)
         return(-1);
-      (void) WriteBlobMSBLong(ofile,(unsigned long) diff);
+      (void) WriteBlobMSBLong(ofile,(unsigned int) diff);
       offset=SeekBlob(ofile,currentpos,SEEK_SET);
       if (offset < 0)
         return(-1);
@@ -1146,8 +1147,10 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
             (void) WriteBlobByte(buff,(unsigned char) c);
           }
         }
-      profile=AcquireStringInfo((size_t) GetBlobSize(buff));
-      SetStringInfoDatum(profile,GetBlobStreamData(buff));
+      profile=BlobToStringInfo(GetBlobStreamData(buff),(size_t)
+        GetBlobSize(buff));
+      if (profile == (StringInfo *) NULL)
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       status=SetImageProfile(image,"8bim",profile);
       profile=DestroyStringInfo(profile);
       if (status == MagickFalse)
@@ -1161,7 +1164,7 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
       char
         name[MaxTextExtent];
 
-      (void) FormatMagickString(name,MaxTextExtent,"APP%d",1);
+      (void) FormatLocaleString(name,MaxTextExtent,"APP%d",1);
       buff=AcquireImage((ImageInfo *) NULL);
       if (buff == (Image *) NULL)
         ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
@@ -1222,7 +1225,7 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
             (void) WriteBlobByte(buff,c);
           }
 #else
-          long
+          ssize_t
             i;
 
           unsigned char
@@ -1240,21 +1243,23 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
               while ((length=ReadBlob(image,MagickMaxBufferExtent,buffer)) != 0)
               {
                 count=0;
-                for (i=0; i < (long) length; i+=count)
+                for (i=0; i < (ssize_t) length; i+=count)
                 {
                   count=WriteBlob(buff,(size_t) (length-i),buffer+i);
                   if (count <= 0)
                     break;
                 }
-                if (i < (long) length)
+                if (i < (ssize_t) length)
                   break;
               }
               buffer=(unsigned char *) RelinquishMagickMemory(buffer);
             }
 #endif
         }
-      profile=AcquireStringInfo((size_t) GetBlobSize(buff));
-      SetStringInfoDatum(profile,GetBlobStreamData(buff));
+      profile=BlobToStringInfo(GetBlobStreamData(buff),(size_t)
+        GetBlobSize(buff));
+      if (profile == (StringInfo *) NULL)
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       status=SetImageProfile(image,name,profile);
       profile=DestroyStringInfo(profile);
       if (status == MagickFalse)
@@ -1283,8 +1288,10 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
           break;
         (void) WriteBlobByte(buff,(unsigned char) c);
       }
-      profile=AcquireStringInfo((size_t) GetBlobSize(buff));
-      SetStringInfoDatum(profile,GetBlobStreamData(buff));
+      profile=BlobToStringInfo(GetBlobStreamData(buff),(size_t)
+        GetBlobSize(buff));
+      if (profile == (StringInfo *) NULL)
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       (void) SetImageProfile(image,"icc",profile);
       profile=DestroyStringInfo(profile);
       blob=DetachBlob(buff->blob);
@@ -1307,8 +1314,8 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
         }
       AttachBlob(buff->blob,blob,length);
       /* write out the header - length field patched below */
-      (void) WriteBlob(buff,11,(unsigned char *) "8BIM\04\04\0\0\0\0\01");
-      (void) WriteBlobByte(buff,0xe0);
+      (void) WriteBlob(buff,11,(unsigned char *) "8BIM\04\04\0\0\0\0\0");
+      (void) WriteBlobByte(buff,0xc6);
       if (LocaleCompare(image_info->magick,"IPTCTEXT") == 0)
         {
           length=(size_t) parse8BIM(image,buff);
@@ -1328,7 +1335,10 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
             (void) WriteBlobByte(buff,(unsigned char) c);
           }
         }
-      profile=AcquireStringInfo((size_t) GetBlobSize(buff));
+      profile=BlobToStringInfo(GetBlobStreamData(buff),(size_t)
+        GetBlobSize(buff));
+      if (profile == (StringInfo *) NULL)
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       /*
         subtract off the length of the 8BIM stuff.
       */
@@ -1362,8 +1372,10 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
           break;
         (void) WriteBlobByte(buff,(unsigned char) c);
       }
-      profile=AcquireStringInfo((size_t) GetBlobSize(buff));
-      SetStringInfoDatum(profile,GetBlobStreamData(buff));
+      profile=BlobToStringInfo(GetBlobStreamData(buff),(size_t)
+        GetBlobSize(buff));
+      if (profile == (StringInfo *) NULL)
+        ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       (void) SetImageProfile(image,"xmp",profile);
       profile=DestroyStringInfo(profile);
       blob=DetachBlob(buff->blob);
@@ -1394,10 +1406,10 @@ static Image *ReadMETAImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterMETAImage method is:
 %
-%      unsigned long RegisterMETAImage(void)
+%      size_t RegisterMETAImage(void)
 %
 */
-ModuleExport unsigned long RegisterMETAImage(void)
+ModuleExport size_t RegisterMETAImage(void)
 {
   MagickInfo
     *entry;
@@ -1411,7 +1423,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Photoshop resource format");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("8BIMTEXT");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1421,7 +1432,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Photoshop resource text format");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("8BIMWTEXT");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1431,7 +1441,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Photoshop resource wide text format");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("APP1");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1441,7 +1450,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Raw application information");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("APP1JPEG");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1451,7 +1459,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Raw JPEG binary data");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("EXIF");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1461,7 +1468,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Exif digital camera binary data");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("XMP");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1471,7 +1477,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("Adobe XML metadata");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("ICM");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1481,7 +1486,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("ICC Color Profile");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("ICC");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1491,7 +1495,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("ICC Color Profile");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("IPTC");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1501,7 +1504,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("IPTC Newsphoto");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("IPTCTEXT");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1511,7 +1513,6 @@ ModuleExport unsigned long RegisterMETAImage(void)
   entry->description=ConstantString("IPTC Newsphoto text format");
   entry->module=ConstantString("META");
   (void) RegisterMagickInfo(entry);
-
   entry=SetMagickInfo("IPTCWTEXT");
   entry->decoder=(DecodeImageHandler *) ReadMETAImage;
   entry->encoder=(EncodeImageHandler *) WriteMETAImage;
@@ -1593,7 +1594,7 @@ static size_t GetIPTCStream(unsigned char **info,size_t length)
   int
     c;
 
-  register long
+  register ssize_t
     i;
 
   register unsigned char
@@ -1603,13 +1604,10 @@ static size_t GetIPTCStream(unsigned char **info,size_t length)
     extent,
     info_length;
 
-  unsigned char
-    buffer[4] = { '\0', '\0', '\0', '\0' };
-
   unsigned int
     marker;
 
-  unsigned long
+  size_t
     tag_length;
 
   p=(*info);
@@ -1637,8 +1635,8 @@ static size_t GetIPTCStream(unsigned char **info,size_t length)
     extent-=c;
     if (extent < 4)
       break;
-    tag_length=(((unsigned long) *p) << 24) | (((unsigned long) *(p+1)) << 16) |
-      (((unsigned long) *(p+2)) << 8) | ((unsigned long) *(p+3));
+    tag_length=(((size_t) *p) << 24) | (((size_t) *(p+1)) << 16) |
+      (((size_t) *(p+2)) << 8) | ((size_t) *(p+3));
     p+=4;
     extent-=4;
     if (tag_length > extent)
@@ -1709,7 +1707,7 @@ iptc_find:
       goto iptc_find;
     info_length++;
     /*
-      Decode the length of the block that follows - long or short format.
+      Decode the length of the block that follows - ssize_t or short format.
     */
     c=(*p++);
     length--;
@@ -1718,27 +1716,32 @@ iptc_find:
     info_length++;
     if ((c & 0x80) != 0)
       {
+        /*
+          Long format.
+        */
+        tag_length=0;
         for (i=0; i < 4; i++)
         {
-          buffer[i]=(*p++);
+          tag_length<<=8;
+          tag_length|=(*p++);
           length--;
           if (length == 0)
             break;
           info_length++;
         }
-        tag_length=(((unsigned long) buffer[0]) << 24) |
-          (((unsigned long) buffer[1]) << 16) |
-          (((unsigned long) buffer[2]) << 8) | (((unsigned long) buffer[3])); 
       }
     else
       {
-        tag_length=(unsigned long) (c << 8);
+        /*
+          Short format.
+        */
+        tag_length=((long) c) << 8;
         c=(*p++);
         length--;
         if (length == 0)
           break;
         info_length++;
-        tag_length|=c;
+        tag_length|=(long) c;
       }
     if (tag_length > (length+1))
       break;
@@ -1779,13 +1782,13 @@ static void formatString(Image *ofile, const char *s, int len)
         (void) WriteBlobByte(ofile,(unsigned char) *s);
       else
         {
-          (void) FormatMagickString(temp,MaxTextExtent,"&#%d;", c & 255);
+          (void) FormatLocaleString(temp,MaxTextExtent,"&#%d;", c & 255);
           (void) WriteBlobString(ofile,temp);
         }
       break;
     }
   }
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
   (void) WriteBlobString(ofile,"\"\r\n");
 #else
 #if defined(macintosh)
@@ -1878,7 +1881,7 @@ static int formatIPTC(Image *ifile, Image *ofile)
     *readable,
     *str;
 
-  long
+  ssize_t
     tagindx,
     taglen;
 
@@ -1923,7 +1926,7 @@ static int formatIPTC(Image *ifile, Image *ofile)
     else
       readable = (unsigned char *) "";
     /*
-      We decode the length of the block that follows - long or short fmt.
+      We decode the length of the block that follows - ssize_t or short fmt.
     */
     c=ReadBlobByte(ifile);
     if (c == EOF) return -1;
@@ -1957,10 +1960,10 @@ static int formatIPTC(Image *ifile, Image *ofile)
 
     /* now finish up by formatting this binary data into ASCII equivalent */
     if (strlen((char *)readable) > 0)
-      (void) FormatMagickString(temp,MaxTextExtent,"%d#%d#%s=",
+      (void) FormatLocaleString(temp,MaxTextExtent,"%d#%d#%s=",
         (unsigned int) dataset, (unsigned int) recnum, readable);
     else
-      (void) FormatMagickString(temp,MaxTextExtent,"%d#%d=",
+      (void) FormatLocaleString(temp,MaxTextExtent,"%d#%d=",
         (unsigned int) dataset,(unsigned int) recnum);
     (void) WriteBlobString(ofile,temp);
     formatString( ofile, (char *)str, taglen );
@@ -1973,7 +1976,7 @@ static int formatIPTC(Image *ifile, Image *ofile)
   return((int) tagsfound);
 }
 
-static int readWordFromBuffer(char **s, long *len)
+static int readWordFromBuffer(char **s, ssize_t *len)
 {
   unsigned char
     buffer[2];
@@ -1992,7 +1995,7 @@ static int readWordFromBuffer(char **s, long *len)
          (((int) buffer[ 1 ]));
 }
 
-static int formatIPTCfromBuffer(Image *ofile, char *s, long len)
+static int formatIPTCfromBuffer(Image *ofile, char *s, ssize_t len)
 {
   char
     temp[MaxTextExtent];
@@ -2009,7 +2012,7 @@ static int formatIPTCfromBuffer(Image *ofile, char *s, long len)
     *readable,
     *str;
 
-  long
+  ssize_t
     tagindx,
     taglen;
 
@@ -2053,7 +2056,7 @@ static int formatIPTCfromBuffer(Image *ofile, char *s, long len)
     else
       readable=(unsigned char *) "";
     /*
-      We decode the length of the block that follows - long or short fmt.
+      We decode the length of the block that follows - ssize_t or short fmt.
     */
     c=(*s++);
     len--;
@@ -2088,10 +2091,10 @@ static int formatIPTCfromBuffer(Image *ofile, char *s, long len)
 
     /* now finish up by formatting this binary data into ASCII equivalent */
     if (strlen((char *)readable) > 0)
-      (void) FormatMagickString(temp,MaxTextExtent,"%d#%d#%s=",
+      (void) FormatLocaleString(temp,MaxTextExtent,"%d#%d#%s=",
         (unsigned int) dataset,(unsigned int) recnum, readable);
     else
-      (void) FormatMagickString(temp,MaxTextExtent,"%d#%d=",
+      (void) FormatLocaleString(temp,MaxTextExtent,"%d#%d=",
         (unsigned int) dataset,(unsigned int) recnum);
     (void) WriteBlobString(ofile,temp);
     formatString( ofile, (char *)str, taglen );
@@ -2125,6 +2128,7 @@ static int format8BIM(Image *ifile, Image *ofile)
 
   resCount=0;
   foundOSType=0; /* found the OSType */
+  (void) foundOSType;
   c=ReadBlobByte(ifile);
   while (c != EOF)
   {
@@ -2187,7 +2191,7 @@ static int format8BIM(Image *ifile, Image *ofile)
           return(-1);
       }
     }
-    count = (ssize_t) ReadBlobMSBLong(ifile);
+    count = (int) ReadBlobMSBLong(ifile);
     if (count < 0) return -1;
     /* make a buffer to hold the datand snag it from the input stream */
     str=(unsigned char *) AcquireQuantumMemory((size_t) count,sizeof(*str));
@@ -2196,7 +2200,7 @@ static int format8BIM(Image *ifile, Image *ofile)
         printf("MemoryAllocationFailed");
         return 0;
       }
-    for (i=0; i < (long) count; i++)
+    for (i=0; i < (ssize_t) count; i++)
     {
       c=ReadBlobByte(ifile);
       if (c == EOF)
@@ -2213,18 +2217,18 @@ static int format8BIM(Image *ifile, Image *ofile)
          * ASCII equivalent
          */
         if (strlen((const char *)PString) > 0)
-          (void) FormatMagickString(temp,MaxTextExtent,"8BIM#%d#%s=",ID,
+          (void) FormatLocaleString(temp,MaxTextExtent,"8BIM#%d#%s=",ID,
             PString);
         else
-          (void) FormatMagickString(temp,MaxTextExtent,"8BIM#%d=",ID);
+          (void) FormatLocaleString(temp,MaxTextExtent,"8BIM#%d=",ID);
         (void) WriteBlobString(ofile,temp);
         if (ID == IPTC_ID)
           {
             formatString(ofile, "IPTC", 4);
-            formatIPTCfromBuffer(ofile, (char *)str, (long) count);
+            formatIPTCfromBuffer(ofile, (char *)str, (ssize_t) count);
           }
         else
-          formatString(ofile, (char *)str, (long) count);
+          formatString(ofile, (char *)str, (ssize_t) count);
       }
     str=(unsigned char *) RelinquishMagickMemory(str);
     PString=(unsigned char *) RelinquishMagickMemory(PString);
@@ -2280,7 +2284,9 @@ static MagickBooleanType WriteMETAImage(const ImageInfo *image_info,
       unsigned char
         *info;
 
-      profile=GetImageProfile(image,"8bim");
+      profile=GetImageProfile(image,"iptc");
+      if (profile == (StringInfo *) NULL)
+        profile=GetImageProfile(image,"8bim");
       if (profile == (StringInfo *) NULL)
         ThrowWriterException(CoderError,"No8BIMDataIsAvailable");
       status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);

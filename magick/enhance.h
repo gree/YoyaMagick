@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+#include "magick/pixel.h"
+
 extern MagickExport MagickBooleanType
   AutoGammaImage(Image *),
   AutoGammaImageChannel(Image *,const ChannelType),
@@ -41,6 +43,7 @@ extern MagickExport MagickBooleanType
   EqualizeImageChannel(Image *image,const ChannelType),
   GammaImage(Image *,const char *),
   GammaImageChannel(Image *,const ChannelType,const double),
+  GrayscaleImage(Image *,const PixelIntensityMethod),
   HaldClutImage(Image *,const Image *),
   HaldClutImageChannel(Image *,const ChannelType,const Image *),
   LevelImage(Image *,const char *),

@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
 
   You may not use this file except in compliance with the License.
@@ -22,12 +22,12 @@
 extern "C" {
 #endif
 
-#include <magick/image.h>
-#include <magick/color.h>
-#include <magick/exception-private.h>
+#include "magick/image.h"
+#include "magick/color.h"
+#include "magick/exception-private.h"
 
 static inline IndexPacket ConstrainColormapIndex(Image *image,
-  const unsigned long index)
+  const size_t index)
 {
   if (index < image->colors)
     return((IndexPacket) index);

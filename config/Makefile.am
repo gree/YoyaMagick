@@ -1,4 +1,4 @@
-#  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+#  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
 #  dedicated to making software imaging solutions freely available.
 #
 #  You may not use this file except in compliance with the License.  You may
@@ -16,26 +16,31 @@
 
 # Where architecture-independent configuration files get installed
 # (share/ImageMagick-version)
-configsharedir = $(SHARE_CONFIGURE_PATH)
+configsharedir = $(SHARE_PATH)
 configshare_DATA = \
+	config/english.xml \
+	config/francais.xml \
+	config/locale.xml
+
+# Where architecture-dependent configuration files get installed
+# (share/arch/ImageMagick-version)
+configsharearchdir = $(SHAREARCH_PATH)
+configsharearch_DATA = \
+  config/configure.xml 
+
+# Where architecture-dependent configuration files get installed
+# (share/ImageMagick-version)
+configlibdir =  $(CONFIGURE_PATH)
+configlib_DATA = \
 	config/coder.xml \
 	config/colors.xml \
+	config/delegates.xml \
 	config/log.xml \
 	config/magic.xml \
 	config/mime.xml \
-	config/sRGB.icm \
-	config/thresholds.xml
-
-# Where architecture-dependent configuration files get installed
-# (lib/ImageMagick-version)
-configlibdir =  $(CONFIGURE_PATH)
-configlib_DATA = \
-	config/configure.xml \
-	config/delegates.xml \
-	config/english.xml \
-	config/francais.xml \
-	config/locale.xml \
 	config/policy.xml \
+	config/quantization-table.xml \
+	config/thresholds.xml \
 	config/type.xml \
 	config/type-dejavu.xml \
 	config/type-ghostscript.xml \
@@ -48,6 +53,7 @@ CONFIG_EXTRA_DIST = \
 	config/delegates.xml.in \
 	config/english.xml \
 	config/francais.xml \
+	config/ImageMagick.rc \
 	config/ImageMagick.rdf.in \
 	config/lndir.sh \
 	config/locale.xml \
@@ -55,7 +61,7 @@ CONFIG_EXTRA_DIST = \
 	config/magic.xml \
 	config/mime.xml \
 	config/policy.xml \
-	config/sRGB.icm \
+	config/quantization-table.xml \
 	config/thresholds.xml \
 	config/type-dejavu.xml.in \
 	config/type-ghostscript.xml.in \

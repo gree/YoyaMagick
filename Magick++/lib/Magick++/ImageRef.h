@@ -21,7 +21,7 @@ namespace Magick
   //
   // Reference counted access to Image *
   //
-  class MagickDLLDecl ImageRef {
+  class MagickPPExport ImageRef {
     friend class Image; 
   private:
     // Construct with an image pointer and default options
@@ -43,13 +43,13 @@ namespace Magick
     void                 options ( Options * options_ );
     Options *            options ( void );
 
-    void                 id ( const long id_ );
-    long                 id ( void ) const;
+    void                 id ( const ::ssize_t id_ );
+    ::ssize_t            id ( void ) const;
     
-    MagickCore::Image *   _image;    // ImageMagick Image
+    MagickCore::Image *  _image;    // ImageMagick Image
     Options *            _options;  // User-specified options
-    long                 _id;       // Registry ID (-1 if not registered)
-    int                  _refCount; // Reference count
+    ::ssize_t            _id;       // Registry ID (-1 if not registered)
+    ::ssize_t            _refCount; // Reference count
     MutexLock            _mutexLock;// Mutex lock
   };
 
@@ -72,7 +72,7 @@ inline Magick::Options * Magick::ImageRef::options ( void )
 }
 
 // Retrieve registration id from reference
-inline long Magick::ImageRef::id ( void ) const
+inline ::ssize_t Magick::ImageRef::id ( void ) const
 {
   return _id;
 }

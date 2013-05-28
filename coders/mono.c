@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,11 +40,14 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/color-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -54,6 +57,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -98,27 +102,24 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register IndexPacket
     *indexes;
 
-  register long
-    x;
-
   register PixelPacket
     *q;
 
-  register long
-    i;
+  register ssize_t
+    x;
 
-  unsigned long
+  size_t
     bit,
     byte;
+
+  ssize_t
+    y;
 
   /*
     Open image file.
@@ -139,13 +140,9 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
       image=DestroyImageList(image);
       return((Image *) NULL);
     }
-  for (i=0; i < image->offset; i++)
-    if (ReadBlobByte(image) == EOF)
-      {
-        ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
-          image->filename);
-        break;
-      }
+  if (DiscardBlobBytes(image,image->offset) == MagickFalse)
+    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+      image->filename);
   /*
     Initialize image colormap.
   */
@@ -160,7 +157,7 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
   /*
     Convert bi-level image to pixel packets.
   */
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
@@ -168,14 +165,14 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
     indexes=GetAuthenticIndexQueue(image);
     bit=0;
     byte=0;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       if (bit == 0)
-        byte=(unsigned long) ReadBlobByte(image);
+        byte=(size_t) ReadBlobByte(image);
       if (image_info->endian == LSBEndian)
-        indexes[x]=(IndexPacket) (((byte & 0x01) != 0) ? 0x00 : 0x01);
+        SetPixelIndex(indexes+x,((byte & 0x01) != 0) ? 0x00 : 0x01);
       else
-        indexes[x]=(IndexPacket) (((byte & 0x01) != 0) ? 0x01 : 0x00);
+        SetPixelIndex(indexes+x,((byte & 0x01) != 0) ? 0x01 : 0x00);
       bit++;
       if (bit == 8)
         bit=0;
@@ -183,7 +180,8 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
-    status=SetImageProgress(image,LoadImageTag,y,image->rows);
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
     if (status == MagickFalse)
       break;
   }
@@ -215,10 +213,10 @@ static Image *ReadMONOImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterMONOImage method is:
 %
-%      unsigned long RegisterMONOImage(void)
+%      size_t RegisterMONOImage(void)
 %
 */
-ModuleExport unsigned long RegisterMONOImage(void)
+ModuleExport size_t RegisterMONOImage(void)
 {
   MagickInfo
     *entry;
@@ -287,24 +285,21 @@ ModuleExport void UnregisterMONOImage(void)
 static MagickBooleanType WriteMONOImage(const ImageInfo *image_info,
   Image *image)
 {
-  long
-    y;
-
   MagickBooleanType
     status;
-
-  register const IndexPacket
-    *indexes;
 
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
 
-  unsigned long
+  size_t
     bit,
     byte;
+
+  ssize_t
+    y;
 
   /*
     Open output image file.
@@ -318,30 +313,29 @@ static MagickBooleanType WriteMONOImage(const ImageInfo *image_info,
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   /*
     Convert image to a bi-level image.
   */
   (void) SetImageType(image,BilevelType);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
       break;
-    indexes=GetVirtualIndexQueue(image);
     bit=0;
     byte=0;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       byte>>=1;
       if (image->endian == LSBEndian)
         {
-          if (PixelIntensity(p) < ((Quantum) QuantumRange/2.0))
+          if (GetPixelLuma(image,p) < (QuantumRange/2.0))
             byte|=0x80;
         }
       else
-        if (PixelIntensity(p) >= ((Quantum) QuantumRange/2.0))
+        if (GetPixelLuma(image,p) >= (QuantumRange/2.0))
           byte|=0x80;
       bit++;
       if (bit == 8)
@@ -354,7 +348,8 @@ static MagickBooleanType WriteMONOImage(const ImageInfo *image_info,
     }
     if (bit != 0)
       (void) WriteBlobByte(image,(unsigned char) (byte >> (8-bit)));
-    status=SetImageProgress(image,SaveImageTag,y,image->rows);
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }

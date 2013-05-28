@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ extern "C" {
 
 #define MagickSignatureSize  64
 
-#include <magick/string_.h>
+#include "magick/string_.h"
 
 typedef struct _SignatureInfo
   SignatureInfo;

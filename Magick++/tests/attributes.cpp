@@ -19,12 +19,12 @@ int main( int /*argc*/, char ** argv)
   // Initialize ImageMagick install location for Windows
   InitializeMagick(*argv);
 
-  int failures=0;
+  volatile int failures=0;
 
   try {
 
-    unsigned int columns = 640;
-    unsigned int rows = 480;
+    size_t columns = 640;
+    size_t rows = 480;
     Geometry geometry(columns,rows);
     Color canvasColor( "red" );
     Image image( geometry, canvasColor);
@@ -350,11 +350,11 @@ int main( int /*argc*/, char ** argv)
       // Test default setting
       double x, y;
       image.chromaBluePrimary( &x, &y );
-      if ( x != 0 || y != 0 )
+      if ( x == 0.0f || y == 0.0f )
 	{
 	  ++failures;
 	  cout << "Line: " << __LINE__
-	       << ",  chromaBluePrimary x/y defaults are non-zero"
+	       << ",  chromaBluePrimary x/y defaults are zero"
 	       << endl;
 	}
 
@@ -376,11 +376,11 @@ int main( int /*argc*/, char ** argv)
       // Test default setting
       double x, y;
       image.chromaGreenPrimary( &x, &y );
-      if ( x != 0 || y != 0 )
+      if ( x == 0.0f || y == 0.0f )
 	{
 	  ++failures;
 	  cout << "Line: " << __LINE__
-               << ",  chromaGreenPrimary x/y defaults are non-zero" << endl;
+               << ",  chromaGreenPrimary x/y defaults are zero" << endl;
 	}
 
       // Test set/get
@@ -401,11 +401,11 @@ int main( int /*argc*/, char ** argv)
       // Test default setting
       double x, y;
       image.chromaRedPrimary( &x, &y );
-      if ( x != 0 || y != 0 )
+      if ( x == 0.0f || y == 0.0f )
 	{
 	  ++failures;
 	  cout << "Line: " << __LINE__
-               << ",  chromaRedPrimary x/y defaults are non-zero" << endl;
+               << ",  chromaRedPrimary x/y defaults are zero" << endl;
 	}
 
       // Test set/get
@@ -426,11 +426,11 @@ int main( int /*argc*/, char ** argv)
       // Test default setting
       double x, y;
       image.chromaWhitePoint( &x, &y );
-      if ( x != 0 || y != 0 )
+      if ( x == 0.0f || y == 0.0f )
 	{
 	  ++failures;
 	  cout << "Line: " << __LINE__
-               << ",  chromaWhitePoint x/y defaults are non-zero" << endl;
+               << ",  chromaWhitePoint x/y defaults are zero" << endl;
 	}
 
       // Test set/get
@@ -691,7 +691,7 @@ int main( int /*argc*/, char ** argv)
       {
 	++failures;
 	cout << "Line: " << __LINE__ << ", fileSize ("
-	     << static_cast<long>(image.fileSize())
+	     << static_cast<ssize_t>(image.fileSize())
 	     << ") is not zero as expected" << endl;
       }
 
@@ -773,11 +773,11 @@ int main( int /*argc*/, char ** argv)
     //
     // gamma
     //
-    if ( image.gamma() != 0 )
+    if ( image.gamma() == 1.0f)
       {
 	++failures;
 	cout << "Line: " << __LINE__
-             << ", gamma correction is not zero as expected" << endl;
+             << ", gamma correction is unity as expected" << endl;
       }
 
     //
@@ -1212,11 +1212,11 @@ int main( int /*argc*/, char ** argv)
     //
     // renderingIntent
     //
-    if ( image.renderingIntent() != UndefinedIntent )
+    if ( image.renderingIntent() == UndefinedIntent )
       {
 	++failures;
 	cout << "Line: " << __LINE__
-             << ", renderingIntent default is not UndefinedIntent as expected"
+             << ", renderingIntent default is UndefinedIntent as expected"
              << endl;
       }
 
@@ -1285,8 +1285,15 @@ int main( int /*argc*/, char ** argv)
     if ( image.signature() != "c7ac1ef7b47015c6ea6c1fb1d736eba4f8c3fe81dbfe511fbce104cedfce7588" &&
 	 image.signature() != "d9464cd4d0c02f25166909726d6548db51d25fa91bd3cff642813f8a464bcfc7" &&
 	 image.signature() != "e073572dfa4ad28f2f8dd3c6d37dfb14585e60c94cfae910149e97eff2fd895f" &&
+	 image.signature() != "ed06047a79b5b298515538db3fb8186d79e94758ed07a9b411637ba3a79fb4a0" &&
 	 image.signature() != "e12b9781b3a5025628567a4eabf970d16d42560e1b86189caceb03ec358dd8e6" &&
+	 image.signature() != "ea9aaf29023c4c1c801e05483423a4a4266918e3a464b6a5155f11a0c581dedb" &&
 	 image.signature() != "6a989010d8ea958934ff8be44a42e0848f7c5e7e46cd53e04c4a90452c15d34c" &&
+	 image.signature() != "7e5977b8bce5c40b858c84344803dae61feae0ef7a21739b2d068c9cdb72f95b" &&
+	 image.signature() != "c8aed4b60d666e449f5c29d0fb32f089e3257422a1f11a4712451c5340362df0" &&
+	 image.signature() != "bc272b75794971f4a3ade1bf524c0aee375765e9fb15d65278a8b9452b551ea6" &&
+	 image.signature() != "482690062c78a9e78c9f5f3db514197a067028e9f1bec577b787fb9e9b044567" &&
+	 image.signature() != "8610fd1c5ef905c05bf75438aaab8729d3e1277b8ec1e86927777bd3382702e5" &&
    image.signature() != "b891ddb1d32cd45c6329180e5bd733eebb8dd06c401a9c721841ec43e4a662f8")
       {
 	++failures;

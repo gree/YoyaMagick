@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -99,20 +99,20 @@ static Image *ReadNULLImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    y;
-
   MagickPixelPacket
     background;
 
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   /*
     Initialize Image structure.
@@ -134,13 +134,13 @@ static Image *ReadNULLImage(const ImageInfo *image_info,
   background.opacity=(MagickRealType) TransparentOpacity;
   if (image->colorspace == CMYKColorspace)
     ConvertRGBToCMYK(&background);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
     indexes=GetAuthenticIndexQueue(image);
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       SetPixelPacket(image,&background,q,indexes);
       q++;
@@ -172,10 +172,10 @@ static Image *ReadNULLImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterNULLImage method is:
 %
-%      unsigned long RegisterNULLImage(void)
+%      size_t RegisterNULLImage(void)
 %
 */
-ModuleExport unsigned long RegisterNULLImage(void)
+ModuleExport size_t RegisterNULLImage(void)
 {
   MagickInfo
     *entry;
@@ -184,7 +184,7 @@ ModuleExport unsigned long RegisterNULLImage(void)
   entry->decoder=(DecodeImageHandler *) ReadNULLImage;
   entry->encoder=(EncodeImageHandler *) WriteNULLImage;
   entry->adjoin=MagickFalse;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Constant image of uniform color");
   entry->module=ConstantString("NULL");
   (void) RegisterMagickInfo(entry);

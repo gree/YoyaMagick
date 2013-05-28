@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#include <magick/image.h>
+#include "magick/image.h"
 
 static inline MagickBooleanType SetImageProgress(const Image *image,
   const char *tag,const MagickOffsetType offset,const MagickSizeType extent)
@@ -32,7 +32,7 @@ static inline MagickBooleanType SetImageProgress(const Image *image,
 
   if (image->progress_monitor == (MagickProgressMonitor) NULL)
     return(MagickTrue);
-  (void) FormatMagickString(message,MaxTextExtent,"%s/%s",tag,image->filename);
+  (void) FormatLocaleString(message,MaxTextExtent,"%s/%s",tag,image->filename);
   return(image->progress_monitor(message,offset,extent,image->client_data));
 }
 

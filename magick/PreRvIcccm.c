@@ -17,7 +17,7 @@
 %                                December 1994                                %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -127,17 +127,17 @@ Bool XSupportsLocale()
 */
 XClassHint *XAllocClassHint)
 {
-  return((XClassHint *) AcquireAlignedMemory(1,sizeof(XClassHint)));
+  return((XClassHint *) AcquireMagickMemory(sizeof(XClassHint)));
 }
 
 XIconSize *XAllocIconSize)
 {
-  return((XIconSize *) AcquireAlignedMemory(1,sizeof(XIconSize)));
+  return((XIconSize *) AcquireMagickMemory(sizeof(XIconSize)));
 }
 
 XSizeHints *XAllocSizeHints)
 {
-  return((XSizeHints *) AcquireAlignedMemory(1,sizeof(XSizeHints)));
+  return((XSizeHints *) AcquireMagickMemory(sizeof(XSizeHints)));
 }
 
 Status XReconfigureWMWindow(Display *display,Window window,int screen_number,
@@ -148,15 +148,15 @@ Status XReconfigureWMWindow(Display *display,Window window,int screen_number,
 
 XStandardColormap *XAllocStandardColormap)
 {
-  return((XStandardColormap *) AcquireAlignedMemory(1,sizeof(XStandardColormap)));
+  return((XStandardColormap *) AcquireMagickMemory(sizeof(XStandardColormap)));
 }
 
 XWMHints *XAllocWMHints)
 {
-  return((XWMHints *) AcquireAlignedMemory(1,sizeof(XWMHints)));
+  return((XWMHints *) AcquireMagickMemory(sizeof(XWMHints)));
 }
 
-Status XGetGCValues(Display *display,GC gc,unsigned long mask,
+Status XGetGCValues(Display *display,GC gc,size_t mask,
   XGCValues *values)
 {
   return(MagickTrue);
@@ -181,7 +181,7 @@ Status XGetWMColormapWindows(Display *display,Window window,
     actual_format,
     status;
 
-  unsigned long
+  size_t
     leftover,
     number_items;
 
@@ -276,7 +276,7 @@ int XStringListToTextProperty(char **argv,int argc,XTextProperty *property)
      protocol;
 
   number_bytes=0;
-  for (i=0; i < (long) argc; i++)
+  for (i=0; i < (ssize_t) argc; i++)
     number_bytes+=(unsigned int) ((argv[i] ? strlen(argv[i]) : 0)+1);
   protocol.encoding=XA_STRING;
   protocol.format=8;
@@ -301,7 +301,7 @@ int XStringListToTextProperty(char **argv,int argc,XTextProperty *property)
       if (buffer == (char *) NULL)
         return(MagickFalse);
       protocol.value=(unsigned char *) buffer;
-      for (i=0; i < (long) argc; i++)
+      for (i=0; i < (ssize_t) argc; i++)
       {
         char
           *argument;

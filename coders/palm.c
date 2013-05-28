@@ -21,7 +21,7 @@
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
-%   obtain a copy of the License at                                            %
+%  obtain a copy of the License at                                            %
 %                                                                             %
 %    http://www.imagemagick.org/script/license.php                            %
 %                                                                             %
@@ -42,6 +42,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
@@ -50,6 +51,7 @@
 #include "magick/colormap-private.h"
 #include "magick/color-private.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/histogram.h"
@@ -60,6 +62,7 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/paint.h"
+#include "magick/pixel-accessor.h"
 #include "magick/pixel-private.h"
 #include "magick/property.h"
 #include "magick/quantize.h"
@@ -188,13 +191,13 @@ static MagickBooleanType
 */
 static int FindColor(PixelPacket *pixel)
 {
-  register long
+  register ssize_t
     i;
 
   for (i=0; i < 256; i++)
-    if (ScaleQuantumToChar(pixel->red) == PalmPalette[i][0] &&
-        ScaleQuantumToChar(pixel->green) == PalmPalette[i][1] &&
-        ScaleQuantumToChar(pixel->blue) == PalmPalette[i][2])
+    if (ScaleQuantumToChar(GetPixelRed(pixel)) == PalmPalette[i][0] &&
+        ScaleQuantumToChar(GetPixelGreen(pixel)) == PalmPalette[i][1] &&
+        ScaleQuantumToChar(GetPixelBlue(pixel)) == PalmPalette[i][2])
       return(i);
   return(-1);
 }
@@ -227,7 +230,7 @@ static int FindColor(PixelPacket *pixel)
 %
 */
 
-static inline long MagickMax(const long x,const long y)
+static inline size_t MagickMax(const size_t x,const size_t y)
 {
   if (x > y)
     return(x);
@@ -250,11 +253,12 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
   IndexPacket
     index;
 
-  long
-    y;
-
   MagickBooleanType
     status;
+
+  MagickOffsetType
+    totalOffset,
+    seekNextDepth;
 
   MagickPixelPacket
     transpix;
@@ -262,7 +266,7 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     i,
     x;
 
@@ -270,14 +274,10 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
     *q;
 
   ssize_t
-    count;
+    count,
+    y;
 
-  unsigned char
-    *lastrow,
-    *one_row,
-    *ptr;
-
-  unsigned long
+  size_t
     bytes_per_row,
     flags,
     bits_per_pixel,
@@ -290,16 +290,18 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
     redbits,
     greenbits,
     bluebits,
+    one,
     pad,
     size,
     bit;
 
+  unsigned char
+    *lastrow,
+    *one_row,
+    *ptr;
+
   unsigned short
     color16;
-
-  MagickOffsetType
-    totalOffset,
-    seekNextDepth;
 
   /*
     Open image file.
@@ -325,33 +327,36 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
     image->rows=ReadBlobMSBShort(image);
     if (EOFBlob(image) != MagickFalse)
       ThrowReaderException(CorruptImageError,"ImproperImageHeader");
-    /*
-      Copied from coders/pnm.c. TODO other checks ...
-    */
     if ((image->columns == 0) || (image->rows == 0))
       ThrowReaderException(CorruptImageError,"NegativeOrZeroImageSize");
     bytes_per_row=ReadBlobMSBShort(image);
     flags=ReadBlobMSBShort(image);
-    bits_per_pixel=(unsigned long) ReadBlobByte(image);
+    bits_per_pixel=(size_t) ReadBlobByte(image);
     if (bits_per_pixel > 16)
       ThrowReaderException(CorruptImageError,"ImproperImageHeader");
-    version=(unsigned long) ReadBlobByte(image);
-    nextDepthOffset=(unsigned long) ReadBlobMSBShort(image);
-    transparentIndex=(unsigned long) ReadBlobByte(image);
-    compressionType=(unsigned long) ReadBlobByte(image);
+    version=(size_t) ReadBlobByte(image);
+    (void) version;
+    nextDepthOffset=(size_t) ReadBlobMSBShort(image);
+    transparentIndex=(size_t) ReadBlobByte(image);
+    compressionType=(size_t) ReadBlobByte(image);
     pad=ReadBlobMSBShort(image);
+    (void) pad;
     /*
       Initialize image colormap.
     */
+    one=1;
     if ((bits_per_pixel < 16) &&
-        (AcquireImageColormap(image,1L << bits_per_pixel) == MagickFalse))
+        (AcquireImageColormap(image,one << bits_per_pixel) == MagickFalse))
       ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
     GetMagickPixelPacket(image,&transpix);
     if (bits_per_pixel == 16)  /* Direct Color */
       {
-        redbits=(unsigned long) ReadBlobByte(image);  /* # of bits of red */
-        greenbits=(unsigned long) ReadBlobByte(image);  /* # of bits of green */
-        bluebits=(unsigned long) ReadBlobByte(image);  /* # of bits of blue */
+        redbits=(size_t) ReadBlobByte(image);  /* # of bits of red */
+        (void) redbits;
+        greenbits=(size_t) ReadBlobByte(image);  /* # of bits of green */
+        (void) greenbits;
+        bluebits=(size_t) ReadBlobByte(image);  /* # of bits of blue */
+        (void) bluebits;
         ReadBlobByte(image);  /* reserved by Palm */
         ReadBlobByte(image);  /* reserved by Palm */
         transpix.red=(MagickRealType) (QuantumRange*ReadBlobByte(image)/31);
@@ -366,7 +371,7 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
         if (flags & PALM_HAS_COLORMAP_FLAG)
           {
             count=(ssize_t) ReadBlobMSBShort(image);
-            for (i=0; i < (long) count; i++)
+            for (i=0; i < (ssize_t) count; i++)
             {
               ReadBlobByte(image);
               index=ConstrainColormapIndex(image,255-i);
@@ -380,7 +385,7 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
         }
       else
         {
-          for (i=0; i < (long) (1L << bits_per_pixel); i++)
+          for (i=0; i < (ssize_t) (1L << bits_per_pixel); i++)
           {
             index=ConstrainColormapIndex(image,255-i);
             image->colormap[(int) index].red=
@@ -394,6 +399,7 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
       }
     if (flags & PALM_IS_COMPRESSED_FLAG)
       size=ReadBlobMSBShort(image);
+    (void) size;
     image->storage_class=DirectClass;
     if (bits_per_pixel < 16)
       {
@@ -412,7 +418,7 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
       ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
     }
     mask=(1l << bits_per_pixel)-1;
-    for (y = 0; y < (long) image->rows; y++)
+    for (y = 0; y < (ssize_t) image->rows; y++)
     {
       if ((flags & PALM_IS_COMPRESSED_FLAG) == 0)
         {
@@ -423,30 +429,34 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
       else
         {
           if (compressionType == PALM_COMPRESSION_RLE)
-            { 
+            {
               /* TODO move out of loop! */
               image->compression=RLECompression;
-              for (i=0; i < (long) bytes_per_row; )
+              for (i=0; i < (ssize_t) bytes_per_row; )
               {
                 count=(ssize_t) ReadBlobByte(image);
                 count=MagickMin(count,(ssize_t) bytes_per_row-i);
-                byte=(unsigned long) ReadBlobByte(image);
+                byte=(size_t) ReadBlobByte(image);
                 (void) ResetMagickMemory(one_row+i,(int) byte,(size_t) count);
                 i+=count;
               }
           }
         else
           if (compressionType == PALM_COMPRESSION_SCANLINE)
-            {  
+            {
+              size_t
+                one;
+
               /* TODO move out of loop! */
+              one=1;
               image->compression=FaxCompression;
-              for (i=0; i < (long) bytes_per_row; i+=8)
+              for (i=0; i < (ssize_t) bytes_per_row; i+=8)
               {
                 count=(ssize_t) ReadBlobByte(image);
                 byte=1UL*MagickMin((ssize_t) bytes_per_row-i,8);
                 for (bit=0; bit < byte; bit++)
                 {
-                  if ((y == 0) || (count & (1 << (7 - bit))))
+                  if ((y == 0) || (count & (one << (7 - bit))))
                     one_row[i+bit]=(unsigned char) ReadBlobByte(image);
                   else
                     one_row[i+bit]=lastrow[i+bit];
@@ -464,27 +474,30 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
         {
           if (image->columns > (2*bytes_per_row))
             ThrowReaderException(CorruptImageError,"CorruptImage");
-          for (x=0; x < (long) image->columns; x++)
+          for (x=0; x < (ssize_t) image->columns; x++)
           {
             color16=(*ptr++ << 8);
             color16|=(*ptr++);
-            q->red=(Quantum) ((QuantumRange*((color16 >> 11) & 0x1f))/0x1f);
-            q->green=(Quantum) ((QuantumRange*((color16 >> 5) & 0x3f))/0x3f);
-            q->blue=(Quantum) ((QuantumRange*((color16 >> 0) & 0x1f))/0x1f);
-            SetOpacityPixelComponent(q,OpaqueOpacity);
+            SetPixelRed(q,(QuantumRange*((color16 >> 11) & 0x1f))/
+              0x1f);
+            SetPixelGreen(q,(QuantumRange*((color16 >> 5) & 0x3f))/
+              0x3f);
+            SetPixelBlue(q,(QuantumRange*((color16 >> 0) & 0x1f))/
+              0x1f);
+            SetPixelOpacity(q,OpaqueOpacity);
             q++;
           }
         }
       else
         {
           bit=8-bits_per_pixel;
-          for (x=0; x < (long) image->columns; x++)
+          for (x=0; x < (ssize_t) image->columns; x++)
           {
             if ((size_t) (ptr-one_row) >= bytes_per_row)
               ThrowReaderException(CorruptImageError,"CorruptImage");
             index=(IndexPacket) (mask-(((*ptr) & (mask << bit)) >> bit));
-            indexes[x]=index;
-            *q++=image->colormap[(long) index];
+            SetPixelIndex(indexes+x,index);
+            SetPixelRGBO(q,image->colormap+(ssize_t) index);
             if (bit)
               bit-=bits_per_pixel;
             else
@@ -492,13 +505,15 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
                 ptr++;
                 bit=8-bits_per_pixel;
               }
+            q++;
           }
           if (SyncAuthenticPixels(image,exception) == MagickFalse)
             break;
         }
         if (image->previous == (Image *) NULL)
           {
-            status=SetImageProgress(image,LoadImageTag,y,image->rows);
+            status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+              image->rows);
             if (status == MagickFalse)
               break;
           }
@@ -521,9 +536,9 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
       if (image->scene >= (image_info->scene+image_info->number_scenes-1))
         break;
     if (nextDepthOffset != 0)
-      { 
+      {
         /*
-          Skip to next image. 
+          Skip to next image.
         */
         totalOffset+=(MagickOffsetType) (nextDepthOffset*4);
         if (totalOffset >= (MagickOffsetType) GetBlobSize(image))
@@ -575,10 +590,10 @@ static Image *ReadPALMImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterPALMImage method is:
 %
-%      unsigned long RegisterPALMImage(void)
+%      size_t RegisterPALMImage(void)
 %
 */
-ModuleExport unsigned long RegisterPALMImage(void)
+ModuleExport size_t RegisterPALMImage(void)
 {
   MagickInfo
     *entry;
@@ -671,11 +686,18 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *p;
+
+  size_t
+    count,
+    bits_per_pixel,
+    bytes_per_row,
+    nextDepthOffset,
+    one;
 
   unsigned char
     bit,
@@ -689,16 +711,9 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
   unsigned int
     transparentIndex;
 
-  unsigned long
-    count,
-    bits_per_pixel,
-    bytes_per_row,
-    nextDepthOffset;
-
   unsigned short
     color16,
     flags;
-
 
   /*
     Open output image file.
@@ -721,14 +736,15 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
   transpix.green=0;
   transpix.blue=0;
   transpix.opacity=0;
+  one=1;
   version=0;
   scene=0;
   do
   {
-    if (image->colorspace != RGBColorspace)
-      (void) TransformImageColorspace(image,RGBColorspace);
+    if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+      (void) TransformImageColorspace(image,sRGBColorspace);
     count=GetNumberColors(image,NULL,&exception);
-    for (bits_per_pixel=1;  (1UL << bits_per_pixel) < count;  bits_per_pixel*=2) ;
+    for (bits_per_pixel=1;  (one << bits_per_pixel) < count; bits_per_pixel*=2) ;
     if (image_info->depth > 100)
       bits_per_pixel=image_info->depth-100;
     if (bits_per_pixel < 16)
@@ -808,15 +824,16 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
 
           affinity_image=ConstituteImage(256,1,"RGB",CharPixel,&PalmPalette,
             &exception);
-          (void) TransformImageColorspace(affinity_image,affinity_image->colorspace);
+          (void) TransformImageColorspace(affinity_image,
+            affinity_image->colorspace);
           (void) RemapImage(quantize_info,image,affinity_image);
-          for (y=0; y < (long) image->rows; y++)
+          for (y=0; y < (ssize_t) image->rows; y++)
           {
             p=GetAuthenticPixels(image,0,y,image->columns,1,&exception);
             indexes=GetAuthenticIndexQueue(image);
-            for (x=0; x < (long) image->columns; x++)
-              indexes[x]=(IndexPacket) FindColor(&image->colormap[(long)
-                indexes[x]]);
+            for (x=0; x < (ssize_t) image->columns; x++)
+              SetPixelIndex(indexes+x,FindColor(&image->colormap[
+                (ssize_t) GetPixelIndex(indexes+x)]));
           }
           affinity_image=DestroyImage(affinity_image);
         }
@@ -844,16 +861,16 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
         {
           for (x=0; x < (int) image->columns; x++)
           {
-            color16=(unsigned short) ((((31*(unsigned long) GetRedPixelComponent(p))/
-              (unsigned long) QuantumRange) << 11) |
-              (((63*(unsigned long) GetGreenPixelComponent(p))/(unsigned long) QuantumRange) << 5) |
-              ((31*(unsigned long) GetBluePixelComponent(p))/(unsigned long) QuantumRange));
-            if (p->opacity == (Quantum) TransparentOpacity)
+            color16=(unsigned short) ((((31*(size_t) GetPixelRed(p))/
+              (size_t) QuantumRange) << 11) |
+              (((63*(size_t) GetPixelGreen(p))/(size_t) QuantumRange) << 5) |
+              ((31*(size_t) GetPixelBlue(p))/(size_t) QuantumRange));
+            if (GetPixelOpacity(p) == (Quantum) TransparentOpacity)
               {
-                transpix.red=GetRedPixelComponent(p);
-                transpix.green=GetGreenPixelComponent(p);
-                transpix.blue=GetBluePixelComponent(p);
-                transpix.opacity=GetOpacityPixelComponent(p);
+                transpix.red=GetPixelRed(p);
+                transpix.green=GetPixelGreen(p);
+                transpix.blue=GetPixelBlue(p);
+                transpix.opacity=GetPixelOpacity(p);
                 flags|=PALM_HAS_TRANSPARENCY_FLAG;
               }
             *ptr++=(unsigned char) ((color16 >> 8) & 0xff);
@@ -868,13 +885,13 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
           for (x=0; x < (int) image->columns; x++)
           {
             if (bits_per_pixel >= 8)
-              color=(unsigned char) indexes[x];
+              color=(unsigned char) GetPixelIndex(indexes+x);
             else
-              color=(unsigned char) (indexes[x]*((1 << bits_per_pixel)-1)/
-                MagickMax(1L*image->colors-1L,1L));
+              color=(unsigned char) (GetPixelIndex(indexes+x)*
+                ((one << bits_per_pixel)-1)/MagickMax(1*image->colors-1,1));
             byte|=color << bit;
             if (bit != 0)
-              bit-=bits_per_pixel;
+              bit-=(unsigned char) bits_per_pixel;
             else
               {
                 *ptr++=byte;
@@ -888,12 +905,12 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
       if (image_info->compression == RLECompression)
         {
           x=0;
-          while (x < (long) bytes_per_row)
+          while (x < (ssize_t) bytes_per_row)
           {
             byte=one_row[x];
             count=1;
             while ((one_row[++x] == byte) && (count < 255) &&
-                   (x < (long) bytes_per_row))
+                   (x < (ssize_t) bytes_per_row))
               count++;
             (void) WriteBlobByte(image,(unsigned char) count);
             (void) WriteBlobByte(image,(unsigned char) byte);
@@ -905,17 +922,17 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
             char
               tmpbuf[8],
               *tptr;
-  
-            for (x = 0;  x < (long) bytes_per_row;  x += 8)
+
+            for (x = 0;  x < (ssize_t) bytes_per_row;  x += 8)
             {
               tptr = tmpbuf;
               for (bit=0, byte=0; bit < (unsigned char) MagickMin(8,(ssize_t) bytes_per_row-x); bit++)
               {
                 if ((y == 0) || (lastrow[x + bit] != one_row[x + bit]))
                   {
-                  byte |= (1 << (7 - bit));
-                  *tptr++ = (char) one_row[x + bit];
-                }
+                    byte |= (1 << (7 - bit));
+                    *tptr++ = (char) one_row[x + bit];
+                  }
               }
               (void) WriteBlobByte(image, byte);
               (void) WriteBlob(image,tptr-tmpbuf,(unsigned char *) tmpbuf);
@@ -946,9 +963,9 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
         (void) WriteBlobMSBShort(image,(unsigned short) (GetBlobSize(image)-
           currentOffset-offset));
       }
-    if (one_row != (unsigned char *) NULL) 
+    if (one_row != (unsigned char *) NULL)
       one_row=(unsigned char *) RelinquishMagickMemory(one_row);
-    if (lastrow != (unsigned char *) NULL) 
+    if (lastrow != (unsigned char *) NULL)
       lastrow=(unsigned char *) RelinquishMagickMemory(lastrow);
     if (GetNextImageInList(image) == (Image *) NULL)
       break;
@@ -956,10 +973,10 @@ static MagickBooleanType WritePALMImage(const ImageInfo *image_info,
     for (cc = (GetBlobSize(image))%4; cc > 0; cc--)
     {
       (void) WriteBlobByte(image,0);
-    } 
+    }
     /* write nextDepthOffset and return to end of image */
     offset=SeekBlob(image,currentOffset+10,SEEK_SET);
-    nextDepthOffset=(unsigned long) ((GetBlobSize(image)-currentOffset)/4);
+    nextDepthOffset=(size_t) ((GetBlobSize(image)-currentOffset)/4);
     (void) WriteBlobMSBShort(image,(unsigned short) nextDepthOffset);
     currentOffset=(MagickOffsetType) GetBlobSize(image);
     offset=SeekBlob(image,currentOffset,SEEK_SET);

@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
 
   You may not use this file except in compliance with the License.
@@ -24,9 +24,7 @@
 static const char
   *compare_options[] =
   {
-    "",
-    "-compose Src",
-    "-highlight-color SeaGreen",
+    "-metric RMSE -fuzz 5%",
     "-metric AE -fuzz 5%",
     (const char *) NULL
   };
@@ -253,18 +251,16 @@ static const struct ReferenceFormats
     { "DNG", UndefinedCompression, 0.0 },
     { "DOT", UndefinedCompression, 0.0 },
     { "DPS", UndefinedCompression, 0.0 },
-    { "DPX", UndefinedCompression, 0.0 },
+    { "DPX", UndefinedCompression, 0.003 },
     { "ERF", UndefinedCompression, 0.0 },
     { "EXR", UndefinedCompression, 0.0 },
-    { "FITS", UndefinedCompression, 0.003 },
     { "FPX", UndefinedCompression, 0.0 },
     { "FRACTAL", UndefinedCompression, 0.0 },
-    { "FTS", UndefinedCompression, 0.003 },
     { "GIF", UndefinedCompression, 0.0 },
     { "GIF87", UndefinedCompression, 0.0 },
-    { "GRAY", UndefinedCompression, 0.0 },
-    { "HTM", UndefinedCompression, 0.0 },
+    { "GRAY", UndefinedCompression, 0.003 },
     { "HRZ", UndefinedCompression, 0.0 },
+    { "HTM", UndefinedCompression, 0.0 },
     { "HTML", UndefinedCompression, 0.0 },
     { "ICB", UndefinedCompression, 0.0 },
     { "ICO", UndefinedCompression, 0.0 },
@@ -273,8 +269,9 @@ static const struct ReferenceFormats
     { "INLINE", UndefinedCompression, 0.0 },
     { "JBG", UndefinedCompression, 0.0 },
     { "JNG", UndefinedCompression, 0.003 },
-    { "JP2", UndefinedCompression, 0.0 },
-    { "JPC", UndefinedCompression, 0.0 },
+    { "JNG", JPEGCompression, 0.003 },
+    { "JP2", UndefinedCompression, 0.003 },
+    { "JPC", UndefinedCompression, 0.003 },
     { "JPEG", UndefinedCompression, 0.003 },
     { "JPG", UndefinedCompression, 0.003 },
     { "K25", UndefinedCompression, 0.0 },
@@ -297,16 +294,22 @@ static const struct ReferenceFormats
     { "PEF", UndefinedCompression, 0.0 },
     { "PFA", UndefinedCompression, 0.0 },
     { "PFB", UndefinedCompression, 0.0 },
-    { "PFM", UndefinedCompression, 0.0 },
+    { "PFM", UndefinedCompression, 0.003 },
     { "PGM", UndefinedCompression, 0.0 },
     { "PGX", UndefinedCompression, 0.0 },
+#if !defined(MAGICKCORE_HDRI_SUPPORT)
     { "PICT", UndefinedCompression, 0.003 },
+#endif
     { "PIX", UndefinedCompression, 0.0 },
     { "PJPEG", UndefinedCompression, 0.003 },
     { "PLASMA", UndefinedCompression, 0.0 },
     { "PNG", UndefinedCompression, 0.0 },
+    { "PNG8", UndefinedCompression, 0.0 },
     { "PNG24", UndefinedCompression, 0.0 },
     { "PNG32", UndefinedCompression, 0.0 },
+    { "PNG48", UndefinedCompression, 0.0 },
+    { "PNG64", UndefinedCompression, 0.0 },
+    { "PNG00", UndefinedCompression, 0.0 },
     { "PNM", UndefinedCompression, 0.0 },
     { "PPM", UndefinedCompression, 0.0 },
     { "PREVIEW", UndefinedCompression, 0.0 },
@@ -348,10 +351,10 @@ static const struct ReferenceFormats
     { "X3F", UndefinedCompression, 0.0 },
     { "XBM", UndefinedCompression, 0.0 },
     { "XCF", UndefinedCompression, 0.0 },
-    { "XPM", UndefinedCompression, 0.0 },
+    { "XPM", UndefinedCompression, 0.003 },
     { "XPS", UndefinedCompression, 0.0 },
     { "XV", UndefinedCompression, 0.0 },
-#if !defined(__WINDOWS__)
+#if !defined(MAGICKCORE_WINDOWS_SUPPORT)
     { "XWD", UndefinedCompression, 0.0 },
 #endif
     { "YUV", UndefinedCompression, 0.0 },
@@ -418,7 +421,7 @@ static const struct ReferenceStorage
     { DoublePixel, sizeof(double) },
     { FloatPixel, sizeof(float) },
     { IntegerPixel, sizeof(unsigned int) },
-    { LongPixel, sizeof(unsigned long) },
+    { LongPixel, sizeof(size_t) },
     { ShortPixel, sizeof(unsigned short) },
     { UndefinedPixel, 0 }
   };
@@ -428,7 +431,7 @@ struct ReferenceTypes
   ImageType
     type;
 
-  unsigned long
+  size_t
     depth;
 };
 

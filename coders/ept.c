@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -57,9 +57,10 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantize.h"
-#include "magick/resource_.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -71,7 +72,7 @@
 */
 typedef struct _EPTInfo
 {
-  unsigned long
+  size_t
     magick;
 
   MagickOffsetType
@@ -165,14 +166,14 @@ static Image *ReadEPTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   ImageInfo
     *read_info;
 
-  ssize_t
-    count;
-
   MagickBooleanType
     status;
 
   MagickOffsetType
     offset;
+
+  ssize_t
+    count;
 
   /*
     Open image file.
@@ -267,10 +268,10 @@ static Image *ReadEPTImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterEPTImage method is:
 %
-%      unsigned long RegisterEPTImage(void)
+%      size_t RegisterEPTImage(void)
 %
 */
-ModuleExport unsigned long RegisterEPTImage(void)
+ModuleExport size_t RegisterEPTImage(void)
 {
   MagickInfo
     *entry;
@@ -279,6 +280,7 @@ ModuleExport unsigned long RegisterEPTImage(void)
   entry->decoder=(DecodeImageHandler *) ReadEPTImage;
   entry->encoder=(EncodeImageHandler *) WriteEPTImage;
   entry->magick=(IsImageFormatHandler *) IsEPT;
+  entry->seekable_stream=MagickTrue;
   entry->adjoin=MagickFalse;
   entry->blob_support=MagickFalse;
   entry->description=ConstantString(
@@ -290,6 +292,7 @@ ModuleExport unsigned long RegisterEPTImage(void)
   entry->encoder=(EncodeImageHandler *) WriteEPTImage;
   entry->magick=(IsImageFormatHandler *) IsEPT;
   entry->adjoin=MagickFalse;
+  entry->seekable_stream=MagickTrue;
   entry->blob_support=MagickFalse;
   entry->description=ConstantString(
     "Encapsulated PostScript Level II with TIFF preview");
@@ -299,6 +302,7 @@ ModuleExport unsigned long RegisterEPTImage(void)
   entry->decoder=(DecodeImageHandler *) ReadEPTImage;
   entry->encoder=(EncodeImageHandler *) WriteEPTImage;
   entry->magick=(IsImageFormatHandler *) IsEPT;
+  entry->seekable_stream=MagickTrue;
   entry->blob_support=MagickFalse;
   entry->description=ConstantString(
     "Encapsulated PostScript Level III with TIFF preview");
@@ -407,8 +411,8 @@ static MagickBooleanType WriteEPTImage(const ImageInfo *image_info,Image *image)
     return(MagickFalse);
   write_info=CloneImageInfo(image_info);
   (void) CopyMagickString(write_info->magick,"TIFF",MaxTextExtent);
-  (void) FormatMagickString(filename,MaxTextExtent,"tiff:%.1024s",
-    write_info->filename); 
+  (void) FormatLocaleString(filename,MaxTextExtent,"tiff:%s",
+    write_info->filename);
   (void) CopyMagickString(write_info->filename,filename,MaxTextExtent);
   (void) TransformImage(&write_image,(char *) NULL,"512x512>");
   if ((write_image->storage_class == DirectClass) ||

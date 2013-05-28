@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -42,7 +42,9 @@
 #include "magick/studio.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/compress.h"
@@ -53,6 +55,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -164,9 +167,9 @@ static Image *ReadFAXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Monochrome colormap.
   */
-  image->colormap[0].red=(Quantum) QuantumRange;
-  image->colormap[0].green=(Quantum) QuantumRange;
-  image->colormap[0].blue=(Quantum) QuantumRange;
+  image->colormap[0].red=QuantumRange;
+  image->colormap[0].green=QuantumRange;
+  image->colormap[0].blue=QuantumRange;
   image->colormap[1].red=(Quantum) 0;
   image->colormap[1].green=(Quantum) 0;
   image->colormap[1].blue=(Quantum) 0;
@@ -205,10 +208,10 @@ static Image *ReadFAXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterFAXImage method is:
 %
-%      unsigned long RegisterFAXImage(void)
+%      size_t RegisterFAXImage(void)
 %
 */
-ModuleExport unsigned long RegisterFAXImage(void)
+ModuleExport size_t RegisterFAXImage(void)
 {
   MagickInfo
     *entry;
@@ -322,8 +325,8 @@ static MagickBooleanType WriteFAXImage(const ImageInfo *image_info,Image *image)
     /*
       Convert MIFF to monochrome.
     */
-    if (image->colorspace != RGBColorspace)
-      (void) TransformImageColorspace(image,RGBColorspace);
+    if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+      (void) TransformImageColorspace(image,sRGBColorspace);
     status=HuffmanEncodeImage(write_info,image,image);
     if (GetNextImageInList(image) == (Image *) NULL)
       break;

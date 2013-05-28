@@ -17,7 +17,7 @@
 %                                 July 1999                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -53,13 +53,15 @@
 #include "magick/log.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
-#include "magick/resource_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
 #include "magick/transform.h"
 #include "magick/utility.h"
+#include "magick/utility-private.h"
 
 /*
   Forward declarations.
@@ -83,7 +85,7 @@ static MagickBooleanType
 %
 %  The format of the IsAVI method is:
 %
-%      unsigned long IsAVI(const unsigned char *magick,const size_t length)
+%      size_t IsAVI(const unsigned char *magick,const size_t length)
 %
 %  A description of each parameter follows:
 %
@@ -203,7 +205,7 @@ static Image *ReadMPEGImage(const ImageInfo *image_info,
   image=AcquireImage(image_info);
   (void) InvokeDelegate(read_info,image,"mpeg:decode",(char *) NULL,exception);
   image=DestroyImage(image);
-  (void) FormatMagickString(read_info->filename,MaxTextExtent,"%s.%s",
+  (void) FormatLocaleString(read_info->filename,MaxTextExtent,"%s.%s",
     read_info->unique,ReadMPEGIntermediateFormat);
   images=ReadImage(read_info,exception);
   (void) RelinquishUniqueFileResource(read_info->filename);
@@ -231,10 +233,10 @@ static Image *ReadMPEGImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterMPEGImage method is:
 %
-%      unsigned long RegisterMPEGImage(void)
+%      size_t RegisterMPEGImage(void)
 %
 */
-ModuleExport unsigned long RegisterMPEGImage(void)
+ModuleExport size_t RegisterMPEGImage(void)
 {
   MagickInfo
     *entry;
@@ -242,8 +244,9 @@ ModuleExport unsigned long RegisterMPEGImage(void)
   entry=SetMagickInfo("AVI");
   entry->decoder=(DecodeImageHandler *) ReadMPEGImage;
   entry->magick=(IsImageFormatHandler *) IsAVI;
+  entry->blob_support=MagickFalse;
   entry->description=ConstantString("Microsoft Audio/Visual Interleaved");
-  entry->module=ConstantString("AVI");
+  entry->module=ConstantString("MPEG");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("MOV");
   entry->decoder=(DecodeImageHandler *) ReadMPEGImage;
@@ -414,10 +417,10 @@ static MagickBooleanType CopyDelegateFile(const char *source,
   /*
     Copy source file to destination.
   */
-  destination_file=open(destination,O_WRONLY | O_BINARY | O_CREAT,S_MODE);
+  destination_file=open_utf8(destination,O_WRONLY | O_BINARY | O_CREAT,S_MODE);
   if (destination_file == -1)
     return(MagickFalse);
-  source_file=open(source,O_RDONLY | O_BINARY);
+  source_file=open_utf8(source,O_RDONLY | O_BINARY,0);
   if (source_file == -1)
     {
       (void) close(destination_file);
@@ -478,18 +481,16 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
   register Image
     *p;
 
-  register long
+  register ssize_t
     i;
 
   size_t
-    length;
+    count,
+    length,
+    scene;
 
   unsigned char
     *blob;
-
-  unsigned long
-    count,
-    scene;
 
   /*
     Open output image file.
@@ -513,7 +514,7 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
   file=AcquireUniqueFileResource(basename);
   if (file != -1)
     file=close(file)-1;
-  (void) FormatMagickString(coalesce_image->filename,MaxTextExtent,"%s",
+  (void) FormatLocaleString(coalesce_image->filename,MaxTextExtent,"%s",
     basename);
   count=0;
   write_info=CloneImageInfo(image_info);
@@ -526,7 +527,7 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
     length=0;
     scene=p->scene;
     delay=100.0*p->delay/MagickMax(1.0*p->ticks_per_second,1.0);
-    for (i=0; i < (long) MagickMax((1.0*delay+1.0)/3.0,1.0); i++)
+    for (i=0; i < (ssize_t) MagickMax((1.0*delay+1.0)/3.0,1.0); i++)
     {
       p->scene=count;
       count++;
@@ -538,12 +539,13 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
           Image
             *frame;
 
-          (void) FormatMagickString(p->filename,MaxTextExtent,"%s%lu.%s",
-            basename,p->scene,WriteMPEGIntermediateFormat);
-          (void) FormatMagickString(filename,MaxTextExtent,"%s%lu.%s",
-            basename,p->scene,WriteMPEGIntermediateFormat);
-          (void) FormatMagickString(previous_image,MaxTextExtent,
-            "%s%lu.%s",basename,p->scene,WriteMPEGIntermediateFormat);
+          (void) FormatLocaleString(p->filename,MaxTextExtent,"%s%.20g.%s",
+            basename,(double) p->scene,WriteMPEGIntermediateFormat);
+          (void) FormatLocaleString(filename,MaxTextExtent,"%s%.20g.%s",
+            basename,(double) p->scene,WriteMPEGIntermediateFormat);
+          (void) FormatLocaleString(previous_image,MaxTextExtent,
+            "%s%.20g.%s",basename,(double) p->scene,
+            WriteMPEGIntermediateFormat);
           frame=CloneImage(p,0,0,MagickTrue,&p->exception);
           if (frame == (Image *) NULL)
             break;
@@ -558,8 +560,8 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
         }
         default:
         {
-          (void) FormatMagickString(filename,MaxTextExtent,"%s%lu.%s",
-            basename,p->scene,WriteMPEGIntermediateFormat);
+          (void) FormatLocaleString(filename,MaxTextExtent,"%s%.20g.%s",
+            basename,(double) p->scene,WriteMPEGIntermediateFormat);
           if (length > 0)
             status=BlobToFile(filename,blob,length,&image->exception);
           break;
@@ -569,14 +571,13 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
         {
           if (status != MagickFalse)
             (void) LogMagickEvent(CoderEvent,GetMagickModule(),
-              "%lu. Wrote %s file for scene %lu:",i,WriteMPEGIntermediateFormat,
-              p->scene);
+              "%.20g. Wrote %s file for scene %.20g:",(double) i,
+              WriteMPEGIntermediateFormat,(double) p->scene);
           else
             (void) LogMagickEvent(CoderEvent,GetMagickModule(),
-              "%lu. Failed to write %s file for scene %lu:",i,
-              WriteMPEGIntermediateFormat,p->scene);
-          (void) LogMagickEvent(CoderEvent,GetMagickModule(),"%s",
-            filename);
+              "%.20g. Failed to write %s file for scene %.20g:",(double) i,
+              WriteMPEGIntermediateFormat,(double) p->scene);
+          (void) LogMagickEvent(CoderEvent,GetMagickModule(),"%s",filename);
         }
     }
     p->scene=scene;
@@ -596,7 +597,7 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
     (void) CopyMagickString(coalesce_image->magick,image->magick,MaxTextExtent);
   status=InvokeDelegate(write_info,coalesce_image,(char *) NULL,"mpeg:encode",
     &image->exception);
-  (void) FormatMagickString(write_info->filename,MaxTextExtent,"%s.%s",
+  (void) FormatLocaleString(write_info->filename,MaxTextExtent,"%s.%s",
     write_info->unique,coalesce_image->magick);
   status=CopyDelegateFile(write_info->filename,image->filename);
   (void) RelinquishUniqueFileResource(write_info->filename);
@@ -608,10 +609,10 @@ static MagickBooleanType WriteMPEGImage(const ImageInfo *image_info,
   for (p=coalesce_image; p != (Image *) NULL; p=GetNextImageInList(p))
   {
     delay=100.0*p->delay/MagickMax(1.0*p->ticks_per_second,1.0);
-    for (i=0; i < (long) MagickMax((1.0*delay+1.0)/3.0,1.0); i++)
+    for (i=0; i < (ssize_t) MagickMax((1.0*delay+1.0)/3.0,1.0); i++)
     {
-      (void) FormatMagickString(p->filename,MaxTextExtent,"%s%lu.%s",
-        basename,count++,WriteMPEGIntermediateFormat);
+      (void) FormatLocaleString(p->filename,MaxTextExtent,"%s%.20g.%s",
+        basename,(double) count++,WriteMPEGIntermediateFormat);
       (void) RelinquishUniqueFileResource(p->filename);
     }
     (void) CopyMagickString(p->filename,image_info->filename,MaxTextExtent);

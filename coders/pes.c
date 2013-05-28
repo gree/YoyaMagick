@@ -17,7 +17,7 @@
 %                                 July 2009                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -63,9 +63,10 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/montage.h"
+#include "magick/pixel-accessor.h"
+#include "magick/quantum-private.h"
 #include "magick/resize.h"
 #include "magick/shear.h"
-#include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -452,8 +453,13 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   SegmentInfo
     bounds;
 
-  register long
+  register ssize_t
     i;
+
+  size_t
+    number_blocks,
+    number_colors,
+    number_stitches;
 
   ssize_t
     count,
@@ -462,11 +468,6 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   unsigned char
     magick[4],
     version[4];
-
-  unsigned long
-    number_blocks,
-    number_colors,
-    number_stitches;
 
   /*
     Open image file.
@@ -492,17 +493,17 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   if ((count != 4) || (LocaleNCompare((char *) magick,"#PES",4) != 0))
     ThrowReaderException(CorruptImageError,"ImproperImageHeader");
   count=ReadBlob(image,4,version);
-  offset=(ssize_t) ReadBlobLSBLong(image);
-  for (i=0; i < (offset+36); i++)
-    if (ReadBlobByte(image) == EOF)
-      break;
+  offset=(int) ReadBlobLSBLong(image);
+  if (DiscardBlobBytes(image,offset+36) == MagickFalse)
+    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+      image->filename);
   if (EOFBlob(image) != MagickFalse)
     ThrowReaderException(CorruptImageError,"UnexpectedEndOfFile");
   /*
     Get PES colors.
   */
-  number_colors=(unsigned long) ReadBlobByte(image)+1;
-  for (i=0; i < (long) number_colors; i++)
+  number_colors=(size_t) ReadBlobByte(image)+1;
+  for (i=0; i < (ssize_t) number_colors; i++)
   {
     j=(int) ReadBlobByte(image);
     blocks[i].color=PESColor+j;
@@ -510,9 +511,9 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   }
   for ( ; i < 256L; i++)
     blocks[i].offset=0;
-  for (i=0; i < (long) (532L-number_colors-21); i++)
-    if (ReadBlobByte(image) == EOF)
-      break;
+  if (DiscardBlobBytes(image,532L-number_colors-21) == MagickFalse)
+    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+      image->filename);
   if (EOFBlob(image) != MagickFalse)
     ThrowReaderException(CorruptImageError,"UnexpectedEndOfFile");
   /*
@@ -602,7 +603,7 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
     if ((double) y > bounds.y2)
       bounds.y2=(double) y;
     i++;
-    if (i >= (long) number_stitches)
+    if (i >= (ssize_t) number_stitches)
       {
         /*
           Make room for more stitches.
@@ -616,7 +617,7 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   }
   j++;
   blocks[j].offset=(ssize_t) i;
-  number_blocks=(unsigned long) j;
+  number_blocks=(size_t) j;
   /*
     Write stitches as SVG file.
   */
@@ -626,25 +627,25 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
     file=fdopen(unique_file,"wb");
   if ((unique_file == -1) || (file == (FILE *) NULL))
     ThrowImageException(FileOpenError,"UnableToCreateTemporaryFile");
-  (void) fprintf(file,"<?xml version=\"1.0\"?>\n");
-  (void) fprintf(file,"<svg xmlns=\"http://www.w3.org/2000/svg\" "
+  (void) FormatLocaleFile(file,"<?xml version=\"1.0\"?>\n");
+  (void) FormatLocaleFile(file,"<svg xmlns=\"http://www.w3.org/2000/svg\" "
     "xlink=\"http://www.w3.org/1999/xlink\" "
     "ev=\"http://www.w3.org/2001/xml-events\" version=\"1.1\" "
     "baseProfile=\"full\" width=\"%g\" height=\"%g\">\n",bounds.x2-bounds.x1,
     bounds.y2-bounds.y1);
-  for (i=0; i < (long) number_blocks; i++)
+  for (i=0; i < (ssize_t) number_blocks; i++)
   {
     offset=blocks[i].offset;
-    (void) fprintf(file,"  <path stroke=\"#%02x%02x%02x\" fill=\"none\" "
-      "d=\"M %g %g",blocks[i].color->red,blocks[i].color->green,
+    (void) FormatLocaleFile(file,"  <path stroke=\"#%02x%02x%02x\" "
+      "fill=\"none\" d=\"M %g %g",blocks[i].color->red,blocks[i].color->green,
       blocks[i].color->blue,stitches[offset].x-bounds.x1,
       stitches[offset].y-bounds.y1);
-    for (j=1; j < (long) (blocks[i+1].offset-offset); j++)
-      (void) fprintf(file," L %g %g",stitches[offset+j].x-bounds.x1,
+    for (j=1; j < (ssize_t) (blocks[i+1].offset-offset); j++)
+      (void) FormatLocaleFile(file," L %g %g",stitches[offset+j].x-bounds.x1,
         stitches[offset+j].y-bounds.y1);
-    (void) fprintf(file,"\"/>\n");
+    (void) FormatLocaleFile(file,"\"/>\n");
   }
-  (void) fprintf(file,"</svg>\n");
+  (void) FormatLocaleFile(file,"</svg>\n");
   (void) fclose(file);
   (void) CloseBlob(image);
   image=DestroyImage(image);
@@ -653,7 +654,7 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
   */
   read_info=CloneImageInfo(image_info);
   SetImageInfoBlob(read_info,(void *) NULL,0);
-  (void) FormatMagickString(read_info->filename,MaxTextExtent,"svg:%.1024s",
+  (void) FormatLocaleString(read_info->filename,MaxTextExtent,"svg:%s",
     filename);
   image=ReadImage(read_info,exception);
   if (image != (Image *) NULL)
@@ -689,10 +690,10 @@ static Image *ReadPESImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterPESImage method is:
 %
-%      unsigned long RegisterPESImage(void)
+%      size_t RegisterPESImage(void)
 %
 */
-ModuleExport unsigned long RegisterPESImage(void)
+ModuleExport size_t RegisterPESImage(void)
 {
   MagickInfo
     *entry;

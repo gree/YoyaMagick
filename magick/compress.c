@@ -17,7 +17,7 @@
 %                              May  1993                                      %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -41,6 +41,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/color-private.h"
@@ -55,17 +56,9 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
 #include "magick/resource_.h"
 #include "magick/string_.h"
-#if defined(MAGICKCORE_TIFF_DELEGATE)
-#if defined(MAGICKCORE_HAVE_TIFFCONF_H)
-#include "tiffconf.h"
-#endif
-#include "tiffio.h"
-#define CCITTParam  "-1"
-#else
-#define CCITTParam  "0"
-#endif
 #if defined(MAGICKCORE_ZLIB_DELEGATE)
 #include "zlib.h"
 #endif
@@ -75,7 +68,7 @@
 */
 struct _Ascii85Info
 {
-  long
+  ssize_t
     offset,
     line_break;
 
@@ -85,7 +78,7 @@ struct _Ascii85Info
 
 typedef struct HuffmanTable
 {
-  unsigned long
+  size_t
     id,
     code,
     length,
@@ -222,7 +215,7 @@ static const HuffmanTable
 %
 %  The format of the ASCII85Encode method is:
 %
-%      void Ascii85Encode(Image *image,const unsigned long code)
+%      void Ascii85Encode(Image *image,const size_t code)
 %
 %  A description of each parameter follows:
 %
@@ -239,16 +232,16 @@ static char *Ascii85Tuple(unsigned char *data)
   static char
     tuple[6];
 
-  register long
+  register ssize_t
     i,
     x;
 
-  unsigned long
+  size_t
     code,
     quantum;
 
-  code=((((unsigned long) data[0] << 8) | (unsigned long) data[1]) << 16) |
-    ((unsigned long) data[2] << 8) | (unsigned long) data[3];
+  code=((((size_t) data[0] << 8) | (size_t) data[1]) << 16) |
+    ((size_t) data[2] << 8) | (size_t) data[3];
   if (code == 0L)
     {
       tuple[0]='z';
@@ -258,7 +251,7 @@ static char *Ascii85Tuple(unsigned char *data)
   quantum=85UL*85UL*85UL*85UL;
   for (i=0; i < 4; i++)
   {
-    x=(long) (code/quantum);
+    x=(ssize_t) (code/quantum);
     code-=quantum*x;
     tuple[i]=(char) (x+(int) '!');
     quantum/=85L;
@@ -274,7 +267,7 @@ MagickExport void Ascii85Initialize(Image *image)
     Allocate image structure.
   */
   if (image->ascii85 == (Ascii85Info *) NULL)
-    image->ascii85=(Ascii85Info *) AcquireAlignedMemory(1,sizeof(*image->ascii85));
+    image->ascii85=(Ascii85Info *) AcquireMagickMemory(sizeof(*image->ascii85));
   if (image->ascii85 == (Ascii85Info *) NULL)
     ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
   (void) ResetMagickMemory(image->ascii85,0,sizeof(*image->ascii85));
@@ -308,14 +301,14 @@ MagickExport void Ascii85Flush(Image *image)
 
 MagickExport void Ascii85Encode(Image *image,const unsigned char code)
 {
-  long
-    n;
-
   register char
     *q;
 
   register unsigned char
     *p;
+
+  ssize_t
+    n;
 
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
@@ -410,11 +403,14 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
       mask=0x80;  \
     }  \
   runlength++;  \
-  bit=(unsigned long) ((byte & mask) != 0 ? 0x01 : 0x00); \
+  bit=(size_t) ((byte & mask) != 0 ? 0x01 : 0x00); \
   mask>>=1;  \
   if (bit != 0)  \
     runlength=0;  \
 }
+
+  CacheView
+    *image_view;
 
   const HuffmanTable
     *entry;
@@ -432,23 +428,29 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
   int
     byte;
 
-  long
-    y;
-
   MagickBooleanType
     proceed;
 
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     i;
 
   register unsigned char
     *p;
 
+  size_t
+    bit,
+    code,
+    mask,
+    length,
+    null_lines,
+    runlength;
+
   ssize_t
-    count;
+    count,
+    y;
 
   unsigned char
     *scanline;
@@ -456,14 +458,6 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
   unsigned int
     bail,
     color;
-
-  unsigned long
-    bit,
-    code,
-    mask,
-    length,
-    null_lines,
-    runlength;
 
   /*
     Allocate buffers.
@@ -509,19 +503,20 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
   image->y_resolution=196.0;
   image->units=PixelsPerInchResolution;
   exception=(&image->exception);
-  for (y=0; ((y < (long) image->rows) && (null_lines < 3)); )
+  image_view=AcquireAuthenticCacheView(image,exception);
+  for (y=0; ((y < (ssize_t) image->rows) && (null_lines < 3)); )
   {
-    register long
-      x;
-
     register PixelPacket
       *restrict q;
+
+    register ssize_t
+      x;
 
     /*
       Initialize scanline to white.
     */
     p=scanline;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
       *p++=(unsigned char) 0;
     /*
       Decode Huffman encoded scanline.
@@ -536,7 +531,7 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
     {
       if (byte == EOF)
         break;
-      if (x >= (long) image->columns)
+      if (x >= (ssize_t) image->columns)
         {
           while (runlength < 11)
             InputBit(bit);
@@ -560,7 +555,7 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
                 break;
               }
           }
-        code=(code << 1)+(unsigned long) bit;
+        code=(code << 1)+(size_t) bit;
         length++;
       } while (code == 0);
       if (bail != MagickFalse)
@@ -593,8 +588,8 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
         case TWId:
         case TBId:
         {
-          count+=entry->count;
-          if ((x+count) > (long) image->columns)
+          count+=(ssize_t) entry->count;
+          if ((x+count) > (ssize_t) image->columns)
             count=(ssize_t) image->columns-x;
           if (count > 0)
             {
@@ -615,7 +610,7 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
         case MBId:
         case EXId:
         {
-          count+=entry->count;
+          count+=(ssize_t) entry->count;
           break;
         }
         default:
@@ -628,24 +623,25 @@ MagickExport MagickBooleanType HuffmanDecodeImage(Image *image)
       Transfer scanline to image pixels.
     */
     p=scanline;
-    q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
+    q=QueueCacheViewAuthenticPixels(image_view,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    indexes=GetAuthenticIndexQueue(image);
-    for (x=0; x < (long) image->columns; x++)
+    indexes=GetCacheViewAuthenticIndexQueue(image_view);
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       index=(IndexPacket) (*p++);
-      indexes[x]=index;
-      *q++=image->colormap[(long) index];
+      SetPixelIndex(indexes+x,index);
+      SetPixelRGBO(q,image->colormap+(ssize_t) index);
     }
-    if (SyncAuthenticPixels(image,exception) == MagickFalse)
+    if (SyncCacheViewAuthenticPixels(image_view,exception) == MagickFalse)
       break;
     proceed=SetImageProgress(image,LoadImageTag,y,image->rows);
     if (proceed == MagickFalse)
       break;
     y++;
   }
-  image->rows=(unsigned long) MagickMax((size_t) y-3,1);
+  image_view=DestroyCacheView(image_view);
+  image->rows=(size_t) MagickMax((size_t) y-3,1);
   image->compression=FaxCompression;
   /*
     Free decoder memory.
@@ -688,7 +684,7 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
 {
 #define HuffmanOutputCode(entry)  \
 {  \
-  mask=1 << (entry->length-1);  \
+  mask=one << (entry->length-1);  \
   while (mask != 0)  \
   {  \
     OutputBit(((entry->code & mask) != 0 ? 1 : 0));  \
@@ -722,17 +718,13 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
     k,
     runlength;
 
-  long
-    n,
-    y;
-
   Image
     *huffman_image;
 
   MagickBooleanType
     proceed;
 
-  register long
+  register ssize_t
     i,
     x;
 
@@ -742,14 +734,19 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
   register unsigned char
     *q;
 
+  size_t
+    mask,
+    one,
+    width;
+
+  ssize_t
+    n,
+    y;
+
   unsigned char
     byte,
     bit,
     *scanline;
-
-  unsigned long
-    mask,
-    width;
 
   /*
     Allocate scanline buffer.
@@ -762,9 +759,10 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
     (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   assert(inject_image != (Image *) NULL);
   assert(inject_image->signature == MagickSignature);
+  one=1;
   width=inject_image->columns;
   if (LocaleCompare(image_info->magick,"FAX") == 0)
-    width=(unsigned long) MagickMax(inject_image->columns,1728);
+    width=(size_t) MagickMax(inject_image->columns,1728);
   scanline=(unsigned char *) AcquireQuantumMemory((size_t) width+1UL,
     sizeof(*scanline));
   if (scanline == (unsigned char *) NULL)
@@ -796,22 +794,22 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
   */
   exception=(&huffman_image->exception);
   q=scanline;
-  for (y=0; y < (long) huffman_image->rows; y++)
+  for (y=0; y < (ssize_t) huffman_image->rows; y++)
   {
     p=GetVirtualPixels(huffman_image,0,y,huffman_image->columns,1,exception);
     if (p == (const PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) huffman_image->columns; x++)
+    for (x=0; x < (ssize_t) huffman_image->columns; x++)
     {
-      *q++=(unsigned char) (PixelIntensity(p) >= ((MagickRealType)
-        QuantumRange/2.0) ? 0 : 1);
+      *q++=(unsigned char) (GetPixelIntensity(huffman_image,p) >=
+        ((MagickRealType) QuantumRange/2.0) ? 0 : 1);
       p++;
     }
     /*
       Huffman encode scanline.
     */
     q=scanline;
-    for (n=(long) width; n > 0; )
+    for (n=(ssize_t) width; n > 0; )
     {
       /*
         Output white run.
@@ -827,7 +825,7 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
             entry=MWTable+((runlength/64)-1);
           else
             entry=EXTable+(MagickMin((size_t) runlength,2560)-1792)/64;
-          runlength-=entry->count;
+          runlength-=(long) entry->count;
           HuffmanOutputCode(entry);
         }
       entry=TWTable+MagickMin((size_t) runlength,63);
@@ -847,7 +845,7 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
               entry=MBTable+((runlength/64)-1);
               if (runlength >= 1792)
                 entry=EXTable+(MagickMin((size_t) runlength,2560)-1792)/64;
-              runlength-=entry->count;
+              runlength-=(long) entry->count;
               HuffmanOutputCode(entry);
             }
           entry=TBTable+MagickMin((size_t) runlength,63);
@@ -912,7 +910,7 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
 %  The format of the LZWEncodeImage method is:
 %
 %      MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
-%        unsigned char *pixels)
+%        unsigned char *restrict pixels)
 %
 %  A description of each parameter follows:
 %
@@ -925,7 +923,7 @@ MagickExport MagickBooleanType HuffmanEncodeImage(const ImageInfo *image_info,
 %
 */
 MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
-  unsigned char *pixels)
+  unsigned char *restrict pixels)
 {
 #define LZWClr  256UL  /* Clear Table Marker */
 #define LZWEod  257UL  /* End of Data marker */
@@ -943,27 +941,27 @@ MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
 
   typedef struct _TableType
   {
-    long
+    ssize_t
       prefix,
       suffix,
       next;
   } TableType;
 
-  long
-    index;
-
-  register long
+  register ssize_t
     i;
 
-  TableType
-    *table;
-
-  unsigned long
+  size_t
     accumulator,
     number_bits,
     code_width,
     last_code,
     next_index;
+
+  ssize_t
+    index;
+
+  TableType
+    *table;
 
   /*
     Allocate string table.
@@ -992,32 +990,32 @@ MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
   }
   next_index=LZWEod+1;
   code_width=9;
-  last_code=(unsigned long) pixels[0];
-  for (i=1; i < (long) length; i++)
+  last_code=(size_t) pixels[0];
+  for (i=1; i < (ssize_t) length; i++)
   {
     /*
       Find string.
     */
-    index=(long) last_code;
+    index=(ssize_t) last_code;
     while (index != -1)
-      if ((table[index].prefix != (long) last_code) ||
-          (table[index].suffix != (long) pixels[i]))
+      if ((table[index].prefix != (ssize_t) last_code) ||
+          (table[index].suffix != (ssize_t) pixels[i]))
         index=table[index].next;
       else
         {
-          last_code=(unsigned long) index;
+          last_code=(size_t) index;
           break;
         }
-    if (last_code != (unsigned long) index)
+    if (last_code != (size_t) index)
       {
         /*
           Add string.
         */
         OutputCode(last_code);
-        table[next_index].prefix=(long) last_code;
+        table[next_index].prefix=(ssize_t) last_code;
         table[next_index].suffix=(short) pixels[i];
         table[next_index].next=table[last_code].next;
-        table[last_code].next=(long) next_index;
+        table[last_code].next=(ssize_t) next_index;
         next_index++;
         /*
           Did we just move up to next bit width?
@@ -1042,7 +1040,7 @@ MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
                 code_width=9;
               }
             }
-          last_code=(unsigned long) pixels[i];
+          last_code=(size_t) pixels[i];
       }
   }
   /*
@@ -1074,7 +1072,7 @@ MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
 %  The format of the PackbitsEncodeImage method is:
 %
 %      MagickBooleanType PackbitsEncodeImage(Image *image,const size_t length,
-%        unsigned char *pixels)
+%        unsigned char *restrict pixels)
 %
 %  A description of each parameter follows:
 %
@@ -1087,12 +1085,12 @@ MagickExport MagickBooleanType LZWEncodeImage(Image *image,const size_t length,
 %
 */
 MagickExport MagickBooleanType PackbitsEncodeImage(Image *image,
-  const size_t length,unsigned char *pixels)
+  const size_t length,unsigned char *restrict pixels)
 {
   int
     count;
 
-  register long
+  register ssize_t
     i,
     j;
 
@@ -1111,7 +1109,7 @@ MagickExport MagickBooleanType PackbitsEncodeImage(Image *image,
   if (packbits == (unsigned char *) NULL)
     ThrowBinaryException(ResourceLimitError,"MemoryAllocationFailed",
       image->filename);
-  for (i=(long) length; i != 0; )
+  for (i=(ssize_t) length; i != 0; )
   {
     switch (i)
     {
@@ -1153,7 +1151,7 @@ MagickExport MagickBooleanType PackbitsEncodeImage(Image *image,
               Packed run.
             */
             count=3;
-            while (((long) count < i) && (*pixels == *(pixels+count)))
+            while (((ssize_t) count < i) && (*pixels == *(pixels+count)))
             {
               count++;
               if (count >= 127)
@@ -1174,12 +1172,12 @@ MagickExport MagickBooleanType PackbitsEncodeImage(Image *image,
         {
           packbits[count+1]=pixels[count];
           count++;
-          if (((long) count >= (i-3)) || (count >= 127))
+          if (((ssize_t) count >= (i-3)) || (count >= 127))
             break;
         }
         i-=count;
         *packbits=(unsigned char) (count-1);
-        for (j=0; j <= (long) count; j++)
+        for (j=0; j <= (ssize_t) count; j++)
           (void) WriteBlobByte(image,packbits[j]);
         pixels+=count;
         break;
@@ -1209,7 +1207,7 @@ MagickExport MagickBooleanType PackbitsEncodeImage(Image *image,
 %  The format of the ZLIBEncodeImage method is:
 %
 %      MagickBooleanType ZLIBEncodeImage(Image *image,const size_t length,
-%        unsigned char *pixels)
+%        unsigned char *restrict pixels)
 %
 %  A description of each parameter follows:
 %
@@ -1237,12 +1235,12 @@ static void RelinquishZIPMemory(voidpf context,voidpf memory)
 }
 
 MagickExport MagickBooleanType ZLIBEncodeImage(Image *image,const size_t length,
-  unsigned char *pixels)
+  unsigned char *restrict pixels)
 {
   int
     status;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -1285,7 +1283,7 @@ MagickExport MagickBooleanType ZLIBEncodeImage(Image *image,const size_t length,
   if (status != Z_OK)
     ThrowBinaryException(CoderError,"UnableToZipCompressImage",image->filename)
   else
-    for (i=0; i < (long) compress_packets; i++)
+    for (i=0; i < (ssize_t) compress_packets; i++)
       (void) WriteBlobByte(image,compress_pixels[i]);
   compress_pixels=(unsigned char *) RelinquishMagickMemory(compress_pixels);
   return(status == Z_OK ? MagickTrue : MagickFalse);

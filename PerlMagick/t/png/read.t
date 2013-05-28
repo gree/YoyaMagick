@@ -35,7 +35,8 @@ testRead( 'input_mono.png',
 ++$test;
 print( "16-bit grayscale PNG ...\n" );
 testRead( 'input_16.png',
-  'fa6b164245b385b3dea5764074be2c959a503dde90ecb1d4ba9c76a46bb8e4e6',
+  'ed0c17df37c4717fa3e70176148ab00e076fd0df743dce30323112100a71290b',
+  '82f48df83eec5bacbe2c38f13ce7e2219e5e318f4b2974d928d0ea7f7cec65fd',
   '82f48df83eec5bacbe2c38f13ce7e2219e5e318f4b2974d928d0ea7f7cec65fd' );
 #
 # 4) Test 256 color pseudocolor PNG
@@ -59,5 +60,5 @@ testRead( 'input_truecolor.png',
 ++$test;
 print( "MNG with 24-bit Truecolor PNGs...\n" );
 testRead( 'input.mng',
-  '030111e35491010550814468283f13a8d3d621efb0031bae005bd86e9d0038c5' );
+  '40805ef3db6e3a94c85e30e591e5881dc660ff863591d6f56605dba64d03d83d' );
 

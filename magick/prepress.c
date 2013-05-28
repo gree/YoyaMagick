@@ -17,7 +17,7 @@
 %                                October 2001                                 %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -47,11 +47,14 @@
 #include "magick/image.h"
 #include "magick/list.h"
 #include "magick/memory_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/prepress.h"
 #include "magick/registry.h"
+#include "magick/resource_.h"
 #include "magick/semaphore.h"
 #include "magick/splay-tree.h"
 #include "magick/string_.h"
+#include "magick/thread-private.h"
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -88,11 +91,11 @@ MagickExport double GetImageTotalInkDensity(Image *image)
   ExceptionInfo
     *exception;
 
-  long
-    y;
-
   MagickBooleanType
     status;
+
+  ssize_t
+    y;
 
   assert(image != (Image *) NULL);
   if (image->debug != MagickFalse)
@@ -107,11 +110,12 @@ MagickExport double GetImageTotalInkDensity(Image *image)
   status=MagickTrue;
   total_ink_density=0.0;
   exception=(&image->exception);
-  image_view=AcquireCacheView(image);
+  image_view=AcquireVirtualCacheView(image,exception);
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,image->rows,1)
 #endif
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     double
       density;
@@ -122,7 +126,7 @@ MagickExport double GetImageTotalInkDensity(Image *image)
     register const PixelPacket
       *p;
 
-    register long
+    register ssize_t
       x;
 
     p=GetCacheViewVirtualPixels(image_view,0,y,image->columns,1,exception);
@@ -132,12 +136,13 @@ MagickExport double GetImageTotalInkDensity(Image *image)
         continue;
       }
     indexes=GetCacheViewVirtualIndexQueue(image_view);
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      density=(double) p->red+p->green+p->blue+indexes[x];
+      density=(double) GetPixelRed(p)+GetPixelGreen(p)+
+        GetPixelBlue(p)+GetPixelIndex(indexes+x);
       if (density > total_ink_density)
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp critical (MagickCore_GetImageTotalInkDensity)
+        #pragma omp critical (MagickCore_GetImageTotalInkDensity)
 #endif
         {
           if (density > total_ink_density)

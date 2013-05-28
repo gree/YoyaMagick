@@ -11,7 +11,7 @@
 #include "Magick++/Include.h"
 #include <string>
 #include <ctype.h> // for isdigit
-#if !defined(__WINDOWS__)
+#if !defined(MAGICKCORE_WINDOWS_SUPPORT)
 #include <strings.h>
 #endif
 
@@ -70,10 +70,10 @@ int Magick::operator <= ( const Magick::Geometry& left_,
 }
 
 // Construct using parameterized arguments
-Magick::Geometry::Geometry ( unsigned int width_,
-			     unsigned int height_,
-			     unsigned int xOff_,
-			     unsigned int yOff_,
+Magick::Geometry::Geometry ( size_t width_,
+			     size_t height_,
+			     ssize_t xOff_,
+			     ssize_t yOff_,
 			     bool xNegative_,
 			     bool yNegative_ )
   : _width( width_ ),
@@ -206,11 +206,11 @@ Magick::Geometry::operator = ( const std::string &geometry_ )
         }
     }
 
-  long x = 0;
-  long y = 0;
-  unsigned long width_val = 0;
-  unsigned long height_val = 0;
-  int flags = GetGeometry (geom, &x, &y, &width_val, &height_val );
+  ssize_t x = 0;
+  ssize_t y = 0;
+  size_t width_val = 0;
+  size_t height_val = 0;
+  ssize_t flags = GetGeometry (geom, &x, &y, &width_val, &height_val );
 
   if (flags == NoValue)
     {
@@ -234,13 +234,13 @@ Magick::Geometry::operator = ( const std::string &geometry_ )
 
   if ( ( flags & XValue ) != 0 )
     {
-      _xOff = static_cast<unsigned int>(AbsoluteValue(x));
+      _xOff = static_cast<ssize_t>(x);
       isValid( true );
     }
 
   if ( ( flags & YValue ) != 0 )
     {
-      _yOff = static_cast<unsigned int>(AbsoluteValue(y));
+      _yOff = static_cast<ssize_t>(y);
       isValid( true );
     }
 
@@ -282,17 +282,17 @@ Magick::Geometry::operator std::string() const
     }
 
   string geometry;
-  char buffer[32];
+  char buffer[MaxTextExtent];
 
   if ( _width )
     {
-      FormatMagickString( buffer, MaxTextExtent, "%u", _width );
+      FormatLocaleString( buffer, MaxTextExtent, "%.20g", (double) _width );
       geometry += buffer;
     }
 
   if ( _height )
     {
-      FormatMagickString( buffer, MaxTextExtent, "%u",  _height);
+      FormatLocaleString( buffer, MaxTextExtent, "%.20g",  (double) _height);
       geometry += 'x';
       geometry +=  buffer;
     }
@@ -304,7 +304,7 @@ Magick::Geometry::operator std::string() const
       else
         geometry += '+';
 
-      FormatMagickString( buffer, MaxTextExtent, "%u", _xOff);
+      FormatLocaleString( buffer, MaxTextExtent, "%.20g", (double) _xOff);
       geometry += buffer;
 
       if ( _yNegative )
@@ -312,7 +312,7 @@ Magick::Geometry::operator std::string() const
       else
         geometry += '+';
 
-      FormatMagickString( buffer, MaxTextExtent, "%u", _yOff);
+      FormatLocaleString( buffer, MaxTextExtent, "%.20g", (double) _yOff);
       geometry += buffer;
     }
 
@@ -333,10 +333,10 @@ Magick::Geometry::operator std::string() const
 
 // Construct from RectangleInfo
 Magick::Geometry::Geometry ( const MagickCore::RectangleInfo &rectangle_ )
-  : _width(static_cast<unsigned int>(rectangle_.width)),
-    _height(static_cast<unsigned int>(rectangle_.height)),
-    _xOff(static_cast<unsigned int>(AbsoluteValue(rectangle_.x))),
-    _yOff(static_cast<unsigned int>(AbsoluteValue(rectangle_.y))),
+  : _width(static_cast<size_t>(rectangle_.width)),
+    _height(static_cast<size_t>(rectangle_.height)),
+    _xOff(static_cast<ssize_t>(rectangle_.x)),
+    _yOff(static_cast<ssize_t>(rectangle_.y)),
     _xNegative(rectangle_.x < 0 ? true : false),
     _yNegative(rectangle_.y < 0 ? true : false),
     _isValid(true),
@@ -353,7 +353,7 @@ Magick::Geometry::operator MagickCore::RectangleInfo() const
   RectangleInfo rectangle;
   rectangle.width = _width;
   rectangle.height = _height;
-  _xNegative ? rectangle.x = static_cast<long>(0-_xOff) : rectangle.x = static_cast<long>(_xOff);
-  _yNegative ? rectangle.y = static_cast<long>(0-_yOff) : rectangle.y = static_cast<long>(_yOff);
+  _xNegative ? rectangle.x = static_cast<ssize_t>(0-_xOff) : rectangle.x = static_cast<ssize_t>(_xOff);
+  _yNegative ? rectangle.y = static_cast<ssize_t>(0-_yOff) : rectangle.y = static_cast<ssize_t>(_yOff);
   return rectangle;
 }

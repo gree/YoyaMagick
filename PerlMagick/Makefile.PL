@@ -1,4 +1,4 @@
-#  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+#  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
 #  dedicated to making software imaging solutions freely available.
 #
 #  You may not use this file except in compliance with the License.  You may
@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 #  Exercise all regression tests:
-#  
+#
 #    make test
 #
 #  Exersise one regression test:
@@ -29,11 +29,11 @@ use Cwd;
 sub AutodetectWin32gcc {
   my $wrkdir = getcwd();
   my $devnull = devnull();
- 
+
   my @incdir = ();
   my @libdir = ($wrkdir);
   my @bindir = ();
- 
+
   #try to get configuration info via identify or convert utilities
   my $conf = `identify -list Configure 2>$devnull` || `convert -list Configure 2>$devnull`;
   foreach my $line (split '\n', $conf) {
@@ -44,12 +44,15 @@ sub AutodetectWin32gcc {
       my (@l,@b,@i) = ( (),(),() );
 
       # try to detect 'lib' dir
+      push @l, catfile($dirpath,'lib');
       push @l, catfile($dirpath,'..','lib');
       push @l, catfile($dirpath,'..','..','lib');
       push @l, catfile($dirpath,'..','..','..','lib');
       foreach (@l) { push @libdir, $_ if (-d $_) };
 
       # try to detect 'bin' dir
+      push @b, catfile($dirpath);
+      push @b, catfile($dirpath,'bin');
       push @b, catfile($dirpath,'..');
       push @b, catfile($dirpath,'..','bin');
       push @b, catfile($dirpath,'..','..');
@@ -59,6 +62,8 @@ sub AutodetectWin32gcc {
       foreach (@b) { push @bindir, $_ if (-e "$_/convert.exe" || -e "$_/identify.exe") };
 
       # try to detect 'include' dir
+      push @i, catfile($dirpath,'include');
+      push @i, catfile($dirpath,'include','ImageMagick');
       push @i, catfile($dirpath,'..','include');
       push @i, catfile($dirpath,'..','include','ImageMagick');
       push @i, catfile($dirpath,'..','..','include');
@@ -68,7 +73,7 @@ sub AutodetectWin32gcc {
       foreach (@i) { push @incdir, $_ if (-e "$_/magick/MagickCore.h") };
     }
   };
- 
+
   foreach my $bin (@bindir) {
     opendir(my $bindir, $bin) or die qq{Cannot opendir $bin: $!};
     my @dlls = map {catfile($bin, $_)} grep /^\S*magick[^\+]\S*?\.dll$/i, readdir $bindir;
@@ -85,7 +90,7 @@ sub AutodetectWin32gcc {
     }
     last if -s "$wrkdir/libMagickCore.a";
   }
- 
+
   unless(@incdir && @libdir && @bindir && (-s "$wrkdir/libMagickCore.a")) {
     print STDERR <<EOF
 ################################### WARNING! ###################################
@@ -114,35 +119,53 @@ sub AutodetectWin32gcc {
 ################################################################################
 EOF
   }
-   
+
   my $inc = join ' ', map "-I\"$_\"", @incdir;
   my $lib = join ' ', map "-L\"$_\"", @libdir;
 
   return ($inc, $lib);
 }
 
+sub AutodetectDelegates {
+  #try to get configuration info via identify or convert utilities
+  my $devnull = devnull();
+  my $conf = `identify -list Configure 2>$devnull` || `convert -list Configure 2>$devnull`;
+  my @delegates = ();
+  foreach my $line (split '\n', $conf) {
+    next unless $line =~ /^DELEGATES\s+/;
+    (undef, @delegates) = split /\s+/, $line;
+    last;
+  };
+  return @delegates;
+}
 
 # Compute test specification
 my $delegate_tests='t/*.t';
-my $delegate;
-foreach $delegate (qw/bzlib djvu fftw fontconfig freetype jpeg jng jp2 lcms mpeg png tiff x11 xml wmf zlib/) {
-  if ( -d "t/$delegate" ) {
-    if ( defined($ENV{'DISPLAY'}) && ($^O ne 'MSWin32') ) {
-      if ( defined $ENV{'DISPLAY'} ) {
-        $delegate_tests .= " t/$delegate/*.t";
+my @tested_delegates = qw/bzlib djvu fftw fontconfig freetype jpeg jng jp2 lcms mpeg png rsvg tiff x11 xml wmf zlib/;
+my @supported_delegates = AutodetectDelegates();
+# find the intersection of tested and supported delegates
+my %seen_delegates = ();
+$seen_delegates{$_}++ for @supported_delegates;
+foreach my $delegate (@tested_delegates) {
+  if ( $seen_delegates{$delegate} ) {
+    if ( -d "t/$delegate" ) {
+      if ( defined($ENV{'DISPLAY'}) && ($^O ne 'MSWin32') ) {
+        if ( defined $ENV{'DISPLAY'} ) {
+          $delegate_tests .= " t/$delegate/*.t";
+        }
+        next;
       }
-      next;
+      $delegate_tests .= " t/$delegate/*.t";
     }
-    $delegate_tests .= " t/$delegate/*.t";
   }
 }
 
 # defaults for LIBS & INC & CCFLAGS params that we later pass to Writemakefile
-my $INC_magick = '-I../ -I.. -I/usr/include/freetype2 -I/usr/include/libxml2 -I"' . $Config{'usrinc'} . '/ImageMagick"';
-my $LIBS_magick = '-L../magick/.libs -lMagickCore -lperl -lm';
-my $CCFLAGS_magick = "$Config{'ccflags'} -fopenmp -O3 -g -Wall -W -pthread";
-my $LDFLAGS_magick   = "-L../magick/.libs -lMagickCore $Config{'ldflags'} ";
-my $LDDLFLAGS_magick = "-L../magick/.libs -lMagickCore $Config{'lddlflags'} ";
+my $INC_magick = '-I../ -I.. -pthread -I/usr/include/pango-1.0 -I/usr/include/cairo -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/freetype2 -I/usr/include/libdrm -I/usr/include/libpng15 -DMAGICKCORE_HDRI_ENABLE=0 -DMAGICKCORE_QUANTUM_DEPTH=16 -I/usr/include/libxml2 -I"' . $Config{'usrinc'} . '/ImageMagick"';
+my $LIBS_magick = '-L../magick/.libs -lMagickCore-6.Q16 -lperl -lm';
+my $CCFLAGS_magick = "$Config{'ccflags'} -I/usr/include/freetype2 -fopenmp -g -O2 -Wall -pthread -DMAGICKCORE_HDRI_ENABLE=0 -DMAGICKCORE_QUANTUM_DEPTH=16";
+my $LDFLAGS_magick   = "-L../magick/.libs -lMagickCore-6.Q16 $Config{'ldflags'} ";
+my $LDDLFLAGS_magick = "-L../magick/.libs -lMagickCore-6.Q16 $Config{'lddlflags'} ";
 
 if (($^O eq 'MSWin32') && ($Config{cc} =~ /gcc/)) {
   my($Ipaths, $Lpaths) = AutodetectWin32gcc();
@@ -151,7 +174,7 @@ if (($^O eq 'MSWin32') && ($Config{cc} =~ /gcc/)) {
   # Setup for strawberry perl.
   #
   $INC_magick       = "$Ipaths";
-  $LIBS_magick      = "-lMagickCore";
+  $LIBS_magick      = "-lMagickCore-6.Q16";
   $CCFLAGS_magick   = "$Config{'ccflags'}";
   $LDFLAGS_magick   = "$Config{'ldflags'} $Lpaths ";
   $LDDLFLAGS_magick = "$Config{'lddlflags'} $Lpaths ";
@@ -171,10 +194,13 @@ WriteMakefile
    'AUTHOR' => 'ImageMagick Studio LLC',
 
    # Module version
-   'VERSION' => '6.6.0',
+   'VERSION' => '6.85',
+
+   # Prerequisite version
+   'PREREQ_PM' => {'parent' => '0'},
 
    # Preprocessor defines
-   'DEFINE'	=> ' -D_LARGE_FILES=1 -DHAVE_CONFIG_H',     # e.g., '-DHAVE_SOMETHING' 
+   'DEFINE'	=> ' -D_LARGE_FILES=1 -DHAVE_CONFIG_H',     # e.g., '-DHAVE_SOMETHING'
 
    # Header search specfication and preprocessor flags
    'INC'	=> $INC_magick,
@@ -183,7 +209,7 @@ WriteMakefile
    #'CC' => 'gcc -std=gnu99 -std=gnu99',
 
    # C pre-processor flags (e.g. -I & -D options)
-   # 'CPPFLAGS' => "$Config{'cppflags'} -I/usr/include/freetype2 -I/usr/include/libxml2",
+   # 'CPPFLAGS' => "$Config{'cppflags'} -pthread -I/usr/include/pango-1.0 -I/usr/include/cairo -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/freetype2 -I/usr/include/libdrm -I/usr/include/libpng15 -DMAGICKCORE_HDRI_ENABLE=0 -DMAGICKCORE_QUANTUM_DEPTH=16 -I/usr/include/libxml2",
 
    # C compiler flags (e.g. -O -g)
    'CCFLAGS' => $CCFLAGS_magick,
@@ -211,6 +237,8 @@ WriteMakefile
 
    # Use same compiler as ImageMagick
    'PERLMAINCC'	=> ' -fopenmp',
+   'AR' => 'ar',
+   'LD' => '',
 
    # Set Perl installation prefix to ImageMagick installation prefix
 #   'PREFIX'	=> '/usr',
@@ -219,6 +247,9 @@ WriteMakefile
    test	=> { TESTS	=>	$delegate_tests},
 
    ($Config{'archname'} =~ /-object$/i ? ('CAPI' => 'TRUE') : ()),
+
+   # sane version
+   depend => { '$(FIRST_MAKEFILE)' => '$(VERSION_FROM)' }
 );
 
 

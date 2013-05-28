@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,8 +52,9 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
-#include "magick/resource_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -142,10 +143,11 @@ static Image *ReadPWPImage(const ImageInfo *image_info,ExceptionInfo *exception)
   register Image
     *p;
 
-  register long
+  register ssize_t
     i;
 
   size_t
+    filesize,
     length;
 
   ssize_t
@@ -153,9 +155,6 @@ static Image *ReadPWPImage(const ImageInfo *image_info,ExceptionInfo *exception)
 
   unsigned char
     magick[MaxTextExtent];
-
-  unsigned long
-    filesize;
 
   /*
     Open image file.
@@ -208,8 +207,9 @@ static Image *ReadPWPImage(const ImageInfo *image_info,ExceptionInfo *exception)
         return((Image *) NULL);
       }
     length=fwrite("SFW94A",1,6,file);
+    (void) length;
     filesize=65535UL*magick[2]+256L*magick[1]+magick[0];
-    for (i=0; i < (long) filesize; i++)
+    for (i=0; i < (ssize_t) filesize; i++)
     {
       c=ReadBlobByte(pwp_image);
       (void) fputc(c,file);
@@ -218,8 +218,8 @@ static Image *ReadPWPImage(const ImageInfo *image_info,ExceptionInfo *exception)
     next_image=ReadImage(read_info,exception);
     if (next_image == (Image *) NULL)
       break;
-    (void) FormatMagickString(next_image->filename,MaxTextExtent,
-      "slide_%02ld.sfw",next_image->scene);
+    (void) FormatLocaleString(next_image->filename,MaxTextExtent,
+      "slide_%02ld.sfw",(long) next_image->scene);
     if (image == (Image *) NULL)
       image=next_image;
     else
@@ -278,10 +278,10 @@ static Image *ReadPWPImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterPWPImage method is:
 %
-%      unsigned long RegisterPWPImage(void)
+%      size_t RegisterPWPImage(void)
 %
 */
-ModuleExport unsigned long RegisterPWPImage(void)
+ModuleExport size_t RegisterPWPImage(void)
 {
   MagickInfo
     *entry;

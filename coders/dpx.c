@@ -17,7 +17,7 @@
 %                                March 2001                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2008 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,6 +40,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/artifact.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
@@ -56,6 +57,7 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
 #include "magick/profile.h"
 #include "magick/property.h"
 #include "magick/quantum-private.h"
@@ -109,6 +111,23 @@ typedef enum
   UserDef7ElementComponentType = 155,
   UserDef8ElementComponentType = 156
 } DPXComponentType;
+
+typedef enum
+{
+  TransferCharacteristicUserDefined = 0,
+  TransferCharacteristicPrintingDensity = 1,
+  TransferCharacteristicLinear = 2,
+  TransferCharacteristicLogarithmic = 3,
+  TransferCharacteristicUnspecifiedVideo = 4,
+  TransferCharacteristicSMTPE274M = 5,     /* 1920x1080 TV */
+  TransferCharacteristicITU_R709 = 6,      /* ITU R709 */
+  TransferCharacteristicITU_R601_625L = 7, /* 625 Line */
+  TransferCharacteristicITU_R601_525L = 8, /* 525 Line */
+  TransferCharacteristicNTSCCompositeVideo = 9,
+  TransferCharacteristicPALCompositeVideo = 10,
+  TransferCharacteristicZDepthLinear = 11,
+  TransferCharacteristicZDepthHomogeneous = 12
+} DPXTransferCharacteristic;
 
 typedef struct _DPXFileInfo
 {
@@ -182,7 +201,7 @@ typedef struct _DPXImageElement
 
   unsigned char
     descriptor,
-    transfer,
+    transfer_characteristic,
     colorimetric,
     bit_size;
 
@@ -370,9 +389,9 @@ static MagickBooleanType IsDPX(const unsigned char *magick,const size_t extent)
 %
 */
 
-static size_t GetBytesPerRow(unsigned long columns,
-  unsigned long samples_per_pixel,unsigned long bits_per_pixel,
-  MagickBooleanType pad)
+static size_t GetBytesPerRow(const size_t columns,
+  const size_t samples_per_pixel,const size_t bits_per_pixel,
+  const MagickBooleanType pad)
 {
   size_t
     bytes_per_row;
@@ -381,23 +400,23 @@ static size_t GetBytesPerRow(unsigned long columns,
   {
     case 1:
     {
-      bytes_per_row=4*(((size_t) samples_per_pixel*columns*
-        bits_per_pixel+31)/32);
+      bytes_per_row=4*(((size_t) samples_per_pixel*columns*bits_per_pixel+31)/
+        32);
       break;
     }
     case 8:
     default:
     {
-      bytes_per_row=4*(((size_t) samples_per_pixel*columns*
-        bits_per_pixel+31)/32);
+      bytes_per_row=4*(((size_t) samples_per_pixel*columns*bits_per_pixel+31)/
+        32);
       break;
     }
     case 10:
     {
       if (pad == MagickFalse)
         {
-          bytes_per_row=4*(((size_t) samples_per_pixel*columns*
-            bits_per_pixel+31)/32);
+          bytes_per_row=4*(((size_t) samples_per_pixel*columns*bits_per_pixel+
+            31)/32);
           break;
         }
       bytes_per_row=4*(((size_t) (32*((samples_per_pixel*columns+2)/3))+31)/32);
@@ -407,8 +426,8 @@ static size_t GetBytesPerRow(unsigned long columns,
     {
       if (pad == MagickFalse)
         {
-          bytes_per_row=4*(((size_t) samples_per_pixel*columns*
-            bits_per_pixel+31)/32);
+          bytes_per_row=4*(((size_t) samples_per_pixel*columns*bits_per_pixel+
+            31)/32);
           break;
         }
       bytes_per_row=2*(((size_t) (16*samples_per_pixel*columns)+15)/16);
@@ -416,24 +435,106 @@ static size_t GetBytesPerRow(unsigned long columns,
     }
     case 16:
     {
-      bytes_per_row=2*(((size_t) samples_per_pixel*columns*
-        bits_per_pixel+8)/16);
+      bytes_per_row=2*(((size_t) samples_per_pixel*columns*bits_per_pixel+8)/
+        16);
       break;
     }
     case 32:
     {
-      bytes_per_row=4*(((size_t) samples_per_pixel*columns*
-        bits_per_pixel+31)/32);
+      bytes_per_row=4*(((size_t) samples_per_pixel*columns*bits_per_pixel+31)/
+        32);
       break;
     }
     case 64:
     {
-      bytes_per_row=8*(((size_t) samples_per_pixel*columns*
-        bits_per_pixel+63)/64);
+      bytes_per_row=8*(((size_t) samples_per_pixel*columns*bits_per_pixel+63)/
+        64);
       break;
     }
   }
   return(bytes_per_row);
+}
+
+static const char *GetImageTransferCharacteristic(
+  const DPXTransferCharacteristic characteristic)
+{
+  const char
+    *transfer;
+
+  /*
+    Get the element transfer characteristic.
+  */
+  switch(characteristic)
+  {
+    case TransferCharacteristicUserDefined:
+    {
+      transfer="UserDefined";
+      break;
+    }
+    case TransferCharacteristicPrintingDensity:
+    {
+      transfer="PrintingDensity";
+      break;
+    }
+    case TransferCharacteristicLinear:
+    {
+      transfer="Linear";
+      break;
+    }
+    case TransferCharacteristicLogarithmic:
+    {
+      transfer="Logarithmic";
+      break;
+    }
+    case TransferCharacteristicUnspecifiedVideo:
+    {
+      transfer="UnspecifiedVideo";
+      break;
+    }
+    case TransferCharacteristicSMTPE274M:
+    {
+      transfer="SMTPE274M";
+      break;
+    }
+    case TransferCharacteristicITU_R709:
+    {
+      transfer="ITU-R709";
+      break;
+    }
+    case TransferCharacteristicITU_R601_625L:
+    {
+      transfer="ITU-R601-625L";
+      break;
+    }
+    case TransferCharacteristicITU_R601_525L:
+    {
+      transfer="ITU-R601-525L";
+      break;
+    }
+    case TransferCharacteristicNTSCCompositeVideo:
+    {
+      transfer="NTSCCompositeVideo";
+      break;
+    }
+    case TransferCharacteristicPALCompositeVideo:
+    {
+      transfer="PALCompositeVideo";
+      break;
+    }
+    case TransferCharacteristicZDepthLinear:
+    {
+      transfer="ZDepthLinear";
+      break;
+    }
+    case TransferCharacteristicZDepthHomogeneous:
+    {
+      transfer="ZDepthHomogeneous";
+      break;
+    }
+    default:
+      transfer="Reserved";
+  }
+  return(transfer);
 }
 
 static inline MagickBooleanType IsFloatDefined(const float value)
@@ -443,7 +544,7 @@ static inline MagickBooleanType IsFloatDefined(const float value)
     unsigned int
       unsigned_value;
 
-    float
+    double
       float_value;
   } quantum;
 
@@ -513,21 +614,21 @@ static void SetPrimaryChromaticity(const DPXColorimetric colorimetric,
   }
 }
 
-static void TimeCodeToString(const unsigned long timestamp,char *code)
+static void TimeCodeToString(const size_t timestamp,char *code)
 {
 #define TimeFields  7
 
   unsigned int
     shift;
 
-  register long
+  register ssize_t
     i;
 
   *code='\0';
   shift=4*TimeFields;
   for (i=0; i <= TimeFields; i++)
   {
-    (void) FormatMagickString(code,MaxTextExtent-strlen(code),"%x",
+    (void) FormatLocaleString(code,MaxTextExtent-strlen(code),"%x",
       (unsigned int) ((timestamp >> shift) & 0x0fU));
     code++;
     if (((i % 2) != 0) && (i < TimeFields))
@@ -539,9 +640,6 @@ static void TimeCodeToString(const unsigned long timestamp,char *code)
 
 static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 {
-  CacheView
-    *image_view;
-
   char
     magick[4],
     value[MaxTextExtent];
@@ -551,10 +649,6 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 
   Image
     *image;
-
-  long
-    row,
-    y;
 
   MagickBooleanType
     status;
@@ -568,20 +662,21 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   QuantumType
     quantum_type;
 
-  register long
+  register ssize_t
     i;
 
-  ssize_t
-    count;
-
   size_t
-    extent;
+    extent,
+    samples_per_pixel;
+
+  ssize_t
+    count,
+    n,
+    row,
+    y;
 
   unsigned char
     component_type;
-
-  unsigned long
-    samples_per_pixel;
 
   /*
     Open image file.
@@ -643,7 +738,14 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
       dpx.file.timestamp);
   offset+=ReadBlob(image,sizeof(dpx.file.creator),(unsigned char *)
     dpx.file.creator);
-  if (*dpx.file.creator != '\0')
+  if (*dpx.file.creator == '\0')
+    {
+      (void) FormatImageProperty(image,"dpx:file.creator","%.100s",
+        GetMagickVersion((size_t *) NULL));
+      (void) FormatImageProperty(image,"software","%.100s",
+        GetMagickVersion((size_t *) NULL));
+    }
+  else
     {
       (void) FormatImageProperty(image,"dpx:file.creator","%.100s",
         dpx.file.creator);
@@ -684,14 +786,14 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   switch (dpx.image.orientation)
   {
     default:
-    case 0:  image->orientation=TopLeftOrientation; break;
-    case 1:  image->orientation=TopRightOrientation; break;
-    case 2:  image->orientation=BottomLeftOrientation; break;
-    case 3:  image->orientation=BottomRightOrientation; break;
-    case 4:  image->orientation=LeftTopOrientation; break;
-    case 5:  image->orientation=RightTopOrientation; break;
-    case 6:  image->orientation=LeftBottomOrientation; break;
-    case 7:  image->orientation=RightBottomOrientation; break;
+    case 0: image->orientation=TopLeftOrientation; break;
+    case 1: image->orientation=TopRightOrientation; break;
+    case 2: image->orientation=BottomLeftOrientation; break;
+    case 3: image->orientation=BottomRightOrientation; break;
+    case 4: image->orientation=LeftTopOrientation; break;
+    case 5: image->orientation=RightTopOrientation; break;
+    case 6: image->orientation=LeftBottomOrientation; break;
+    case 7: image->orientation=RightBottomOrientation; break;
   }
   dpx.image.number_elements=ReadBlobShort(image);
   offset+=2;
@@ -703,6 +805,9 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   image->rows=dpx.image.lines_per_element;
   for (i=0; i < 8; i++)
   {
+    char
+      property[MaxTextExtent];
+
     dpx.image.image_element[i].data_sign=ReadBlobLong(image);
     offset+=4;
     dpx.image.image_element[i].low_data=ReadBlobLong(image);
@@ -715,7 +820,13 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
     offset+=4;
     dpx.image.image_element[i].descriptor=(unsigned char) ReadBlobByte(image);
     offset++;
-    dpx.image.image_element[i].transfer=(unsigned char) ReadBlobByte(image);
+    dpx.image.image_element[i].transfer_characteristic=(unsigned char)
+      ReadBlobByte(image);
+    (void) FormatLocaleString(property,MaxTextExtent,
+      "dpx:image.element[%lu].transfer-characteristic",(long) i);
+    (void) FormatImageProperty(image,property,"%s",
+      GetImageTransferCharacteristic((DPXTransferCharacteristic)
+      dpx.image.image_element[i].transfer_characteristic));
     offset++;
     dpx.image.image_element[i].colorimetric=(unsigned char) ReadBlobByte(image);
     offset++;
@@ -734,12 +845,9 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
     offset+=ReadBlob(image,sizeof(dpx.image.image_element[i].description),
       (unsigned char *) dpx.image.image_element[i].description);
   }
-  SetPrimaryChromaticity((DPXColorimetric)
-    dpx.image.image_element[0].colorimetric,&image->chromaticity);
+  (void) SetImageColorspace(image,RGBColorspace);
   offset+=ReadBlob(image,sizeof(dpx.image.reserve),(unsigned char *)
     dpx.image.reserve);
-  component_type=dpx.image.image_element[0].descriptor;
-  image->depth=dpx.image.image_element[0].bit_size;
   if (dpx.file.image_offset >= 1664U)
     {
       /*
@@ -903,18 +1011,18 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
       dpx.television.interlace=(unsigned char) ReadBlobByte(image);
       offset++;
       if (dpx.television.interlace != 0)
-        (void) FormatImageProperty(image,"dpx:television.interlace","%ld",(long)
-          dpx.television.interlace);
+        (void) FormatImageProperty(image,"dpx:television.interlace","%.20g",
+          (double) dpx.television.interlace);
       dpx.television.field_number=(unsigned char) ReadBlobByte(image);
       offset++;
       if (dpx.television.field_number != 0)
-        (void) FormatImageProperty(image,"dpx:television.field_number","%ld",
-          (long) dpx.television.field_number);
+        (void) FormatImageProperty(image,"dpx:television.field_number","%.20g",
+          (double) dpx.television.field_number);
       dpx.television.video_signal=(unsigned char) ReadBlobByte(image);
       offset++;
       if (dpx.television.video_signal != 0)
-        (void) FormatImageProperty(image,"dpx:television.video_signal","%ld",
-          (long) dpx.television.video_signal);
+        (void) FormatImageProperty(image,"dpx:television.video_signal","%.20g",
+          (double) dpx.television.video_signal);
       dpx.television.padding=(unsigned char) ReadBlobByte(image);
       offset++;
       if (dpx.television.padding != 0)
@@ -988,14 +1096,17 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
           StringInfo
             *profile;
 
-           profile=AcquireStringInfo(dpx.file.user_size-sizeof(dpx.user.id));
+           profile=BlobToStringInfo((const void *) NULL,
+             dpx.file.user_size-sizeof(dpx.user.id));
+           if (profile == (StringInfo *) NULL)
+             ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
            offset+=ReadBlob(image,GetStringInfoLength(profile),
              GetStringInfoDatum(profile));
-           (void) SetImageProfile(image,"dpx:user.data",profile);
+           (void) SetImageProfile(image,"dpx",profile);
            profile=DestroyStringInfo(profile);
         }
     }
-  for ( ; offset < (long) dpx.file.image_offset; offset++)
+  for ( ; offset < (MagickOffsetType) dpx.file.image_offset; offset++)
     (void) ReadBlobByte(image);
   /*
     Read DPX image header.
@@ -1005,147 +1116,160 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
       (void) CloseBlob(image);
       return(GetFirstImageInList(image));
     }
-  /*
-    Convert DPX raster image to pixel packets.
-  */
-  samples_per_pixel=1;
-  quantum_type=GrayQuantum;
-  switch (component_type)
+  for (n=0; n < (ssize_t) dpx.image.number_elements; n++)
   {
-    case CbYCrY422ComponentType:
-    {
-      samples_per_pixel=2;
-      quantum_type=CbYCrYQuantum;
-      break;
-    }
-    case CbYACrYA4224ComponentType:
-    case CbYCr444ComponentType:
-    {
-      samples_per_pixel=3;
-      quantum_type=CbYCrQuantum;
-      break;
-    }
-    case RGBComponentType:
-    {
-      samples_per_pixel=3;
-      quantum_type=RGBQuantum;
-      break;
-    }
-    case ABGRComponentType:
-    case RGBAComponentType:
-    {
-      image->matte=MagickTrue;
-      samples_per_pixel=4;
-      quantum_type=RGBAQuantum;
-      break;
-    }
-    default:
-      break;
-  }
-  switch (component_type)
-  {
-    case CbYCrY422ComponentType:
-    case CbYACrYA4224ComponentType:
-    case CbYCr444ComponentType:
-    {
-      image->colorspace=Rec709YCbCrColorspace;
-      break;
-    }
-    case LumaComponentType:
-    {
-      image->colorspace=RGBColorspace;
-      break;
-    }
-    default:
-    {
-      image->colorspace=RGBColorspace;
-      if (dpx.image.image_element[0].transfer == LogarithmicColorimetric)
-        image->colorspace=LogColorspace;
-      if (dpx.image.image_element[0].transfer == PrintingDensityColorimetric)
-        image->colorspace=LogColorspace;
-      break;
-    }
-  }
-  extent=GetBytesPerRow(image->columns,samples_per_pixel,image->depth,
-    dpx.image.image_element[0].packing == 0 ? MagickFalse : MagickTrue);
-  /*
-    DPX any-bit pixel format.
-  */
-  status=MagickTrue;
-  row=0;
-  quantum_info=AcquireQuantumInfo(image_info,image);
-  if (quantum_info == (QuantumInfo *) NULL)
-    ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
-  SetQuantumQuantum(quantum_info,32);
-  SetQuantumPack(quantum_info,dpx.image.image_element[0].packing == 0 ?
-    MagickTrue : MagickFalse);
-  image_view=AcquireCacheView(image);
-#if defined(MAGICKCORE_OPENMP_SUPPORT) && (_OPENMP > 200505)
-  #pragma omp parallel for schedule(static) shared(row,status,quantum_type)
-#endif
-  for (y=0; y < (long) image->rows; y++)
-  {
-    long
-      offset;
-
-    MagickBooleanType
-      sync;
-
-    register PixelPacket
-      *q;
-
-    ssize_t
-      count;
-
-    size_t
-      length;
-
-    unsigned char
-      *pixels;
-
-    if (status == MagickFalse)
-      continue;
-    pixels=GetQuantumPixels(quantum_info);
-#if defined(MAGICKCORE_OPENMP_SUPPORT) && (_OPENMP > 200505)
-  #pragma omp critical (MagickCore_ReadDPXImage)
-#endif
-    {
-      count=ReadBlob(image,extent,pixels);
-      if ((image->progress_monitor != (MagickProgressMonitor) NULL) &&
-          (image->previous == (Image *) NULL))
-        {
-          MagickBooleanType
-            proceed;
-
-          proceed=SetImageProgress(image,LoadImageTag,row,image->rows);
-          if (proceed == MagickFalse)
-            status=MagickFalse;
-        }
-      offset=row++;
-    }
-    if (count != (ssize_t) extent)
-      status=MagickFalse;
-    q=QueueCacheViewAuthenticPixels(image_view,0,offset,image->columns,1,
-      exception);
-    if (q == (PixelPacket *) NULL)
+    /*
+      Convert DPX raster image to pixel packets.
+    */
+    if ((dpx.image.image_element[n].data_offset != (unsigned int) (~0U)) &&
+        (dpx.image.image_element[n].data_offset != 0U))
       {
-        status=MagickFalse;
-        continue;
+         MagickOffsetType
+           data_offset;
+
+         data_offset=(MagickOffsetType) dpx.image.image_element[n].data_offset;
+         if (data_offset < offset)
+           offset=SeekBlob(image,data_offset,SEEK_SET);
+         else
+           for ( ; offset < data_offset; offset++)
+             (void) ReadBlobByte(image);
+          if (offset != data_offset)
+            ThrowReaderException(CorruptImageError,"UnableToReadImageData");
+       }
+    SetPrimaryChromaticity((DPXColorimetric)
+      dpx.image.image_element[n].colorimetric,&image->chromaticity);
+    image->depth=dpx.image.image_element[n].bit_size;
+    samples_per_pixel=1;
+    quantum_type=GrayQuantum;
+    component_type=dpx.image.image_element[n].descriptor;
+    switch (component_type)
+    {
+      case CbYCrY422ComponentType:
+      {
+        samples_per_pixel=2;
+        quantum_type=CbYCrYQuantum;
+        break;
       }
-    length=ImportQuantumPixels(image,image_view,quantum_info,quantum_type,
-      pixels,exception);
-    sync=SyncCacheViewAuthenticPixels(image_view,exception);
-    if (sync == MagickFalse)
-      status=MagickFalse;
+      case CbYACrYA4224ComponentType:
+      case CbYCr444ComponentType:
+      {
+        samples_per_pixel=3;
+        quantum_type=CbYCrQuantum;
+        break;
+      }
+      case RGBComponentType:
+      {
+        samples_per_pixel=3;
+        quantum_type=RGBQuantum;
+        break;
+      }
+      case ABGRComponentType:
+      case RGBAComponentType:
+      {
+        image->matte=MagickTrue;
+        samples_per_pixel=4;
+        quantum_type=RGBAQuantum;
+        break;
+      }
+      default:
+        break;
+    }
+    switch (component_type)
+    {
+      case CbYCrY422ComponentType:
+      case CbYACrYA4224ComponentType:
+      case CbYCr444ComponentType:
+      {
+        (void) SetImageColorspace(image,Rec709YCbCrColorspace);
+        break;
+      }
+      case LumaComponentType:
+      {
+        (void) SetImageColorspace(image,GRAYColorspace);
+        break;
+      }
+      default:
+      {
+        (void) SetImageColorspace(image,RGBColorspace);
+        if (dpx.image.image_element[n].transfer_characteristic == LogarithmicColorimetric)
+          (void) SetImageColorspace(image,LogColorspace);
+        if (dpx.image.image_element[n].transfer_characteristic == PrintingDensityColorimetric)
+          (void) SetImageColorspace(image,LogColorspace);
+        break;
+      }
+    }
+    extent=GetBytesPerRow(image->columns,samples_per_pixel,image->depth,
+      dpx.image.image_element[n].packing == 0 ? MagickFalse : MagickTrue);
+    /*
+      DPX any-bit pixel format.
+    */
+    status=MagickTrue;
+    row=0;
+    quantum_info=AcquireQuantumInfo(image_info,image);
+    if (quantum_info == (QuantumInfo *) NULL)
+      ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
+    SetQuantumQuantum(quantum_info,32);
+    SetQuantumPack(quantum_info,dpx.image.image_element[n].packing == 0 ?
+      MagickTrue : MagickFalse);
+    for (y=0; y < (ssize_t) image->rows; y++)
+    {
+      MagickBooleanType
+        sync;
+
+      register PixelPacket
+        *q;
+
+      size_t
+        length;
+
+      ssize_t
+        count,
+        offset;
+
+      unsigned char
+        *pixels;
+
+      if (status == MagickFalse)
+        continue;
+      pixels=GetQuantumPixels(quantum_info);
+      {
+        count=ReadBlob(image,extent,pixels);
+        if ((image->progress_monitor != (MagickProgressMonitor) NULL) &&
+            (image->previous == (Image *) NULL))
+          {
+            MagickBooleanType
+              proceed;
+
+            proceed=SetImageProgress(image,LoadImageTag,(MagickOffsetType) row,
+              image->rows);
+            if (proceed == MagickFalse)
+              status=MagickFalse;
+          }
+        offset=row++;
+      }
+      if (count != (ssize_t) extent)
+        status=MagickFalse;
+      q=QueueAuthenticPixels(image,0,offset,image->columns,1,exception);
+      if (q == (PixelPacket *) NULL)
+        {
+          status=MagickFalse;
+          continue;
+        }
+      length=ImportQuantumPixels(image,(CacheView *) NULL,quantum_info,
+        quantum_type,pixels,exception);
+      (void) length;
+      sync=SyncAuthenticPixels(image,exception);
+      if (sync == MagickFalse)
+        status=MagickFalse;
+    }
+    quantum_info=DestroyQuantumInfo(quantum_info);
+    if (status == MagickFalse)
+      ThrowReaderException(CorruptImageError,"UnableToReadImageData");
+    SetQuantumImageType(image,quantum_type);
+    if (EOFBlob(image) != MagickFalse)
+      ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
+        image->filename);
   }
-  image_view=DestroyCacheView(image_view);
-  quantum_info=DestroyQuantumInfo(quantum_info);
-  if (status == MagickFalse)
-    ThrowReaderException(CorruptImageError,"UnableToReadImageData");
-  SetQuantumImageType(image,quantum_type);
-  if (EOFBlob(image) != MagickFalse)
-    ThrowFileException(exception,CorruptImageError,"UnexpectedEndOfFile",
-      image->filename);
   (void) CloseBlob(image);
   return(GetFirstImageInList(image));
 }
@@ -1170,10 +1294,10 @@ static Image *ReadDPXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterDPXImage method is:
 %
-%      unsigned long RegisterDPXImage(void)
+%      size_t RegisterDPXImage(void)
 %
 */
-ModuleExport unsigned long RegisterDPXImage(void)
+ModuleExport size_t RegisterDPXImage(void)
 {
   MagickInfo
     *entry;
@@ -1263,7 +1387,7 @@ static unsigned int StringToTimeCode(const char *key)
   char
     buffer[2];
 
-  register long
+  register ssize_t
     i;
 
   unsigned int
@@ -1298,11 +1422,6 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   DPXInfo
     dpx;
 
-  long
-    horizontal_factor,
-    vertical_factor,
-    y;
-
   MagickBooleanType
     status;
 
@@ -1324,14 +1443,17 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     i;
+
+  ssize_t
+    count,
+    horizontal_factor,
+    vertical_factor,
+    y;
 
   size_t
     extent;
-
-  ssize_t
-    count;
 
   time_t
     seconds;
@@ -1359,8 +1481,8 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
         flags;
 
       flags=ParseGeometry(image_info->sampling_factor,&geometry_info);
-      horizontal_factor=(long) geometry_info.rho;
-      vertical_factor=(long) geometry_info.sigma;
+      horizontal_factor=(ssize_t) geometry_info.rho;
+      vertical_factor=(ssize_t) geometry_info.sigma;
       if ((flags & SigmaValue) == 0)
         vertical_factor=horizontal_factor;
       if ((horizontal_factor != 1) && (horizontal_factor != 2) &&
@@ -1383,9 +1505,11 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   dpx.file.magic=0x53445058U;
   offset+=WriteBlobLong(image,dpx.file.magic);
   dpx.file.image_offset=0x2000U;
-  profile=GetImageProfile(image,"dpx:user.data");
+  profile=GetImageProfile(image,"dpx");
   if (profile != (StringInfo *) NULL)
     {
+      if (GetStringInfoLength(profile) > 1048576)
+        ThrowWriterException(ImageError,"WidthOrHeightExceedsLimit");
       dpx.file.image_offset+=(unsigned int) GetStringInfoLength(profile);
       dpx.file.image_offset=(((dpx.file.image_offset+0x2000-1)/0x2000)*0x2000);
     }
@@ -1418,7 +1542,7 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
     dpx.file.timestamp);
   offset+=WriteBlob(image,sizeof(dpx.file.timestamp),(unsigned char *)
     dpx.file.timestamp);
-  (void) strncpy(dpx.file.creator,GetMagickVersion((unsigned long *) NULL),
+  (void) strncpy(dpx.file.creator,GetMagickVersion((size_t *) NULL),
     sizeof(dpx.file.creator));
   value=GetDPXProperty(image_info,image,"dpx:file.creator");
   if (value != (const char *) NULL)
@@ -1443,7 +1567,18 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   /*
     Write image header.
   */
-  dpx.image.orientation=0x00;  /* left-to-right; top-to-bottom */
+  switch (image->orientation)
+  {
+    default:
+    case TopLeftOrientation: dpx.image.orientation=0; break;
+    case TopRightOrientation: dpx.image.orientation=1; break;
+    case BottomLeftOrientation: dpx.image.orientation=2; break;
+    case BottomRightOrientation: dpx.image.orientation=3; break;
+    case LeftTopOrientation: dpx.image.orientation=4; break;
+    case RightTopOrientation: dpx.image.orientation=5; break;
+    case LeftBottomOrientation: dpx.image.orientation=6; break;
+    case RightBottomOrientation: dpx.image.orientation=7; break;
+  }
   offset+=WriteBlobShort(image,dpx.image.orientation);
   dpx.image.number_elements=1;
   offset+=WriteBlobShort(image,dpx.image.number_elements);
@@ -1490,10 +1625,12 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
         }
       }
     offset+=WriteBlobByte(image,dpx.image.image_element[i].descriptor);
-    dpx.image.image_element[i].transfer=0;
+    dpx.image.image_element[i].transfer_characteristic=0;
     if (image->colorspace == LogColorspace)
-      dpx.image.image_element[0].transfer=PrintingDensityColorimetric;
-    offset+=WriteBlobByte(image,dpx.image.image_element[i].transfer);
+      dpx.image.image_element[0].transfer_characteristic=
+        PrintingDensityColorimetric;
+    offset+=WriteBlobByte(image,
+      dpx.image.image_element[i].transfer_characteristic);
     dpx.image.image_element[i].colorimetric=0;
     offset+=WriteBlobByte(image,dpx.image.image_element[i].colorimetric);
     dpx.image.image_element[i].bit_size=0;
@@ -1548,12 +1685,12 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   dpx.orientation.x_center=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:orientation.x_center");
   if (value != (const char *) NULL)
-    dpx.orientation.x_center=StringToDouble(value);
+    dpx.orientation.x_center=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.orientation.x_center);
   dpx.orientation.y_center=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:orientation.y_center");
   if (value != (const char *) NULL)
-    dpx.orientation.y_center=StringToDouble(value);
+    dpx.orientation.y_center=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.orientation.y_center);
   dpx.orientation.x_size=0U;
   value=GetDPXProperty(image_info,image,"dpx:orientation.x_size");
@@ -1669,12 +1806,12 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   dpx.film.frame_rate=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:film.frame_rate");
   if (value != (const char *) NULL)
-    dpx.film.frame_rate=StringToDouble(value);
+    dpx.film.frame_rate=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.film.frame_rate);
   dpx.film.shutter_angle=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:film.shutter_angle");
   if (value != (const char *) NULL)
-    dpx.film.shutter_angle=StringToDouble(value);
+    dpx.film.shutter_angle=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.film.shutter_angle);
   *dpx.film.frame_id='\0';
   value=GetDPXProperty(image_info,image,"dpx:film.frame_id");
@@ -1722,52 +1859,54 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
   value=GetDPXProperty(image_info,image,
     "dpx:television.horizontal_sample_rate");
   if (value != (const char *) NULL)
-    dpx.television.horizontal_sample_rate=StringToDouble(value);
+    dpx.television.horizontal_sample_rate=StringToDouble(value,
+      (char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.horizontal_sample_rate);
   dpx.television.vertical_sample_rate=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.vertical_sample_rate");
   if (value != (const char *) NULL)
-    dpx.television.vertical_sample_rate=StringToDouble(value);
+    dpx.television.vertical_sample_rate=StringToDouble(value,
+      (char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.vertical_sample_rate);
   dpx.television.frame_rate=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.frame_rate");
   if (value != (const char *) NULL)
-    dpx.television.frame_rate=StringToDouble(value);
+    dpx.television.frame_rate=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.frame_rate);
   dpx.television.time_offset=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.time_offset");
   if (value != (const char *) NULL)
-    dpx.television.time_offset=StringToDouble(value);
+    dpx.television.time_offset=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.time_offset);
   dpx.television.gamma=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.gamma");
   if (value != (const char *) NULL)
-    dpx.television.gamma=StringToDouble(value);
+    dpx.television.gamma=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.gamma);
   dpx.television.black_level=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.black_level");
   if (value != (const char *) NULL)
-    dpx.television.black_level=StringToDouble(value);
+    dpx.television.black_level=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.black_level);
   dpx.television.black_gain=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.black_gain");
   if (value != (const char *) NULL)
-    dpx.television.black_gain=StringToDouble(value);
+    dpx.television.black_gain=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.black_gain);
   dpx.television.break_point=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.break_point");
   if (value != (const char *) NULL)
-    dpx.television.break_point=StringToDouble(value);
+    dpx.television.break_point=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.break_point);
   dpx.television.white_level=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.white_level");
   if (value != (const char *) NULL)
-    dpx.television.white_level=StringToDouble(value);
+    dpx.television.white_level=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.white_level);
   dpx.television.integration_times=0.0f;
   value=GetDPXProperty(image_info,image,"dpx:television.integration_times");
   if (value != (const char *) NULL)
-    dpx.television.integration_times=StringToDouble(value);
+    dpx.television.integration_times=StringToDouble(value,(char **) NULL);
   offset+=WriteBlobFloat(image,dpx.television.integration_times);
   offset+=WriteBlob(image,sizeof(dpx.television.reserve),(unsigned char *)
     dpx.television.reserve);
@@ -1819,7 +1958,7 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
       extent=GetBytesPerRow(image->columns,1UL,image->depth,MagickTrue);
     }
   pixels=GetQuantumPixels(quantum_info);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
@@ -1829,7 +1968,8 @@ static MagickBooleanType WriteDPXImage(const ImageInfo *image_info,Image *image)
     count=WriteBlob(image,extent,pixels);
     if (count != (ssize_t) extent)
       break;
-    status=SetImageProgress(image,SaveImageTag,y,image->rows);
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }

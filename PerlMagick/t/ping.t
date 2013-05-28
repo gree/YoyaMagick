@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+#  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
 #  dedicated to making software imaging solutions freely available.
 #
 #  You may not use this file except in compliance with the License.  You may
@@ -30,7 +30,7 @@ $filename='input_p6.ppm';
 print "Ping \"$filename\" ...\n";
 $image=Image::Magick->new;
 ($width, $height, $size, $format)=$image->Ping("$filename");
-if (($width == 70) && ($height == 46) && ($size == 9673) && ($format eq "PNM"))
+if (($width == 70) && ($height == 46) && ($size == 9673) && ($format eq "PPM"))
   {
     print "ok $test\n";
   }
@@ -51,7 +51,7 @@ $image=Image::Magick->new;
 ($width, $height, $size, $format)=$image->Ping(blob=>@blob);
 undef @blob;
 undef $image;
-if (($width == 70) && ($height == 46) && ($size == 9673) && ($format eq "PNM"))
+if (($width == 70) && ($height == 46) && ($size == 9673) && ($format eq "PPM"))
   {
     print "ok $test\n";
   }

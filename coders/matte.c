@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,6 +40,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
@@ -52,6 +53,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -83,10 +85,10 @@ static MagickBooleanType
 %
 %  The format of the RegisterMATTEImage method is:
 %
-%      unsigned long RegisterMATTEImage(void)
+%      size_t RegisterMATTEImage(void)
 %
 */
-ModuleExport unsigned long RegisterMATTEImage(void)
+ModuleExport size_t RegisterMATTEImage(void)
 {
   MagickInfo
     *entry;
@@ -159,20 +161,20 @@ static MagickBooleanType WriteMATTEImage(const ImageInfo *image_info,
   Image
     *matte_image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   if (image->matte == MagickFalse)
     ThrowWriterException(CoderError,"ImageDoesNotHaveAAlphaChannel");
@@ -186,28 +188,29 @@ static MagickBooleanType WriteMATTEImage(const ImageInfo *image_info,
     Convert image to matte pixels.
   */
   exception=(&image->exception);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,exception);
     q=QueueAuthenticPixels(matte_image,0,y,matte_image->columns,1,exception);
     if ((p == (const PixelPacket *) NULL) || (q == (PixelPacket *) NULL))
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      q->red=GetOpacityPixelComponent(p);
-      q->green=GetOpacityPixelComponent(p);
-      q->blue=GetOpacityPixelComponent(p);
-      SetOpacityPixelComponent(q,OpaqueOpacity);
+      SetPixelRed(q,GetPixelOpacity(p));
+      SetPixelGreen(q,GetPixelOpacity(p));
+      SetPixelBlue(q,GetPixelOpacity(p));
+      SetPixelOpacity(q,OpaqueOpacity);
       p++;
       q++;
     }
     if (SyncAuthenticPixels(matte_image,exception) == MagickFalse)
       break;
-    status=SetImageProgress(image,SaveImageTag,y,image->rows);
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }
-  (void) FormatMagickString(matte_image->filename,MaxTextExtent,
+  (void) FormatLocaleString(matte_image->filename,MaxTextExtent,
     "MIFF:%s",image->filename);
   status=WriteImage(image_info,matte_image);
   matte_image=DestroyImage(matte_image);

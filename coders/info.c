@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,7 +40,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
-#include "magick/property.h"
+#include "magick/artifact.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/colorspace.h"
@@ -55,6 +55,8 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
+#include "magick/property.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -87,10 +89,10 @@ static MagickBooleanType
 %
 %  The format of the RegisterINFOImage method is:
 %
-%      unsigned long RegisterINFOImage(void)
+%      size_t RegisterINFOImage(void)
 %
 */
-ModuleExport unsigned long RegisterINFOImage(void)
+ModuleExport size_t RegisterINFOImage(void)
 {
   MagickInfo
     *entry;

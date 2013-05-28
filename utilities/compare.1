@@ -7,7 +7,7 @@ compare \- mathematically and visually annotate the difference between an image 
 .SH OVERVIEW
 The \fBcompare\fP program is a member of the ImageMagick(1) suite of tools.  Use it to mathematically and visually annotate the difference between an image and its reconstruction.
 
-For more information about the compare command, point your browser to file:///usr/share/doc/ImageMagick-6.6.0/www/compare.html or http://www.imagemagick.org/script/compare.php.
+For more information about the compare command, point your browser to file:///usr/share/doc/ImageMagick-6/www/compare.html or http://www.imagemagick.org/script/compare.php.
 .SH DESCRIPTION
 Image Settings:
   \-authenticate value  decrypt image with this password
@@ -20,6 +20,8 @@ Image Settings:
                        define one or more image format options
   \-density geometry    horizontal and vertical density of the image
   \-depth value         image depth
+  \-dissimilarity-threshold value
+                        maximum distortion for (sub)image match
   \-encipher filename   convert plain pixels to cipher pixels
   \-extract geometry    extract area from image
   \-format "string"     output formatted image characteristics
@@ -42,7 +44,12 @@ Image Settings:
                        horizontal and vertical sampling factor
   \-seed value          seed a new sequence of pseudo-random numbers
   \-set attribute value set an image attribute
+  \-similarity-threshold value
+                        minimum distortion for (sub)image match
   \-size geometry       width and height of image
+  \-subimage-search     search for subimage
+  \-synchronize         synchronize image to storage device
+  \-taint               declare the image as modified
   \-transparent-color color
                        transparent color
   \-type type           image type
@@ -63,4 +70,4 @@ ImageMagick(1)
 
 .SH COPYRIGHT
 
-\fBCopyright (C) 1999-2010 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file:///usr/share/doc/ImageMagick-6.6.0/www/license.html or http://www.imagemagick.org/script/license.php\fP
+\fBCopyright (C) 1999-2013 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file:///usr/share/doc/ImageMagick-6/www/license.html or http://www.imagemagick.org/script/license.php\fP

@@ -17,7 +17,7 @@
 %                               December 2001                                 %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -112,9 +112,7 @@ static MagickBooleanType ConjureUsage(void)
       (char *) NULL
     };
 
-  (void) printf("Version: %s\n",GetMagickVersion((unsigned long *) NULL));
-  (void) printf("Copyright: %s\n",GetMagickCopyright());
-  (void) printf("Features: %s\n\n",GetMagickFeatures());
+  ListMagickVersion(stdout);
   (void) printf("Usage: %s [options ...] file [ [options ...] file ...]\n",
     GetClientName());
   (void) printf("\nImage Settings:\n");
@@ -123,7 +121,7 @@ static MagickBooleanType ConjureUsage(void)
   (void) printf("\nMiscellaneous Options:\n");
   for (p=miscellaneous; *p != (char *) NULL; p++)
     (void) printf("  %s\n",*p);
-  (void) printf("\nIn additiion, define any key value pairs required by "
+  (void) printf("\nIn addition, define any key value pairs required by "
     "your script.  For\nexample,\n\n");
   (void) printf("    conjure -size 100x100 -color blue -foo bar script.msl\n");
   return(MagickFalse);
@@ -135,7 +133,7 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
 #define DestroyConjure() \
 { \
   image=DestroyImageList(image); \
-  for (i=0; i < (long) argc; i++) \
+  for (i=0; i < (ssize_t) argc; i++) \
     argv[i]=DestroyString(argv[i]); \
   argv=(char **) RelinquishMagickMemory(argv); \
 }
@@ -160,14 +158,14 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
   Image
     *image;
 
-  long
-    number_images;
-
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
+
+  ssize_t
+    number_images;
 
   /*
     Set defaults.
@@ -182,7 +180,6 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
   image=NewImageList();
   number_images=0;
   option=(char *) NULL;
-  (void) respect_parenthesis;
   /*
     Conjure an image.
   */
@@ -191,24 +188,24 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
   if (status == MagickFalse)
     ThrowConjureException(ResourceLimitError,"MemoryAllocationFailed",
       GetExceptionMessage(errno));
-  for (i=1; i < (long) argc; i++)
+  for (i=1; i < (ssize_t) argc; i++)
   {
     option=argv[i];
-    if (IsMagickOption(option) != MagickFalse)
+    if (IsCommandOption(option) != MagickFalse)
       {
         if (LocaleCompare("concurrent",option+1) == 0)
           break;
         if (LocaleCompare("debug",option+1) == 0)
           {
-            long
+            ssize_t
               event;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowConjureException(OptionError,"MissingArgument",option);
-            event=ParseMagickOption(MagickLogEventOptions,MagickFalse,argv[i]);
+            event=ParseCommandOption(MagickLogEventOptions,MagickFalse,argv[i]);
             if (event < 0)
               ThrowConjureException(OptionError,"UnrecognizedEventType",
                 argv[i]);
@@ -220,7 +217,7 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowConjureException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowConjureInvalidArgumentException(option,argv[i]);
@@ -238,7 +235,7 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
             if (*option == '-')
               {
                 i++;
-                if (i == (long) argc)
+                if (i == (ssize_t) argc)
                   ThrowConjureException(OptionError,"MissingLogFormat",option);
                 (void) SetLogFormat(argv[i]);
               }
@@ -255,7 +252,7 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowConjureException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowConjureInvalidArgumentException(option,argv[i]);
@@ -269,10 +266,7 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
         if ((LocaleCompare("version",option+1) == 0) ||
             (LocaleCompare("-version",option+1) == 0))
           {
-            (void) fprintf(stdout,"Version: %s\n",
-              GetMagickVersion((unsigned long *) NULL));
-            (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-            (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+            ListMagickVersion(stdout);
             return(MagickFalse);
           }
         /*
@@ -292,8 +286,9 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
     status=SetImageOption(image_info,"filename",argv[i]);
     if (status == MagickFalse)
       ThrowConjureException(ImageError,"UnableToPersistKey",argv[i]);
-    (void) FormatMagickString(image_info->filename,MaxTextExtent,"msl:%s",
+    (void) FormatLocaleString(image_info->filename,MaxTextExtent,"msl:%s",
       argv[i]);
+    (void) SetImageOption(image_info,"filename",argv[i]);
     image=ReadImages(image_info,exception);
     CatchException(exception);
     if (image != (Image *) NULL)
@@ -301,13 +296,13 @@ WandExport MagickBooleanType ConjureImageCommand(ImageInfo *image_info,
     status=image != (Image *) NULL ? MagickTrue : MagickFalse;
     number_images++;
   }
-  if (i != argc)
+  if (i != (ssize_t) argc)
     ThrowConjureException(OptionError,"MissingAnImageFilename",argv[i]);
   if (number_images == 0)
     ThrowConjureException(OptionError,"MissingAnImageFilename",argv[argc-1]);
   if (image != (Image *) NULL)
     image=DestroyImageList(image);
-  for (i=0; i < (long) argc; i++)
+  for (i=0; i < (ssize_t) argc; i++)
     argv[i]=DestroyString(argv[i]);
   argv=(char **) RelinquishMagickMemory(argv);
   return(status != 0 ? MagickTrue : MagickFalse);

@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,11 +40,14 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/color-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -54,6 +57,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -97,9 +101,6 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   Image
     *image;
 
-  long
-    y;
-
   QuantumInfo
     *quantum_info;
 
@@ -109,11 +110,12 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   MagickBooleanType
     status;
 
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -138,9 +140,11 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   image->depth=1;
   image->endian=MSBEndian;
   (void) ReadBlobLSBShort(image);
-  image->columns=(unsigned long) ReadBlobLSBShort(image);
+  image->columns=(size_t) ReadBlobLSBShort(image);
   (void) ReadBlobLSBShort(image);
-  image->rows=(unsigned long) ReadBlobLSBShort(image);
+  image->rows=(size_t) ReadBlobLSBShort(image);
+  if ((image->columns == 0) || (image->rows == 0))
+    ThrowReaderException(CorruptImageError,"ImproperImageHeader");
   /*
     Initialize image colormap.
   */
@@ -154,13 +158,14 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Convert bi-level image to pixel packets.
   */
+  SetImageColorspace(image,GRAYColorspace);
   quantum_type=IndexQuantum;
   quantum_info=AcquireQuantumInfo(image_info,image);
   if (quantum_info == (QuantumInfo *) NULL)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   pixels=GetQuantumPixels(quantum_info);
   length=GetQuantumExtent(image,quantum_info,quantum_type);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     register PixelPacket
       *restrict q;
@@ -176,7 +181,9 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
     count=ReadBlob(image,(size_t) (-(ssize_t) length) & 0x01,pixels);
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
-    if (SetImageProgress(image,LoadImageTag,y,image->rows) == MagickFalse)
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+      image->rows);
+    if (status == MagickFalse)
       break;
   }
   SetQuantumImageType(image,quantum_type);
@@ -208,10 +215,10 @@ static Image *ReadARTImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterARTImage method is:
 %
-%      unsigned long RegisterARTImage(void)
+%      size_t RegisterARTImage(void)
 %
 */
-ModuleExport unsigned long RegisterARTImage(void)
+ModuleExport size_t RegisterARTImage(void)
 {
   MagickInfo
     *entry;
@@ -277,9 +284,6 @@ ModuleExport void UnregisterARTImage(void)
 */
 static MagickBooleanType WriteARTImage(const ImageInfo *image_info,Image *image)
 {
-  long
-    y;
-
   MagickBooleanType
     status;
 
@@ -289,11 +293,12 @@ static MagickBooleanType WriteARTImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -318,8 +323,8 @@ static MagickBooleanType WriteARTImage(const ImageInfo *image_info,Image *image)
   (void) WriteBlobLSBShort(image,(unsigned short) image->columns);
   (void) WriteBlobLSBShort(image,0);
   (void) WriteBlobLSBShort(image,(unsigned short) image->rows);
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   length=(image->columns+7)/8;
   pixels=(unsigned char *) AcquireQuantumMemory(length,sizeof(*pixels));
   if (pixels == (unsigned char *) NULL)
@@ -329,7 +334,7 @@ static MagickBooleanType WriteARTImage(const ImageInfo *image_info,Image *image)
   */
   (void) SetImageType(image,BilevelType);
   quantum_info=AcquireQuantumInfo(image_info,image);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
@@ -340,7 +345,9 @@ static MagickBooleanType WriteARTImage(const ImageInfo *image_info,Image *image)
     if (count != (ssize_t) length)
       ThrowWriterException(CorruptImageError,"UnableToWriteImageData");
     count=WriteBlob(image,(size_t) (-(ssize_t) length) & 0x01,pixels);
-    if (SetImageProgress(image,SaveImageTag,y,image->rows) == MagickFalse)
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+      image->rows);
+    if (status == MagickFalse)
       break;
   }
   quantum_info=DestroyQuantumInfo(quantum_info);

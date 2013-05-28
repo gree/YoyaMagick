@@ -17,7 +17,7 @@
 %                              July 1992                                      %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -48,6 +48,7 @@
 #include "wand/MagickWand.h"
 #include "wand/mogrify-private.h"
 #include "magick/stream-private.h"
+#include "magick/string-private.h"
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -80,7 +81,6 @@
 %    o metadata: any metadata is returned here.
 %
 %    o exception: return any errors or warnings in this structure.
-%
 %
 */
 
@@ -127,6 +127,8 @@ static MagickBooleanType StreamUsage(void)
       "-set attribute value set an image attribute",
       "-size geometry       width and height of image",
       "-storage-type type   pixel storage type",
+      "-synchronize         synchronize image to storage device",
+      "-taint               declare the image as modified",
       "-transparent-color color",
       "                     transparent color",
       "-verbose             print detailed information about the image",
@@ -135,9 +137,7 @@ static MagickBooleanType StreamUsage(void)
       (char *) NULL
     };
 
-  (void) printf("Version: %s\n",GetMagickVersion((unsigned long *) NULL));
-  (void) printf("Copyright: %s\n",GetMagickCopyright());
-  (void) printf("Features: %s\n\n",GetMagickFeatures());
+  ListMagickVersion(stdout);
   (void) printf("Usage: %s [options ...] input-image raw-image\n",
     GetClientName());
   (void) printf("\nImage Settings:\n");
@@ -165,7 +165,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
 { \
   DestroyImageStack(); \
   stream_info=DestroyStreamInfo(stream_info); \
-  for (i=0; i < (long) argc; i++) \
+  for (i=0; i < (ssize_t) argc; i++) \
     argv[i]=DestroyString(argv[i]); \
   argv=(char **) RelinquishMagickMemory(argv); \
 }
@@ -197,19 +197,20 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
   ImageStack
     image_stack[MaxImageStackDepth+1];
 
-  long
-    j,
-    k;
-
   MagickBooleanType
     fire,
-    pend;
+    pend,
+    respect_parenthesis;
 
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
+
+  ssize_t
+    j,
+    k;
 
   StreamInfo
     *stream_info;
@@ -229,21 +230,20 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
       if ((LocaleCompare("version",option+1) == 0) ||
           (LocaleCompare("-version",option+1) == 0))
         {
-          (void) fprintf(stdout,"Version: %s\n",
-            GetMagickVersion((unsigned long *) NULL));
-          (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-          (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+          ListMagickVersion(stdout);
           return(MagickFalse);
         }
     }
   if (argc < 3)
     return(StreamUsage());
   format="%w,%h,%m";
+  (void) format;
   j=1;
   k=0;
   NewImageStack();
   option=(char *) NULL;
   pend=MagickFalse;
+  respect_parenthesis=MagickFalse;
   stream_info=AcquireStreamInfo(image_info);
   status=MagickTrue;
   /*
@@ -260,7 +260,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
       DestroyStream();
       return(MagickFalse);
     }
-  for (i=1; i < (long) (argc-1); i++)
+  for (i=1; i < (ssize_t) (argc-1); i++)
   {
     option=argv[i];
     if (LocaleCompare(option,"(") == 0)
@@ -279,7 +279,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
         PopImageStack();
         continue;
       }
-    if (IsMagickOption(option) == MagickFalse)
+    if (IsCommandOption(option) == MagickFalse)
       {
         Image
           *images;
@@ -289,7 +289,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
         */
         FireImageStack(MagickFalse,MagickFalse,pend);
         filename=argv[i];
-        if ((LocaleCompare(filename,"--") == 0) && (i < (argc-1)))
+        if ((LocaleCompare(filename,"--") == 0) && (i < (ssize_t) (argc-1)))
           filename=argv[++i];
         (void) CopyMagickString(image_info->filename,filename,MaxTextExtent);
         images=StreamImage(image_info,stream_info,exception);
@@ -310,7 +310,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             break;
           }
@@ -323,7 +323,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -331,13 +331,13 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("channel",option+1) == 0)
           {
-            long
+            ssize_t
               channel;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             channel=ParseChannelOption(argv[i]);
             if (channel < 0)
@@ -347,15 +347,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("colorspace",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,MagickFalse,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,MagickFalse,
               argv[i]);
             if (colorspace < 0)
               ThrowStreamException(OptionError,"UnrecognizedColorspace",
@@ -364,15 +364,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("compress",option+1) == 0)
           {
-            long
+            ssize_t
               compress;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
-            compress=ParseMagickOption(MagickCompressOptions,MagickFalse,
+            compress=ParseCommandOption(MagickCompressOptions,MagickFalse,
               argv[i]);
             if (compress < 0)
               ThrowStreamException(OptionError,"UnrecognizedImageCompression",
@@ -387,15 +387,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("debug",option+1) == 0)
           {
-            long
+            ssize_t
               event;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            event=ParseMagickOption(MagickLogEventOptions,MagickFalse,argv[i]);
+            event=ParseCommandOption(MagickLogEventOptions,MagickFalse,argv[i]);
             if (event < 0)
               ThrowStreamException(OptionError,"UnrecognizedEventType",argv[i]);
             (void) SetLogEventMask(argv[i]);
@@ -404,7 +404,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
         if (LocaleCompare("define",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (*option == '+')
               {
@@ -423,7 +423,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -434,7 +434,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -445,7 +445,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -460,7 +460,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -481,15 +481,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           break;
         if (LocaleCompare("interlace",option+1) == 0)
           {
-            long
+            ssize_t
               interlace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            interlace=ParseMagickOption(MagickInterlaceOptions,MagickFalse,
+            interlace=ParseCommandOption(MagickInterlaceOptions,MagickFalse,
               argv[i]);
             if (interlace < 0)
               ThrowStreamException(OptionError,"UnrecognizedInterlaceType",
@@ -498,15 +498,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("interpolate",option+1) == 0)
           {
-            long
+            ssize_t
               interpolate;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            interpolate=ParseMagickOption(MagickInterpolateOptions,MagickFalse,
+            interpolate=ParseCommandOption(MagickInterpolateOptions,MagickFalse,
               argv[i]);
             if (interpolate < 0)
               ThrowStreamException(OptionError,"UnrecognizedInterpolateMethod",
@@ -525,51 +525,52 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             double
               value;
 
-            long
+            ssize_t
               resource;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            resource=ParseMagickOption(MagickResourceOptions,MagickFalse,
+            resource=ParseCommandOption(MagickResourceOptions,MagickFalse,
               argv[i]);
             if (resource < 0)
               ThrowStreamException(OptionError,"UnrecognizedResourceType",
                 argv[i]);
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            value=strtod(argv[i],&p);
+            value=StringToDouble(argv[i],&p);
+            (void) value;
             if ((p == argv[i]) && (LocaleCompare("unlimited",argv[i]) != 0))
               ThrowStreamInvalidArgumentException(option,argv[i]);
             break;
           }
         if (LocaleCompare("list",option+1) == 0)
           {
-            long
+            ssize_t
               list;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
-            list=ParseMagickOption(MagickListOptions,MagickFalse,argv[i]);
+            list=ParseCommandOption(MagickListOptions,MagickFalse,argv[i]);
             if (list < 0)
               ThrowStreamException(OptionError,"UnrecognizedListType",argv[i]);
-            (void) MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
+            status=MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
               argv+j,exception);
             DestroyStream();
-            return(MagickTrue);
+            return(status != 0 ? MagickFalse : MagickTrue);
           }
         if (LocaleCompare("log",option+1) == 0)
           {
             if (*option == '+')
               break;
             i++;
-            if ((i == (long) argc) || (strchr(argv[i],'%') == (char *) NULL))
+            if ((i == (ssize_t) argc) || (strchr(argv[i],'%') == (char *) NULL))
               ThrowStreamException(OptionError,"MissingArgument",option);
             break;
           }
@@ -594,15 +595,15 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("quantize",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,
               MagickFalse,argv[i]);
             if (colorspace < 0)
               ThrowStreamException(OptionError,"UnrecognizedColorspace",
@@ -631,7 +632,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -642,7 +643,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -651,12 +652,12 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
         if (LocaleCompare("set",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             break;
           }
@@ -665,7 +666,7 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowStreamException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowStreamInvalidArgumentException(option,argv[i]);
@@ -673,31 +674,35 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("storage-type",option+1) == 0)
           {
-            long
+            ssize_t
               type;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
-            type=ParseMagickOption(MagickStorageOptions,MagickFalse,argv[i]);
+            type=ParseCommandOption(MagickStorageOptions,MagickFalse,argv[i]);
             if (type < 0)
               ThrowStreamException(OptionError,"UnrecognizedStorageType",
                 argv[i]);
             SetStreamInfoStorageType(stream_info,(StorageType) type);
             break;
           }
+        if (LocaleCompare("synchronize",option+1) == 0)
+          break;
         ThrowStreamException(OptionError,"UnrecognizedOption",option)
       }
       case 't':
       {
+        if (LocaleCompare("taint",option+1) == 0)
+          break;
         if (LocaleCompare("transparent-color",option+1) == 0)
           {
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
             break;
           }
@@ -710,23 +715,20 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
         if ((LocaleCompare("version",option+1) == 0) ||
             (LocaleCompare("-version",option+1) == 0))
           {
-            (void) fprintf(stdout,"Version: %s\n",
-              GetMagickVersion((unsigned long *) NULL));
-            (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-            (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+            ListMagickVersion(stdout);
             break;
           }
         if (LocaleCompare("virtual-pixel",option+1) == 0)
           {
-            long
+            ssize_t
               method;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowStreamException(OptionError,"MissingArgument",option);
-            method=ParseMagickOption(MagickVirtualPixelOptions,MagickFalse,
+            method=ParseCommandOption(MagickVirtualPixelOptions,MagickFalse,
               argv[i]);
             if (method < 0)
               ThrowStreamException(OptionError,
@@ -740,14 +742,14 @@ WandExport MagickBooleanType StreamImageCommand(ImageInfo *image_info,
       default:
         ThrowStreamException(OptionError,"UnrecognizedOption",option)
     }
-    fire=ParseMagickOption(MagickImageListOptions,MagickFalse,option+1) < 0 ?
-      MagickFalse : MagickTrue;
+    fire=(GetCommandOptionFlags(MagickCommandOptions,MagickFalse,option) &
+      FireOptionFlag) == 0 ?  MagickFalse : MagickTrue;
     if (fire != MagickFalse)
       FireImageStack(MagickFalse,MagickTrue,MagickTrue);
   }
   if (k != 0)
     ThrowStreamException(OptionError,"UnbalancedParenthesis",argv[i]);
-  if (i-- != (long) (argc-1))
+  if (i-- != (ssize_t) (argc-1))
     ThrowStreamException(OptionError,"MissingAnImageFilename",argv[i]);
   if (image == (Image *) NULL)
     ThrowStreamException(OptionError,"MissingAnImageFilename",argv[i]);

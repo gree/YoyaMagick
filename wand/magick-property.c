@@ -23,7 +23,7 @@
 %                                 August 2003                                 %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -324,14 +324,14 @@ WandExport CompressionType MagickGetCompression(MagickWand *wand)
 %
 %  The format of the MagickGetCompressionQuality method is:
 %
-%      unsigned long MagickGetCompressionQuality(MagickWand *wand)
+%      size_t MagickGetCompressionQuality(MagickWand *wand)
 %
 %  A description of each parameter follows:
 %
 %    o wand: the magick wand.
 %
 */
-WandExport unsigned long MagickGetCompressionQuality(MagickWand *wand)
+WandExport size_t MagickGetCompressionQuality(MagickWand *wand)
 {
   assert(wand != (MagickWand *) NULL);
   assert(wand->signature == WandSignature);
@@ -496,7 +496,7 @@ WandExport GravityType MagickGetGravity(MagickWand *wand)
   option=GetImageOption(wand->image_info,"gravity");
   if (option == (const char *) NULL)
     return(UndefinedGravity);
-  type=(GravityType) ParseMagickOption(MagickGravityOptions,MagickFalse,option);
+  type=(GravityType) ParseCommandOption(MagickGravityOptions,MagickFalse,option);
   return(type);
 }
 
@@ -589,7 +589,7 @@ WandExport char *MagickGetImageArtifact(MagickWand *wand,const char *artifact)
 %  The format of the MagickGetImageArtifacts method is:
 %
 %      char *MagickGetImageArtifacts(MagickWand *wand,
-%        const char *pattern,unsigned long *number_artifacts)
+%        const char *pattern,size_t *number_artifacts)
 %
 %  A description of each parameter follows:
 %
@@ -601,7 +601,7 @@ WandExport char *MagickGetImageArtifact(MagickWand *wand,const char *artifact)
 %
 */
 WandExport char **MagickGetImageArtifacts(MagickWand *wand,
-  const char *pattern,unsigned long *number_artifacts)
+  const char *pattern,size_t *number_artifacts)
 {
   char
     **artifacts;
@@ -609,7 +609,7 @@ WandExport char **MagickGetImageArtifacts(MagickWand *wand,
   const char
     *artifact;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -637,7 +637,7 @@ WandExport char **MagickGetImageArtifacts(MagickWand *wand,
     if ((*artifact != '[') &&
         (GlobExpression(artifact,pattern,MagickFalse) != MagickFalse))
       {
-        if ((i+1) >= (long) length)
+        if ((i+1) >= (ssize_t) length)
           {
             length<<=1;
             artifacts=(char **) ResizeQuantumMemory(artifacts,length,
@@ -656,7 +656,7 @@ WandExport char **MagickGetImageArtifacts(MagickWand *wand,
     artifact=GetNextImageProperty(wand->images);
   }
   artifacts[i]=(char *) NULL;
-  *number_artifacts=(unsigned long) i;
+  *number_artifacts=(size_t) i;
   return(artifacts);
 }
 
@@ -718,7 +718,7 @@ WandExport unsigned char *MagickGetImageProfile(MagickWand *wand,
     return((unsigned char *) NULL);
   (void) CopyMagickMemory(datum,GetStringInfoDatum(profile),
     GetStringInfoLength(profile));
-  *length=(unsigned long) GetStringInfoLength(profile);
+  *length=(size_t) GetStringInfoLength(profile);
   return(datum);
 }
 
@@ -740,8 +740,8 @@ WandExport unsigned char *MagickGetImageProfile(MagickWand *wand,
 %
 %  The format of the MagickGetImageProfiles method is:
 %
-%      char *MagickGetImageProfiles(MagickWand *wand,
-%        unsigned long *number_profiles)
+%      char *MagickGetImageProfiles(MagickWand *wand,const char *pattern,
+%        size_t *number_profiles)
 %
 %  A description of each parameter follows:
 %
@@ -753,7 +753,7 @@ WandExport unsigned char *MagickGetImageProfile(MagickWand *wand,
 %
 */
 WandExport char **MagickGetImageProfiles(MagickWand *wand,const char *pattern,
-  unsigned long *number_profiles)
+  size_t *number_profiles)
 {
   char
     **profiles;
@@ -761,7 +761,7 @@ WandExport char **MagickGetImageProfiles(MagickWand *wand,const char *pattern,
   const char
     *property;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -789,7 +789,7 @@ WandExport char **MagickGetImageProfiles(MagickWand *wand,const char *pattern,
     if ((*property != '[') &&
         (GlobExpression(property,pattern,MagickFalse) != MagickFalse))
       {
-        if ((i+1) >= (long) length)
+        if ((i+1) >= (ssize_t) length)
           {
             length<<=1;
             profiles=(char **) ResizeQuantumMemory(profiles,length,
@@ -808,7 +808,7 @@ WandExport char **MagickGetImageProfiles(MagickWand *wand,const char *pattern,
     property=GetNextImageProfile(wand->images);
   }
   profiles[i]=(char *) NULL;
-  *number_profiles=(unsigned long) i;
+  *number_profiles=(size_t) i;
   return(profiles);
 }
 
@@ -878,7 +878,7 @@ WandExport char *MagickGetImageProperty(MagickWand *wand,const char *property)
 %  The format of the MagickGetImageProperties method is:
 %
 %      char *MagickGetImageProperties(MagickWand *wand,
-%        const char *pattern,unsigned long *number_properties)
+%        const char *pattern,size_t *number_properties)
 %
 %  A description of each parameter follows:
 %
@@ -890,7 +890,7 @@ WandExport char *MagickGetImageProperty(MagickWand *wand,const char *property)
 %
 */
 WandExport char **MagickGetImageProperties(MagickWand *wand,
-  const char *pattern,unsigned long *number_properties)
+  const char *pattern,size_t *number_properties)
 {
   char
     **properties;
@@ -898,7 +898,7 @@ WandExport char **MagickGetImageProperties(MagickWand *wand,
   const char
     *property;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -926,7 +926,7 @@ WandExport char **MagickGetImageProperties(MagickWand *wand,
     if ((*property != '[') &&
         (GlobExpression(property,pattern,MagickFalse) != MagickFalse))
       {
-        if ((i+1) >= (long) length)
+        if ((i+1) >= (ssize_t) length)
           {
             length<<=1;
             properties=(char **) ResizeQuantumMemory(properties,length,
@@ -945,7 +945,7 @@ WandExport char **MagickGetImageProperties(MagickWand *wand,
     property=GetNextImageProperty(wand->images);
   }
   properties[i]=(char *) NULL;
-  *number_properties=(unsigned long) i;
+  *number_properties=(size_t) i;
   return(properties);
 }
 
@@ -1017,7 +1017,7 @@ WandExport InterpolatePixelMethod MagickGetInterpolateMethod(MagickWand *wand)
   option=GetImageOption(wand->image_info,"interpolate");
   if (option == (const char *) NULL)
     return(UndefinedInterpolatePixel);
-  method=(InterpolatePixelMethod) ParseMagickOption(MagickInterpolateOptions,
+  method=(InterpolatePixelMethod) ParseCommandOption(MagickInterpolateOptions,
     MagickFalse,option);
   return(method);
 }
@@ -1066,7 +1066,7 @@ WandExport char *MagickGetOption(MagickWand *wand,const char *key)
 %                                                                             %
 %                                                                             %
 %                                                                             %
-%   M a g i c k G e t O p t i o n                                             %
+%   M a g i c k G e t O p t i o n s                                           %
 %                                                                             %
 %                                                                             %
 %                                                                             %
@@ -1079,7 +1079,8 @@ WandExport char *MagickGetOption(MagickWand *wand,const char *key)
 %
 %  The format of the MagickGetOptions method is:
 %
-%      char *MagickGetOptions(MagickWand *wand,unsigned long *number_options)
+%      char *MagickGetOptions(MagickWand *wand,const char *pattern,,
+%        size_t *number_options)
 %
 %  A description of each parameter follows:
 %
@@ -1091,7 +1092,7 @@ WandExport char *MagickGetOption(MagickWand *wand,const char *key)
 %
 */
 WandExport char **MagickGetOptions(MagickWand *wand,const char *pattern,
-  unsigned long *number_options)
+  size_t *number_options)
 {
   char
     **options;
@@ -1099,7 +1100,7 @@ WandExport char **MagickGetOptions(MagickWand *wand,const char *pattern,
   const char
     *option;
 
-  register long
+  register ssize_t
     i;
 
   size_t
@@ -1126,7 +1127,7 @@ WandExport char **MagickGetOptions(MagickWand *wand,const char *pattern,
     if ((*option != '[') &&
         (GlobExpression(option,pattern,MagickFalse) != MagickFalse))
       {
-        if ((i+1) >= (long) length)
+        if ((i+1) >= (ssize_t) length)
           {
             length<<=1;
             options=(char **) ResizeQuantumMemory(options,length,
@@ -1145,7 +1146,7 @@ WandExport char **MagickGetOptions(MagickWand *wand,const char *pattern,
     option=GetNextImageOption(wand->image_info);
   }
   options[i]=(char *) NULL;
-  *number_options=(unsigned long) i;
+  *number_options=(size_t) i;
   return(options);
 }
 
@@ -1221,7 +1222,7 @@ WandExport const char *MagickGetPackageName(void)
 %  The format of the MagickGetPage method is:
 %
 %      MagickBooleanType MagickGetPage(const MagickWand *wand,
-%        unsigned long *width,unsigned long *height,long *x,long *y)
+%        size_t *width,size_t *height,ssize_t *x,ssize_t *y)
 %
 %  A description of each parameter follows:
 %
@@ -1237,7 +1238,7 @@ WandExport const char *MagickGetPackageName(void)
 %
 */
 WandExport MagickBooleanType MagickGetPage(const MagickWand *wand,
-  unsigned long *width,unsigned long *height,long *x,long *y)
+  size_t *width,size_t *height,ssize_t *x,ssize_t *y)
 {
   RectangleInfo
     geometry;
@@ -1303,14 +1304,14 @@ WandExport double MagickGetPointsize(MagickWand *wand)
 %
 %  The format of the MagickGetQuantumDepth method is:
 %
-%      const char *MagickGetQuantumDepth(unsigned long *depth)
+%      const char *MagickGetQuantumDepth(size_t *depth)
 %
 %  A description of each parameter follows:
 %
 %    o depth: the quantum depth is returned as a number.
 %
 */
-WandExport const char *MagickGetQuantumDepth(unsigned long *depth)
+WandExport const char *MagickGetQuantumDepth(size_t *depth)
 {
   return(GetMagickQuantumDepth(depth));
 }
@@ -1331,14 +1332,14 @@ WandExport const char *MagickGetQuantumDepth(unsigned long *depth)
 %
 %  The format of the MagickGetQuantumRange method is:
 %
-%      const char *MagickGetQuantumRange(unsigned long *range)
+%      const char *MagickGetQuantumRange(size_t *range)
 %
 %  A description of each parameter follows:
 %
 %    o range: the quantum range is returned as a number.
 %
 */
-WandExport const char *MagickGetQuantumRange(unsigned long *range)
+WandExport const char *MagickGetQuantumRange(size_t *range)
 {
   return(GetMagickQuantumRange(range));
 }
@@ -1365,6 +1366,59 @@ WandExport const char *MagickGetQuantumRange(unsigned long *range)
 WandExport const char *MagickGetReleaseDate(void)
 {
   return(GetMagickReleaseDate());
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   M a g i c k G e t R e s o l u t i o n                                     %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  MagickGetResolution() gets the image X and Y resolution.
+%
+%  The format of the MagickGetResolution method is:
+%
+%      MagickBooleanType MagickGetResolution(const MagickWand *wand,double *x,
+%        double *y)
+%
+%  A description of each parameter follows:
+%
+%    o wand: the magick wand.
+%
+%    o x: the x-resolution.
+%
+%    o y: the y-resolution.
+%
+*/
+WandExport MagickBooleanType MagickGetResolution(const MagickWand *wand,
+  double *x,double *y)
+{
+  assert(wand != (MagickWand *) NULL);
+  assert(wand->signature == WandSignature);
+  if (wand->debug != MagickFalse)
+    (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
+  *x=72.0;
+  *y=72.0;
+  if (wand->image_info->density != (char *) NULL)
+    {
+      GeometryInfo
+        geometry_info;
+
+      MagickStatusType
+        flags;
+
+      flags=ParseGeometry(wand->image_info->density,&geometry_info);
+      *x=geometry_info.rho;
+      *y=geometry_info.sigma;
+      if ((flags & SigmaValue) == MagickFalse)
+        *y=(*x);
+    }
+  return(MagickTrue);
 }
 
 /*
@@ -1437,7 +1491,7 @@ WandExport MagickSizeType MagickGetResourceLimit(const ResourceType type)
 %  The format of the MagickGetSamplingFactors method is:
 %
 %      double *MagickGetSamplingFactor(MagickWand *wand,
-%        unsigned long *number_factors)
+%        size_t *number_factors)
 %
 %  A description of each parameter follows:
 %
@@ -1447,7 +1501,7 @@ WandExport MagickSizeType MagickGetResourceLimit(const ResourceType type)
 %
 */
 WandExport double *MagickGetSamplingFactors(MagickWand *wand,
-  unsigned long *number_factors)
+  size_t *number_factors)
 {
   double
     *sampling_factors;
@@ -1455,7 +1509,7 @@ WandExport double *MagickGetSamplingFactors(MagickWand *wand,
   register const char
     *p;
 
-  register long
+  register ssize_t
     i;
 
   assert(wand != (MagickWand *) NULL);
@@ -1485,10 +1539,10 @@ WandExport double *MagickGetSamplingFactors(MagickWand *wand,
     while (((int) *p != 0) && ((isspace((int) ((unsigned char) *p)) != 0) ||
            (*p == ',')))
       p++;
-    sampling_factors[i]=StringToDouble(p);
+    sampling_factors[i]=StringToDouble(p,(char **) NULL);
     i++;
   }
-  *number_factors=(unsigned long) i;
+  *number_factors=(size_t) i;
   return(sampling_factors);
 }
 
@@ -1508,7 +1562,7 @@ WandExport double *MagickGetSamplingFactors(MagickWand *wand,
 %  The format of the MagickGetSize method is:
 %
 %      MagickBooleanType MagickGetSize(const MagickWand *wand,
-%        unsigned long *columns,unsigned long *rows)
+%        size_t *columns,size_t *rows)
 %
 %  A description of each parameter follows:
 %
@@ -1520,7 +1574,7 @@ WandExport double *MagickGetSamplingFactors(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickGetSize(const MagickWand *wand,
-  unsigned long *columns,unsigned long *rows)
+  size_t *columns,size_t *rows)
 {
   RectangleInfo
     geometry;
@@ -1553,7 +1607,7 @@ WandExport MagickBooleanType MagickGetSize(const MagickWand *wand,
 %  The format of the MagickGetSizeOffset method is:
 %
 %      MagickBooleanType MagickGetSizeOffset(const MagickWand *wand,
-%        long *offset)
+%        ssize_t *offset)
 %
 %  A description of each parameter follows:
 %
@@ -1563,7 +1617,7 @@ WandExport MagickBooleanType MagickGetSize(const MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickGetSizeOffset(const MagickWand *wand,
-  long *offset)
+  ssize_t *offset)
 {
   RectangleInfo
     geometry;
@@ -1625,14 +1679,14 @@ WandExport ImageType MagickGetType(MagickWand *wand)
 %
 %  The format of the MagickGetVersion method is:
 %
-%      const char *MagickGetVersion(unsigned long *version)
+%      const char *MagickGetVersion(size_t *version)
 %
 %  A description of each parameter follows:
 %
 %    o version: the ImageMagick version is returned as a number.
 %
 */
-WandExport const char *MagickGetVersion(unsigned long *version)
+WandExport const char *MagickGetVersion(size_t *version)
 {
   return(GetMagickVersion(version));
 }
@@ -1908,7 +1962,7 @@ WandExport MagickBooleanType MagickSetCompression(MagickWand *wand,
 %  The format of the MagickSetCompressionQuality method is:
 %
 %      MagickBooleanType MagickSetCompressionQuality(MagickWand *wand,
-%        const unsigned long quality)
+%        const size_t quality)
 %
 %  A description of each parameter follows:
 %
@@ -1918,7 +1972,7 @@ WandExport MagickBooleanType MagickSetCompression(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetCompressionQuality(MagickWand *wand,
-  const unsigned long quality)
+  const size_t quality)
 {
   assert(wand != (MagickWand *) NULL);
   assert(wand->signature == WandSignature);
@@ -1944,7 +1998,7 @@ WandExport MagickBooleanType MagickSetCompressionQuality(MagickWand *wand,
 %  The format of the MagickSetDepth method is:
 %
 %      MagickBooleanType MagickSetDepth(MagickWand *wand,
-%        const unsigned long depth)
+%        const size_t depth)
 %
 %  A description of each parameter follows:
 %
@@ -1954,7 +2008,7 @@ WandExport MagickBooleanType MagickSetCompressionQuality(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetDepth(MagickWand *wand,
-  const unsigned long depth)
+  const size_t depth)
 {
   assert(wand != (MagickWand *) NULL);
   assert(wand->signature == WandSignature);
@@ -2158,8 +2212,8 @@ WandExport MagickBooleanType MagickSetGravity(MagickWand *wand,
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  status=SetImageOption(wand->image_info,"gravity",MagickOptionToMnemonic(
-    MagickGravityOptions,(long) type));
+  status=SetImageOption(wand->image_info,"gravity",CommandOptionToMnemonic(
+    MagickGravityOptions,(ssize_t) type));
   return(status);
 }
 
@@ -2382,7 +2436,7 @@ WandExport MagickBooleanType MagickSetInterpolateMethod(MagickWand *wand,
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
   status=SetImageOption(wand->image_info,"interpolate",
-    MagickOptionToMnemonic(MagickInterpolateOptions,(long) method));
+    CommandOptionToMnemonic(MagickInterpolateOptions,(ssize_t) method));
   return(status);
 }
 
@@ -2476,8 +2530,8 @@ WandExport MagickBooleanType MagickSetOrientation(MagickWand *wand,
 %  The format of the MagickSetPage method is:
 %
 %      MagickBooleanType MagickSetPage(MagickWand *wand,
-%        const unsigned long width,const unsigned long height,const long x,
-%        const long y)
+%        const size_t width,const size_t height,const ssize_t x,
+%        const ssize_t y)
 %
 %  A description of each parameter follows:
 %
@@ -2493,8 +2547,8 @@ WandExport MagickBooleanType MagickSetOrientation(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetPage(MagickWand *wand,
-  const unsigned long width,const unsigned long height,const long x,
-  const long y)
+  const size_t width,const size_t height,const ssize_t x,
+  const ssize_t y)
 {
   char
     geometry[MaxTextExtent];
@@ -2503,8 +2557,8 @@ WandExport MagickBooleanType MagickSetPage(MagickWand *wand,
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  (void) FormatMagickString(geometry,MaxTextExtent,"%lux%lu%+ld%+ld",
-    width,height,x,y);
+  (void) FormatLocaleString(geometry,MaxTextExtent,"%.20gx%.20g%+.20g%+.20g",
+    (double) width,(double) height,(double) x,(double) y);
   (void) CloneString(&wand->image_info->page,geometry);
   return(MagickTrue);
 }
@@ -2682,7 +2736,7 @@ WandExport MagickBooleanType MagickSetResourceLimit(const ResourceType type,
 %  The format of the MagickSetResolution method is:
 %
 %      MagickBooleanType MagickSetResolution(MagickWand *wand,
-%        const double x_resolution,const doubtl y_resolution)
+%        const double x_resolution,const double y_resolution)
 %
 %  A description of each parameter follows:
 %
@@ -2703,7 +2757,7 @@ WandExport MagickBooleanType MagickSetResolution(MagickWand *wand,
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  (void) FormatMagickString(density,MaxTextExtent,"%gx%g",x_resolution,
+  (void) FormatLocaleString(density,MaxTextExtent,"%gx%g",x_resolution,
     y_resolution);
   (void) CloneString(&wand->image_info->density,density);
   return(MagickTrue);
@@ -2725,7 +2779,7 @@ WandExport MagickBooleanType MagickSetResolution(MagickWand *wand,
 %  The format of the MagickSetSamplingFactors method is:
 %
 %      MagickBooleanType MagickSetSamplingFactors(MagickWand *wand,
-%        const unsigned long number_factors,const double *sampling_factors)
+%        const size_t number_factors,const double *sampling_factors)
 %
 %  A description of each parameter follows:
 %
@@ -2738,12 +2792,12 @@ WandExport MagickBooleanType MagickSetResolution(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetSamplingFactors(MagickWand *wand,
-  const unsigned long number_factors,const double *sampling_factors)
+  const size_t number_factors,const double *sampling_factors)
 {
   char
     sampling_factor[MaxTextExtent];
 
-  register long
+  register ssize_t
     i;
 
   assert(wand != (MagickWand *) NULL);
@@ -2755,14 +2809,14 @@ WandExport MagickBooleanType MagickSetSamplingFactors(MagickWand *wand,
       RelinquishMagickMemory(wand->image_info->sampling_factor);
   if (number_factors == 0)
     return(MagickTrue);
-  for (i=0; i < (long) (number_factors-1); i++)
+  for (i=0; i < (ssize_t) (number_factors-1); i++)
   {
-    (void) FormatMagickString(sampling_factor,MaxTextExtent,"%g,",
+    (void) FormatLocaleString(sampling_factor,MaxTextExtent,"%g,",
       sampling_factors[i]);
     (void) ConcatenateString(&wand->image_info->sampling_factor,
       sampling_factor);
   }
-  (void) FormatMagickString(sampling_factor,MaxTextExtent,"%g",
+  (void) FormatLocaleString(sampling_factor,MaxTextExtent,"%g",
     sampling_factors[i]);
   (void) ConcatenateString(&wand->image_info->sampling_factor,sampling_factor);
   return(MagickTrue);
@@ -2785,7 +2839,7 @@ WandExport MagickBooleanType MagickSetSamplingFactors(MagickWand *wand,
 %  The format of the MagickSetSize method is:
 %
 %      MagickBooleanType MagickSetSize(MagickWand *wand,
-%        const unsigned long columns,const unsigned long rows)
+%        const size_t columns,const size_t rows)
 %
 %  A description of each parameter follows:
 %
@@ -2797,7 +2851,7 @@ WandExport MagickBooleanType MagickSetSamplingFactors(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetSize(MagickWand *wand,
-  const unsigned long columns,const unsigned long rows)
+  const size_t columns,const size_t rows)
 {
   char
     geometry[MaxTextExtent];
@@ -2806,7 +2860,8 @@ WandExport MagickBooleanType MagickSetSize(MagickWand *wand,
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  (void) FormatMagickString(geometry,MaxTextExtent,"%lux%lu",columns,rows);
+  (void) FormatLocaleString(geometry,MaxTextExtent,"%.20gx%.20g",(double)
+    columns,(double) rows);
   (void) CloneString(&wand->image_info->size,geometry);
   return(MagickTrue);
 }
@@ -2828,8 +2883,8 @@ WandExport MagickBooleanType MagickSetSize(MagickWand *wand,
 %  The format of the MagickSetSizeOffset method is:
 %
 %      MagickBooleanType MagickSetSizeOffset(MagickWand *wand,
-%        const unsigned long columns,const unsigned long rows,
-%        const long offset)
+%        const size_t columns,const size_t rows,
+%        const ssize_t offset)
 %
 %  A description of each parameter follows:
 %
@@ -2843,7 +2898,7 @@ WandExport MagickBooleanType MagickSetSize(MagickWand *wand,
 %
 */
 WandExport MagickBooleanType MagickSetSizeOffset(MagickWand *wand,
-  const unsigned long columns,const unsigned long rows,const long offset)
+  const size_t columns,const size_t rows,const ssize_t offset)
 {
   char
     geometry[MaxTextExtent];
@@ -2852,8 +2907,8 @@ WandExport MagickBooleanType MagickSetSizeOffset(MagickWand *wand,
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  (void) FormatMagickString(geometry,MaxTextExtent,"%lux%lu%+ld",columns,rows,
-    offset);
+  (void) FormatLocaleString(geometry,MaxTextExtent,"%.20gx%.20g%+.20g",
+    (double) columns,(double) rows,(double) offset);
   (void) CloneString(&wand->image_info->size,geometry);
   return(MagickTrue);
 }

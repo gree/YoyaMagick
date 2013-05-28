@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -22,12 +22,12 @@
 extern "C" {
 #endif
 
-extern WandExport unsigned long
+extern WandExport size_t
   AcquireWandId(void);
 
 extern WandExport void
   DestroyWandIds(void),
-  RelinquishWandId(const unsigned long);
+  RelinquishWandId(const size_t);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

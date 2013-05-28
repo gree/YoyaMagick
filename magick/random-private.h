@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ extern "C" {
 static inline RandomInfo **DestroyRandomInfoThreadSet(
   RandomInfo **random_info)
 {
-  register long
+  register ssize_t
     i;
 
   assert(random_info != (RandomInfo **) NULL);
-  for (i=0; i < (long) GetOpenMPMaximumThreads(); i++)
+  for (i=0; i < (ssize_t) GetMagickResourceLimit(ThreadResource); i++)
     if (random_info[i] != (RandomInfo *) NULL)
       random_info[i]=DestroyRandomInfo(random_info[i]);
   return((RandomInfo **) RelinquishAlignedMemory(random_info));
@@ -39,22 +39,22 @@ static inline RandomInfo **DestroyRandomInfoThreadSet(
 
 static inline RandomInfo **AcquireRandomInfoThreadSet(void)
 {
-  register long
+  register ssize_t
     i;
 
   RandomInfo
     **random_info;
 
-  unsigned long
+  size_t
     number_threads;
 
-  number_threads=GetOpenMPMaximumThreads();
+  number_threads=(size_t) GetMagickResourceLimit(ThreadResource);
   random_info=(RandomInfo **) AcquireAlignedMemory(number_threads,
     sizeof(*random_info));
   if (random_info == (RandomInfo **) NULL)
     return((RandomInfo **) NULL);
   (void) ResetMagickMemory(random_info,0,number_threads*sizeof(*random_info));
-  for (i=0; i < (long) number_threads; i++)
+  for (i=0; i < (ssize_t) number_threads; i++)
   {
     random_info[i]=AcquireRandomInfo();
     if (random_info[i] == (RandomInfo *) NULL)

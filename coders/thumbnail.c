@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,6 +40,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/constitute.h"
@@ -50,6 +51,7 @@
 #include "magick/module.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/profile.h"
 #include "magick/property.h"
 #include "magick/quantum-private.h"
@@ -83,10 +85,10 @@ static MagickBooleanType
 %
 %  The format of the RegisterTHUMBNAILImage method is:
 %
-%      unsigned long RegisterTHUMBNAILImage(void)
+%      size_t RegisterTHUMBNAILImage(void)
 %
 */
-ModuleExport unsigned long RegisterTHUMBNAILImage(void)
+ModuleExport size_t RegisterTHUMBNAILImage(void)
 {
   MagickInfo
     *entry;
@@ -166,14 +168,14 @@ static MagickBooleanType WriteTHUMBNAILImage(const ImageInfo *image_info,
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
-
-  ssize_t
-    offset;
 
   size_t
     length;
+
+  ssize_t
+    offset;
 
   unsigned char
     magick[MaxTextExtent];
@@ -190,7 +192,7 @@ static MagickBooleanType WriteTHUMBNAILImage(const ImageInfo *image_info,
     ThrowWriterException(CoderError,"ImageDoesNotHaveAThumbnail");
   length=(size_t) StringToLong(property);
   (void) ResetMagickMemory(magick,0,sizeof(magick));
-  for (i=0; i < (long) length; i++)
+  for (i=0; i < (ssize_t) length; i++)
   {
     magick[0]=magick[1];
     magick[1]=magick[2];
@@ -209,7 +211,7 @@ static MagickBooleanType WriteTHUMBNAILImage(const ImageInfo *image_info,
   write_info=CloneImageInfo(image_info);
   (void) SetImageInfo(write_info,1,&image->exception);
   if (LocaleCompare(write_info->magick,"THUMBNAIL") == 0)
-    (void) FormatMagickString(thumbnail_image->filename,MaxTextExtent,
+    (void) FormatLocaleString(thumbnail_image->filename,MaxTextExtent,
       "miff:%s",write_info->filename);
   status=WriteImage(write_info,thumbnail_image);
   thumbnail_image=DestroyImage(thumbnail_image);

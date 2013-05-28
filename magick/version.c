@@ -17,7 +17,7 @@
 %                               September 2002                                %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -41,6 +41,7 @@
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/hashmap.h"
+#include "magick/locale_.h"
 #include "magick/option.h"
 #include "magick/string_.h"
 #include "magick/utility.h"
@@ -72,6 +73,31 @@
 MagickExport const char *GetMagickCopyright(void)
 {
   return(MagickCopyright);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   G e t M a g i c k D e l e g a t e s                                       %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetMagickDelegates() returns the ImageMagick delegate libraries.
+%
+%  The format of the GetMagickDelegates method is:
+%
+%      const char *GetMagickDelegates(void)
+%
+%  No parameters are required.
+%
+*/
+MagickExport const char *GetMagickDelegates(void)
+{
+  return(MagickDelegates);
 }
 
 /*
@@ -139,7 +165,7 @@ MagickExport char *GetMagickHomeURL(void)
   element=(const char *) GetNextValueInLinkedList(paths);
   while (element != (const char *) NULL)
   {
-    (void) FormatMagickString(path,MaxTextExtent,"%s%s%s",element,
+    (void) FormatLocaleString(path,MaxTextExtent,"%s%s%s",element,
       DirectorySeparator,MagickURLFilename);
     if (IsPathAccessible(path) != MagickFalse)
       return(ConstantString(path));
@@ -188,17 +214,17 @@ MagickExport const char *GetMagickPackageName(void)
 %
 %  The format of the GetMagickQuantumDepth method is:
 %
-%      const char *GetMagickQuantumDepth(unsigned long *depth)
+%      const char *GetMagickQuantumDepth(size_t *depth)
 %
 %  A description of each parameter follows:
 %
 %    o depth: the quantum depth is returned as a number.
 %
 */
-MagickExport const char *GetMagickQuantumDepth(unsigned long *depth)
+MagickExport const char *GetMagickQuantumDepth(size_t *depth)
 {
-  if (depth != (unsigned long *) NULL)
-    *depth=(unsigned long) MAGICKCORE_QUANTUM_DEPTH;
+  if (depth != (size_t *) NULL)
+    *depth=(size_t) MAGICKCORE_QUANTUM_DEPTH;
   return(MagickQuantumDepth);
 }
 
@@ -217,17 +243,17 @@ MagickExport const char *GetMagickQuantumDepth(unsigned long *depth)
 %
 %  The format of the GetMagickQuantumRange method is:
 %
-%      const char *GetMagickQuantumRange(unsigned long *range)
+%      const char *GetMagickQuantumRange(size_t *range)
 %
 %  A description of each parameter follows:
 %
 %    o range: the quantum range is returned as a number.
 %
 */
-MagickExport const char *GetMagickQuantumRange(unsigned long *range)
+MagickExport const char *GetMagickQuantumRange(size_t *range)
 {
-  if (range != (unsigned long *) NULL)
-    *range=(unsigned long) QuantumRange;
+  if (range != (size_t *) NULL)
+    *range=(size_t) QuantumRange;
   return(MagickQuantumRange);
 }
 
@@ -261,6 +287,107 @@ MagickExport const char *GetMagickReleaseDate(void)
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%   G e t M a g i c k S i g n a t u r e                                       %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetMagickSignature() returns a signature that uniquely encodes the
+%  MagickCore libary version, quantum depth, HDRI status, OS word size, and
+%  endianness.
+%
+%  The format of the GetMagickSignature method is:
+%
+%      unsigned int GetMagickSignature(const StringInfo *nonce)
+%
+%  A description of each parameter follows:
+%
+%    o nonce: arbitrary data.
+%
+*/
+
+static unsigned int CRC32(const unsigned char *message,const size_t length)
+{
+  register ssize_t
+    i;
+
+  static MagickBooleanType
+    crc_initial = MagickFalse;
+
+  static unsigned int
+    crc_xor[256];
+
+  unsigned int
+    crc;
+
+  /*
+    Generate a 32-bit cyclic redundancy check for the message.
+  */
+  if (crc_initial == MagickFalse)
+    {
+      register unsigned int
+        i;
+
+      unsigned int
+        alpha;
+
+      for (i=0; i < 256; i++)
+      {
+        register ssize_t
+          j;
+
+        alpha=i;
+        for (j=0; j < 8; j++)
+          alpha=(alpha & 0x01) ? (0xEDB88320 ^ (alpha >> 1)) : (alpha >> 1);
+        crc_xor[i]=alpha;
+      }
+      crc_initial=MagickTrue;
+    }
+  crc=0xFFFFFFFF;
+  for (i=0; i < (ssize_t) length; i++)
+    crc=crc_xor[(crc ^ message[i]) & 0xff] ^ (crc >> 8);
+  return(crc ^ 0xFFFFFFFF);
+}
+
+MagickExport unsigned int GetMagickSignature(const StringInfo *nonce)
+{
+  register unsigned char
+    *p;
+
+  StringInfo
+    *version;
+
+  unsigned int
+    signature;
+
+  version=AcquireStringInfo(MaxTextExtent);
+  p=GetStringInfoDatum(version);
+  signature=MAGICKCORE_QUANTUM_DEPTH;
+  (void) memcpy(p,&signature,sizeof(signature));
+  p+=sizeof(signature);
+  signature=MAGICKCORE_HDRI_ENABLE;
+  (void) memcpy(p,&signature,sizeof(signature));
+  p+=sizeof(signature);
+  signature=MagickLibInterface;
+  (void) memcpy(p,&signature,sizeof(signature));
+  p+=sizeof(signature);
+  signature=1;  /* endianess */
+  (void) memcpy(p,&signature,sizeof(signature));
+  p+=sizeof(signature);
+  SetStringInfoLength(version,p-GetStringInfoDatum(version));
+  if (nonce != (const StringInfo *) NULL)
+    ConcatenateStringInfo(version,nonce);
+  signature=CRC32(GetStringInfoDatum(version),GetStringInfoLength(version));
+  version=DestroyStringInfo(version);
+  return(signature);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
 %   G e t M a g i c k V e r s i o n                                           %
 %                                                                             %
 %                                                                             %
@@ -272,16 +399,49 @@ MagickExport const char *GetMagickReleaseDate(void)
 %
 %  The format of the GetMagickVersion method is:
 %
-%      const char *GetMagickVersion(unsigned long *version)
+%      const char *GetMagickVersion(size_t *version)
 %
 %  A description of each parameter follows:
 %
 %    o version: the ImageMagick version is returned as a number.
 %
 */
-MagickExport const char *GetMagickVersion(unsigned long *version)
+MagickExport const char *GetMagickVersion(size_t *version)
 {
-  if (version != (unsigned long *) NULL)
+  if (version != (size_t *) NULL)
     *version=MagickLibVersion;
   return(MagickVersion);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   L i s t M a g i c k V e r s i o n                                         %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  ListMagickVersion() identifies the ImageMagick version by printing its
+%  attributes to the file.  Attributes include the copyright, features, and
+%  delegates.
+%
+%  The format of the ListMagickVersion method is:
+%
+%      void ListMagickVersion(FILE *file)
+%
+%  A description of each parameter follows:
+%
+%    o file: the file, typically stdout.
+%
+*/
+MagickExport void ListMagickVersion(FILE *file)
+{
+  (void) FormatLocaleFile(file,"Version: %s\n",
+    GetMagickVersion((size_t *) NULL));
+  (void) FormatLocaleFile(file,"Copyright: %s\n",GetMagickCopyright());
+  (void) FormatLocaleFile(file,"Features: %s\n",GetMagickFeatures());
+  (void) FormatLocaleFile(file,"Delegates: %s\n\n",GetMagickDelegates());
 }

@@ -17,7 +17,7 @@
 %                                September 1996                               %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -72,6 +72,7 @@
 #include "magick/magick.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum.h"
 #include "magick/string_.h"
 #include "magick/utility.h"
@@ -193,11 +194,11 @@ static pascal void StandardPixmap(PixMapPtr source,Rect *source_rectangle,
 {
 #pragma unused (source_rectangle,matrix,mode,mask,matte,matte_rectangle,flags)
 
-  long
-    size;
-
   Ptr
     data;
+
+  ssize_t
+    size;
 
   GetCompressedPixMapInfo(source,&image_description,&data,&size,nil,nil);
 }
@@ -218,11 +219,11 @@ static short BottleneckTest(PicHandle picture,CodecType *codec,int *depth,
   int
     status;
 
-  long
-    version;
-
   Rect
     rectangle;
+
+  ssize_t
+    version;
 
   status=Gestalt(gestaltQuickTime,&version);
   if (status != noErr)
@@ -339,7 +340,7 @@ MagickExport void closedir(DIR *entry)
 MagickExport int Exit(int status)
 {
 #if !defined(DISABLE_SIOUX)
-  (void) fprintf(stdout,"Select File->Quit to exit.\n");
+  (void) FormatLocaleFile(stdout,"Select File->Quit to exit.\n");
 #endif
   exit(status);
   return(0);
@@ -408,7 +409,7 @@ MagickExport void pascal FilenameToFSSpec(const char *filename,FSSpec *fsspec)
 */
 
 static OSErr HGetVInfo(short volume_index,StringPtr volume_name,short *volume,
-  unsigned long *free_bytes,unsigned long *total_bytes)
+  size_t *free_bytes,size_t *total_bytes)
 {
   HParamBlockRec
     pb;
@@ -416,7 +417,7 @@ static OSErr HGetVInfo(short volume_index,StringPtr volume_name,short *volume,
   OSErr
     result;
 
-  unsigned long
+  size_t
     blocksize;
 
   unsigned short
@@ -433,7 +434,7 @@ static OSErr HGetVInfo(short volume_index,StringPtr volume_name,short *volume,
   if (result != noErr)
     return(result);
   *volume=pb.volumeParam.ioVRefNum;
-  blocksize=(unsigned long) pb.volumeParam.ioVAlBlkSiz;
+  blocksize=(size_t) pb.volumeParam.ioVAlBlkSiz;
   allocation_blocks=(unsigned short) pb.volumeParam.ioVNmAlBlks;
   free_blocks=(unsigned short) pb.volumeParam.ioVFrBlk;
   *free_bytes=free_blocks*blocksize;
@@ -443,7 +444,7 @@ static OSErr HGetVInfo(short volume_index,StringPtr volume_name,short *volume,
 
 MagickExport MagickBooleanType MACIsMagickConflict(const char *magick)
 {
-  unsigned long
+  size_t
     free_bytes,
     number_bytes;
 
@@ -505,10 +506,10 @@ MagickExport void MACErrorHandler(const ExceptionType error,const char *reason,
   if (reason == (char *) NULL)
     return;
   if (description == (char *) NULL)
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
       reason);
   else
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s).\n",
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s).\n",
       GetClientName(),reason,description);
 #if defined(DISABLE_SIOUX)
   if(exception.hook != (MACErrorHookPtr) NULL)
@@ -564,10 +565,10 @@ static void MACFatalErrorHandler(const ExceptionType severity,
   if (reason == (char *) NULL)
     return;
   if (description == (char *) NULL)
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
       reason);
   else
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s).\n",
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s).\n",
       GetClientName(),reason,description);
   if(exception.hook != (MACErrorHookPtr) NULL)
     exception.hook(severity, buffer);
@@ -594,7 +595,7 @@ static void MACFatalErrorHandler(const ExceptionType severity,
 %
 %
 */
-static OSErr MacGSExecuteCommand(const char *command,long length)
+static OSErr MacGSExecuteCommand(const char *command,ssize_t length)
 {
   AEAddressDesc
     event_descriptor;
@@ -653,7 +654,7 @@ static OSErr MacGSExecuteCommand(const char *command,long length)
 %
 %
 */
-static OSErr MacGSLaunchApplicationCore(long flags)
+static OSErr MacGSLaunchApplicationCore(ssize_t flags)
 {
   FSSpec
     file_info;
@@ -958,10 +959,10 @@ MagickExport void MACWarningHandler(const ExceptionType warning,
   if (reason == (char *) NULL)
     return;
   if (description == (char *) NULL)
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s.\n",GetClientName(),
       reason);
   else
-    (void) FormatMagickString(buffer,MaxTextExtent,"%s: %s (%s).\n",
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%s: %s (%s).\n",
       GetClientName(),reason,description);
 #if defined(DISABLE_SIOUX)
   if(exception.hook != (MACErrorHookPtr) NULL)
@@ -1027,7 +1028,7 @@ MagickExport DIR *opendir(const char *path)
       errno=error;
       return((DIR *) NULL);
     }
-  entry=(DIR *) AcquireAlignedMemory(1,sizeof(DIR));
+  entry=(DIR *) AcquireMagickMemory(sizeof(DIR));
   if (entry == (DIR *) NULL)
     return((DIR *) NULL);
   entry->d_VRefNum=search_info.hFileInfo.ioVRefNum;
@@ -1206,9 +1207,6 @@ MagickExport Image *ReadPICTImage(const ImageInfo *image_info,
     depth,
     status;
 
-  long
-    y;
-
   MagickBooleanType
     proceed,
     status;
@@ -1230,6 +1228,9 @@ MagickExport Image *ReadPICTImage(const ImageInfo *image_info,
 
   short
     colormap_id;
+
+  ssize_t
+    y;
 
   /*
     Open image file.
@@ -1306,7 +1307,7 @@ MagickExport Image *ReadPICTImage(const ImageInfo *image_info,
   image->rows=picture_info.sourceRect.bottom-picture_info.sourceRect.top;
   if ((depth <= 8) && ((*(picture_info.theColorTable))->ctSize != 0))
     {
-      unsigned long
+      size_t
         number_colors;
 
       /*
@@ -1351,7 +1352,7 @@ MagickExport Image *ReadPICTImage(const ImageInfo *image_info,
     register IndexPacket
       *restrict indexes;
 
-    register long
+    register ssize_t
       x;
 
     register PixelPacket
@@ -1364,11 +1365,11 @@ MagickExport Image *ReadPICTImage(const ImageInfo *image_info,
     for (x=0; x < image->columns; x++)
     {
       GetCPixel(x,y,&Pixel);
-      q->red=ScaleCharToQuantum(Pixel.red & 0xff);
-      q->green=ScaleCharToQuantum(Pixel.green & 0xff);
-      q->blue=ScaleCharToQuantum(Pixel.blue & 0xff);
+      SetPixelRed(q,ScaleCharToQuantum(Pixel.red & 0xff));
+      SetPixelGreen(q,ScaleCharToQuantum(Pixel.green & 0xff));
+      SetPixelBlue(q,ScaleCharToQuantum(Pixel.blue & 0xff));
       if (image->storage_class == PseudoClass)
-        indexes[x]=Color2Index(&Pixel);
+        SetPixelIndex(indexes+x,Color2Index(&Pixel));
       q++;
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
@@ -1417,9 +1418,6 @@ static Boolean SearchForFile(OSType creator_type,OSType file_type,FSSpec *file,
   HParamBlockRec
     parameter_info;
 
-  long
-    buffer_size = 16384;
-
   OSErr
     error;
 
@@ -1428,6 +1426,9 @@ static Boolean SearchForFile(OSType creator_type,OSType file_type,FSSpec *file,
 
   ProcessSerialNumber
     serial_number;
+
+  ssize_t
+    buffer_size = 16384;
 
   serial_number.lowLongOfPSN=kCurrentProcess;
   serial_number.highLongOfPSN=0;
@@ -1491,7 +1492,7 @@ static Boolean SearchForFile(OSType creator_type,OSType file_type,FSSpec *file,
 %
 %  The format of the seekdir method is:
 %
-%      void seekdir(DIR *entry,long position)
+%      void seekdir(DIR *entry,ssize_t position)
 %
 %  A description of each parameter follows:
 %
@@ -1503,7 +1504,7 @@ static Boolean SearchForFile(OSType creator_type,OSType file_type,FSSpec *file,
 %
 %
 */
-MagickExport void seekdir(DIR *entry,long position)
+MagickExport void seekdir(DIR *entry,ssize_t position)
 {
   assert(entry != (DIR *) NULL);
   entry->d_index=position;
@@ -1596,7 +1597,7 @@ MagickExport void SetApplicationType(const char *filename,const char *magick,
 %
 %
 */
-MagickExport long telldir(DIR *entry)
+MagickExport ssize_t telldir(DIR *entry)
 {
   return(entry->d_index);
 }

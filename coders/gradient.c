@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -42,8 +42,10 @@
 #include "magick/studio.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
+#include "magick/channel.h"
 #include "magick/color.h"
 #include "magick/color-private.h"
+#include "magick/colorspace-private.h"
 #include "magick/draw.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -53,6 +55,7 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/paint.h"
+#include "magick/pixel-accessor.h"
 #include "magick/pixel-private.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
@@ -94,6 +97,14 @@ static Image *ReadGRADIENTImage(const ImageInfo *image_info,
   char
     colorname[MaxTextExtent];
 
+  MagickBooleanType
+    icc_color,
+    status;
+
+  MagickPixelPacket
+    start_pixel,
+    stop_pixel;
+
   PixelPacket
     start_color,
     stop_color;
@@ -118,22 +129,42 @@ static Image *ReadGRADIENTImage(const ImageInfo *image_info,
   (void) CopyMagickString(image->filename,image_info->filename,MaxTextExtent);
   (void) CopyMagickString(colorname,image_info->filename,MaxTextExtent);
   (void) sscanf(image_info->filename,"%[^-]",colorname);
+  icc_color=MagickFalse;
+  if (LocaleCompare(colorname,"icc") == 0)
+    {
+      (void) ConcatenateMagickString(colorname,"-",MaxTextExtent);
+      (void) sscanf(image_info->filename,"%*[^-]-%[^-]",colorname+4);
+      icc_color=MagickTrue;
+    }
   if (QueryColorDatabase(colorname,&start_color,exception) == MagickFalse)
     {
       image=DestroyImage(image);
       return((Image *) NULL);
     }
+  (void) QueryMagickColor(colorname,&start_pixel,exception);
   (void) CopyMagickString(colorname,"white",MaxTextExtent);
-  if (PixelIntensityToQuantum(&start_color) > (Quantum) (QuantumRange/2))
+  if (GetPixelLuma(image,&start_color) > (QuantumRange/2))
     (void) CopyMagickString(colorname,"black",MaxTextExtent);
-  (void) sscanf(image_info->filename,"%*[^-]-%s",colorname);
+  if (icc_color == MagickFalse)
+    (void) sscanf(image_info->filename,"%*[^-]-%s",colorname);
+  else
+    (void) sscanf(image_info->filename,"%*[^-]-%*[^-]-%s",colorname);
   if (QueryColorDatabase(colorname,&stop_color,exception) == MagickFalse)
     {
       image=DestroyImage(image);
       return((Image *) NULL);
     }
-  (void) GradientImage(image,LocaleCompare(image_info->magick,"GRADIENT") == 0 ?
+  (void) QueryMagickColor(colorname,&stop_pixel,exception);
+  (void) SetImageColorspace(image,start_pixel.colorspace);
+  status=GradientImage(image,LocaleCompare(image_info->magick,"GRADIENT") == 0 ?
     LinearGradient : RadialGradient,PadSpread,&start_color,&stop_color);
+  if (status == MagickFalse)
+    {
+      image=DestroyImageList(image);
+      return((Image *) NULL);
+    }
+  if ((start_pixel.matte == MagickFalse) && (stop_pixel.matte == MagickFalse))
+    (void) SetImageAlphaChannel(image,DeactivateAlphaChannel);
   return(GetFirstImageInList(image));
 }
 
@@ -157,10 +188,10 @@ static Image *ReadGRADIENTImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterGRADIENTImage method is:
 %
-%      unsigned long RegisterGRADIENTImage(void)
+%      size_t RegisterGRADIENTImage(void)
 %
 */
-ModuleExport unsigned long RegisterGRADIENTImage(void)
+ModuleExport size_t RegisterGRADIENTImage(void)
 {
   MagickInfo
     *entry;
@@ -169,7 +200,7 @@ ModuleExport unsigned long RegisterGRADIENTImage(void)
   entry->decoder=(DecodeImageHandler *) ReadGRADIENTImage;
   entry->adjoin=MagickFalse;
   entry->raw=MagickTrue;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Gradual linear passing from one shade to "
     "another");
   entry->module=ConstantString("GRADIENT");
@@ -178,7 +209,7 @@ ModuleExport unsigned long RegisterGRADIENTImage(void)
   entry->decoder=(DecodeImageHandler *) ReadGRADIENTImage;
   entry->adjoin=MagickFalse;
   entry->raw=MagickTrue;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Gradual radial passing from one shade to "
     "another");
   entry->module=ConstantString("GRADIENT");

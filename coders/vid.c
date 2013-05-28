@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -56,6 +56,7 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/montage.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/resize.h"
 #include "magick/static.h"
@@ -125,7 +126,7 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
   RectangleInfo
     geometry;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -139,7 +140,7 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
   assert(exception != (ExceptionInfo *) NULL);
   assert(exception->signature == MagickSignature);
   image=AcquireImage(image_info);
-  filelist=(char **) AcquireAlignedMemory(1,sizeof(*filelist));
+  filelist=(char **) AcquireMagickMemory(sizeof(*filelist));
   if (filelist == (char **) NULL)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   filelist[0]=ConstantString(image_info->filename);
@@ -158,7 +159,7 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
     (void *) NULL);
   if (read_info->size == (char *) NULL)
     (void) CloneString(&read_info->size,DefaultTileGeometry);
-  for (i=0; i < (long) number_files; i++)
+  for (i=0; i < (ssize_t) number_files; i++)
   {
     if (image_info->debug != MagickFalse)
       (void) LogMagickEvent(CoderEvent,GetMagickModule(),"name: %s",
@@ -174,8 +175,9 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
     (void) SetImageProperty(next_image,"label",label);
     label=DestroyString(label);
     if (image_info->debug != MagickFalse)
-      (void) LogMagickEvent(CoderEvent,GetMagickModule(),"geometry: %ldx%ld",
-        next_image->columns,next_image->rows);
+      (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+        "geometry: %.20gx%.20g",(double) next_image->columns,(double)
+        next_image->rows);
     SetGeometry(next_image,&geometry);
     (void) ParseMetaGeometry(read_info->size,&geometry.x,&geometry.y,
       &geometry.width,&geometry.height);
@@ -188,7 +190,8 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
       }
     if (image_info->debug != MagickFalse)
       (void) LogMagickEvent(CoderEvent,GetMagickModule(),
-        "thumbnail geometry: %ldx%ld",next_image->columns,next_image->rows);
+        "thumbnail geometry: %.20gx%.20g",(double) next_image->columns,(double)
+        next_image->rows);
     AppendImageToList(&images,next_image);
     status=SetImageProgress(images,LoadImagesTag,i,number_files);
     if (status == MagickFalse)
@@ -232,10 +235,10 @@ static Image *ReadVIDImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterVIDImage method is:
 %
-%      unsigned long RegisterVIDImage(void)
+%      size_t RegisterVIDImage(void)
 %
 */
-ModuleExport unsigned long RegisterVIDImage(void)
+ModuleExport size_t RegisterVIDImage(void)
 {
   MagickInfo
     *entry;
@@ -243,7 +246,7 @@ ModuleExport unsigned long RegisterVIDImage(void)
   entry=SetMagickInfo("VID");
   entry->decoder=(DecodeImageHandler *) ReadVIDImage;
   entry->encoder=(EncodeImageHandler *) WriteVIDImage;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Visual Image Directory");
   entry->module=ConstantString("VID");
   (void) RegisterMagickInfo(entry);
@@ -331,7 +334,7 @@ static MagickBooleanType WriteVIDImage(const ImageInfo *image_info,Image *image)
   write_info=CloneImageInfo(image_info);
   (void) SetImageInfo(write_info,1,&image->exception);
   if (LocaleCompare(write_info->magick,"VID") == 0)
-    (void) FormatMagickString(montage_image->filename,MaxTextExtent,
+    (void) FormatLocaleString(montage_image->filename,MaxTextExtent,
       "miff:%s",write_info->filename);
   status=WriteImage(write_info,montage_image);
   montage_image=DestroyImage(montage_image);

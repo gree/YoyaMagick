@@ -17,7 +17,7 @@
 %                               October 2003                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,6 +52,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -106,21 +107,21 @@ static Image *ReadSCRImage(const ImageInfo *image_info,ExceptionInfo *exception)
     int bright;
 
   unsigned char colour_palette[] = {
-    000,000,000,
-    000,000,192,
-    192,000,000,
-    192,000,192,
-    000,192,000,
-    000,192,192,
-    192,192,000,
+      0,  0,  0,
+      0,  0,192,
+    192,  0,  0,
+    192,  0,192,
+      0,192,  0,
+      0,192,192,
+    192,192,  0,
     192,192,192,
-    000,000,000,
-    000,000,255,
-    255,000,000,
-    255,000,255,
-    000,255,000,
-    000,255,255,
-    255,255,000,
+      0,  0,  0,
+      0,  0,255,
+    255,  0,  0,
+    255,  0,255,
+      0,255,  0,
+      0,255,255,
+    255,255,  0,
     255,255,255
   };
 
@@ -156,6 +157,7 @@ static Image *ReadSCRImage(const ImageInfo *image_info,ExceptionInfo *exception)
   image->columns = 256;
   image->rows = 192;
   count=ReadBlob(image,6144,(unsigned char *) zxscr);
+  (void) count;
   count=ReadBlob(image,768,(unsigned char *) zxattr);
   for(zonenr=0;zonenr<3;zonenr++)
   {
@@ -214,13 +216,19 @@ static Image *ReadSCRImage(const ImageInfo *image_info,ExceptionInfo *exception)
 
               if(binar[z])
             {
-                q->red=(Quantum) QuantumRange*(colour_palette[3*ink]);
-                q->green=(Quantum) QuantumRange*(colour_palette[1+(3*ink)]);
-                q->blue=(Quantum) QuantumRange*(colour_palette[2+(3*ink)]);
+                SetPixelRed(q,ScaleCharToQuantum(
+                  colour_palette[3*ink]));
+                SetPixelGreen(q,ScaleCharToQuantum(
+                  colour_palette[1+(3*ink)]));
+                SetPixelBlue(q,ScaleCharToQuantum(
+                  colour_palette[2+(3*ink)]));
             } else {
-                q->red=(Quantum) QuantumRange*(colour_palette[3*paper]);
-                q->green=(Quantum) QuantumRange*(colour_palette[1+(3*paper)]);
-                q->blue=(Quantum) QuantumRange*(colour_palette[2+(3*paper)]);
+                SetPixelRed(q,ScaleCharToQuantum(
+                  colour_palette[3*paper]));
+                SetPixelGreen(q,ScaleCharToQuantum(
+                  colour_palette[1+(3*paper)]));
+                SetPixelBlue(q,ScaleCharToQuantum(
+                  colour_palette[2+(3*paper)]));
             }
 
               pix++;
@@ -253,10 +261,10 @@ static Image *ReadSCRImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterSCRImage method is:
 %
-%      unsigned long RegisterSCRImage(void)
+%      size_t RegisterSCRImage(void)
 %
 */
-ModuleExport unsigned long RegisterSCRImage(void)
+ModuleExport size_t RegisterSCRImage(void)
 {
   MagickInfo
     *entry;

@@ -16,7 +16,7 @@
 %                               March  2003                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -63,13 +63,13 @@
 */
 MagickExport MagickBooleanType MagickCreateThreadKey(MagickThreadKey *key)
 {
-#if defined(MAGICKCORE_HAVE_PTHREAD)
+#if defined(MAGICKCORE_THREAD_SUPPORT)
   return(pthread_key_create(key,NULL) == 0 ? MagickTrue : MagickFalse);
 #elif defined(MAGICKCORE_HAVE_WINTHREADS)
   *key=TlsAlloc();
   return(*key != TLS_OUT_OF_INDEXES ? MagickTrue : MagickFalse);
 #else
-  *key=AcquireAlignedMemory(1,sizeof(key));
+  *key=AcquireMagickMemory(sizeof(key));
   return(*key != (void *) NULL ? MagickTrue : MagickFalse);
 #endif
 }
@@ -98,7 +98,7 @@ MagickExport MagickBooleanType MagickCreateThreadKey(MagickThreadKey *key)
 */
 MagickExport MagickBooleanType MagickDeleteThreadKey(MagickThreadKey key)
 {
-#if defined(MAGICKCORE_HAVE_PTHREAD)
+#if defined(MAGICKCORE_THREAD_SUPPORT)
   return(pthread_key_delete(key) == 0 ? MagickTrue : MagickFalse);
 #elif defined(MAGICKCORE_HAVE_WINTHREADS)
   return(TlsFree(key) != 0 ? MagickTrue : MagickFalse);
@@ -133,7 +133,7 @@ MagickExport MagickBooleanType MagickDeleteThreadKey(MagickThreadKey key)
 */
 MagickExport void *MagickGetThreadValue(MagickThreadKey key)
 {
-#if defined(MAGICKCORE_HAVE_PTHREAD)
+#if defined(MAGICKCORE_THREAD_SUPPORT)
   return(pthread_getspecific(key));
 #elif defined(MAGICKCORE_HAVE_WINTHREADS)
   return(TlsGetValue(key));
@@ -170,12 +170,12 @@ MagickExport void *MagickGetThreadValue(MagickThreadKey key)
 MagickExport MagickBooleanType MagickSetThreadValue(MagickThreadKey key,
   const void *value)
 {
-#if defined(MAGICKCORE_HAVE_PTHREAD)
+#if defined(MAGICKCORE_THREAD_SUPPORT)
   return(pthread_setspecific(key,value) == 0 ? MagickTrue : MagickFalse);
 #elif defined(MAGICKCORE_HAVE_WINTHREADS)
   return(TlsSetValue(key,(void *) value) != 0 ? MagickTrue : MagickFalse);
 #else
-  *key=(unsigned long) value;
+  *key=(size_t) value;
   return(MagickTrue);
 #endif
 }

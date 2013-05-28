@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -44,6 +44,7 @@
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -53,6 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -98,13 +100,10 @@ static Image *ReadMTVImage(const ImageInfo *image_info,ExceptionInfo *exception)
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
@@ -114,7 +113,8 @@ static Image *ReadMTVImage(const ImageInfo *image_info,ExceptionInfo *exception)
     *p;
 
   ssize_t
-    count;
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -165,7 +165,7 @@ static Image *ReadMTVImage(const ImageInfo *image_info,ExceptionInfo *exception)
       3UL*sizeof(*pixels));
     if (pixels == (unsigned char *) NULL)
       ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
-    for (y=0; y < (long) image->rows; y++)
+    for (y=0; y < (ssize_t) image->rows; y++)
     {
       count=(ssize_t) ReadBlob(image,(size_t) (3*image->columns),pixels);
       if (count != (ssize_t) (3*image->columns))
@@ -174,19 +174,20 @@ static Image *ReadMTVImage(const ImageInfo *image_info,ExceptionInfo *exception)
       q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
       if (q == (PixelPacket *) NULL)
         break;
-      for (x=0; x < (long) image->columns; x++)
+      for (x=0; x < (ssize_t) image->columns; x++)
       {
-        q->red=ScaleCharToQuantum(*p++);
-        q->green=ScaleCharToQuantum(*p++);
-        q->blue=ScaleCharToQuantum(*p++);
-        SetOpacityPixelComponent(q,OpaqueOpacity);
+        SetPixelRed(q,ScaleCharToQuantum(*p++));
+        SetPixelGreen(q,ScaleCharToQuantum(*p++));
+        SetPixelBlue(q,ScaleCharToQuantum(*p++));
+        SetPixelOpacity(q,OpaqueOpacity);
         q++;
       }
       if (SyncAuthenticPixels(image,exception) == MagickFalse)
         break;
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,LoadImageTag,y,image->rows);
+          status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+            image->rows);
           if (status == MagickFalse)
             break;
         }
@@ -249,10 +250,10 @@ static Image *ReadMTVImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterMTVImage method is:
 %
-%      unsigned long RegisterMTVImage(void)
+%      size_t RegisterMTVImage(void)
 %
 */
-ModuleExport unsigned long RegisterMTVImage(void)
+ModuleExport size_t RegisterMTVImage(void)
 {
   MagickInfo
     *entry;
@@ -301,8 +302,8 @@ ModuleExport void UnregisterMTVImage(void)
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  WriteMTVImage() writes an image to a file in red, green, and blue
-%  MTV rasterfile format.
+%  WriteMTVImage() writes an image to a file in red, green, and blue MTV
+%  rasterfile format.
 %
 %  The format of the WriteMTVImage method is:
 %
@@ -320,9 +321,6 @@ static MagickBooleanType WriteMTVImage(const ImageInfo *image_info,Image *image)
   char
     buffer[MaxTextExtent];
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
@@ -332,11 +330,14 @@ static MagickBooleanType WriteMTVImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
 
   register unsigned char
     *q;
+
+  ssize_t
+    y;
 
   unsigned char
     *pixels;
@@ -359,8 +360,8 @@ static MagickBooleanType WriteMTVImage(const ImageInfo *image_info,Image *image)
     /*
       Allocate memory for pixels.
     */
-    if (image->colorspace != RGBColorspace)
-      (void) TransformImageColorspace(image,RGBColorspace);
+    if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+      (void) TransformImageColorspace(image,sRGBColorspace);
     pixels=(unsigned char *) AcquireQuantumMemory((size_t) image->columns,
       3UL*sizeof(*pixels));
     if (pixels == (unsigned char *) NULL)
@@ -368,26 +369,27 @@ static MagickBooleanType WriteMTVImage(const ImageInfo *image_info,Image *image)
     /*
       Initialize raster file header.
     */
-    (void) FormatMagickString(buffer,MaxTextExtent,"%lu %lu\n",
-      image->columns,image->rows);
+    (void) FormatLocaleString(buffer,MaxTextExtent,"%.20g %.20g\n",(double)
+      image->columns,(double) image->rows);
     (void) WriteBlobString(image,buffer);
-    for (y=0; y < (long) image->rows; y++)
+    for (y=0; y < (ssize_t) image->rows; y++)
     {
       p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
       if (p == (const PixelPacket *) NULL)
         break;
       q=pixels;
-      for (x=0; x < (long) image->columns; x++)
+      for (x=0; x < (ssize_t) image->columns; x++)
       {
-        *q++=ScaleQuantumToChar(GetRedPixelComponent(p));
-        *q++=ScaleQuantumToChar(GetGreenPixelComponent(p));
-        *q++=ScaleQuantumToChar(GetBluePixelComponent(p));
+        *q++=ScaleQuantumToChar(GetPixelRed(p));
+        *q++=ScaleQuantumToChar(GetPixelGreen(p));
+        *q++=ScaleQuantumToChar(GetPixelBlue(p));
         p++;
       }
       (void) WriteBlob(image,(size_t) (q-pixels),pixels);
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,SaveImageTag,y,image->rows);
+          status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+                image->rows);
           if (status == MagickFalse)
             break;
         }

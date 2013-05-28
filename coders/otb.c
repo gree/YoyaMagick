@@ -17,7 +17,7 @@
 %                               January 2000                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -39,11 +39,14 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
 #include "magick/color-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -53,6 +56,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -101,20 +105,20 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   int
     byte;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   unsigned char
     bit,
@@ -144,13 +148,13 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   info=(unsigned char) ReadBlobByte(image);
   if (GetBit(info,4) == 0)
     {
-      image->columns=(unsigned long) ReadBlobByte(image);
-      image->rows=(unsigned long) ReadBlobByte(image);
+      image->columns=(size_t) ReadBlobByte(image);
+      image->rows=(size_t) ReadBlobByte(image);
     }
   else
     {
-      image->columns=(unsigned long) ReadBlobMSBShort(image);
-      image->rows=(unsigned long) ReadBlobMSBShort(image);
+      image->columns=(size_t) ReadBlobMSBShort(image);
+      image->rows=(size_t) ReadBlobMSBShort(image);
     }
   if ((image->columns == 0) || (image->rows == 0))
     ThrowReaderException(CorruptImageError,"ImproperImageHeader");
@@ -167,7 +171,7 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Convert bi-level image to pixel packets.
   */
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
@@ -175,7 +179,7 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
     indexes=GetAuthenticIndexQueue(image);
     bit=0;
     byte=0;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       if (bit == 0)
         {
@@ -183,7 +187,8 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
           if (byte == EOF)
             ThrowReaderException(CorruptImageError,"CorruptImage");
         }
-      indexes[x]=(IndexPacket) ((byte & (0x01 << (7-bit))) ? 0x00 : 0x01);
+      SetPixelIndex(indexes+x,(byte & (0x01 << (7-bit))) ?
+        0x00 : 0x01);
       bit++;
       if (bit == 8)
         bit=0;
@@ -192,7 +197,8 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
       break;
     if (image->previous == (Image *) NULL)
       {
-        status=SetImageProgress(image,LoadImageTag,y,image->rows);
+        status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+                image->rows);
         if (status == MagickFalse)
           break;
       }
@@ -225,10 +231,10 @@ static Image *ReadOTBImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterOTBImage method is:
 %
-%      unsigned long RegisterOTBImage(void)
+%      size_t RegisterOTBImage(void)
 %
 */
-ModuleExport unsigned long RegisterOTBImage(void)
+ModuleExport size_t RegisterOTBImage(void)
 {
   MagickInfo
     *entry;
@@ -298,17 +304,17 @@ static MagickBooleanType WriteOTBImage(const ImageInfo *image_info,Image *image)
 #define SetBit(a,i,set) \
   a=(unsigned char) ((set) ? (a) | (1L << (i)) : (a) & ~(1L << (i)))
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
+
+  ssize_t
+    y;
 
   unsigned char
     bit,
@@ -327,8 +333,8 @@ static MagickBooleanType WriteOTBImage(const ImageInfo *image_info,Image *image)
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   /*
     Convert image to a bi-level image.
   */
@@ -348,16 +354,16 @@ static MagickBooleanType WriteOTBImage(const ImageInfo *image_info,Image *image)
       (void) WriteBlobByte(image,(unsigned char) image->rows);
     }
   (void) WriteBlobByte(image,1);  /* depth */
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
       break;
     bit=0;
     byte=0;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      if (PixelIntensity(p) < ((Quantum) QuantumRange/2.0))
+      if (GetPixelLuma(image,p) < (QuantumRange/2.0))
         byte|=0x1 << (7-bit);
       bit++;
       if (bit == 8)
@@ -372,7 +378,8 @@ static MagickBooleanType WriteOTBImage(const ImageInfo *image_info,Image *image)
       (void) WriteBlobByte(image,byte);
     if (image->previous == (Image *) NULL)
       {
-        status=SetImageProgress(image,SaveImageTag,y,image->rows);
+        status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+          image->rows);
         if (status == MagickFalse)
           break;
       }

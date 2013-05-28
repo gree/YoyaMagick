@@ -17,7 +17,7 @@
 %                               January 2008                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,7 +40,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
-#include "magick/property.h"
+#include "magick/artifact.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/color.h"
@@ -59,9 +59,11 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/profile.h"
-#include "magick/resource_.h"
+#include "magick/property.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -134,18 +136,18 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
   register char
     *p;
 
-  register long
+  register ssize_t
     c;
 
   SegmentInfo
     bounds;
 
-  ssize_t
-    count;
-
-  unsigned long
+  size_t
     height,
     width;
+
+  ssize_t
+    count;
 
   assert(image_info != (const ImageInfo *) NULL);
   assert(image_info->signature == MagickSignature);
@@ -191,7 +193,7 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
       if ((flags & SigmaValue) == 0)
         image->y_resolution=image->x_resolution;
     }
-  (void) FormatMagickString(density,MaxTextExtent,"%gx%g",
+  (void) FormatLocaleString(density,MaxTextExtent,"%gx%g",
     image->x_resolution,image->y_resolution);
   /*
     Determine page geometry from the XPS media box.
@@ -248,8 +250,8 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
     /*
       Set XPS render geometry.
     */
-    width=(unsigned long) (bounds.x2-bounds.x1+0.5);
-    height=(unsigned long) (bounds.y2-bounds.y1+0.5);
+    width=(size_t) (floor(bounds.x2+0.5)-ceil(bounds.x1-0.5));
+    height=(size_t) (floor(bounds.y2+0.5)-ceil(bounds.y1-0.5));
     if (width > page.width)
       page.width=width;
     if (height > page.height)
@@ -263,8 +265,8 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
     (void) ParseAbsoluteGeometry(PSPageGeometry,&page);
   if (image_info->page != (char *) NULL)
     (void) ParseAbsoluteGeometry(image_info->page,&page);
-  (void) FormatMagickString(geometry,MaxTextExtent,"%lux%lu",
-    page.width,page.height);
+  (void) FormatLocaleString(geometry,MaxTextExtent,"%.20gx%.20g",(double)
+    page.width,(double) page.height);
   if (image_info->monochrome != MagickFalse)
     delegate_info=GetDelegateInfo("xps:mono",(char *) NULL,exception);
   else
@@ -279,32 +281,32 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
     (void) ParseAbsoluteGeometry(PSPageGeometry,&page);
   if (image_info->page != (char *) NULL)
     (void) ParseAbsoluteGeometry(image_info->page,&page);
-  page.width=(unsigned long) (page.width*image->y_resolution/delta.x+0.5);
-  page.height=(unsigned long) (page.height*image->y_resolution/delta.y+0.5);
-  (void) FormatMagickString(options,MaxTextExtent,"-g%lux%lu ",
-    page.width,page.height);
+  page.width=(size_t) floor(page.width*image->y_resolution/delta.x+0.5);
+  page.height=(size_t) floor(page.height*image->y_resolution/delta.y+0.5);
+  (void) FormatLocaleString(options,MaxTextExtent,"-g%.20gx%.20g ",(double)
+    page.width,(double) page.height);
   image=DestroyImage(image);
   read_info=CloneImageInfo(image_info);
   *read_info->magick='\0';
   if (read_info->number_scenes != 0)
     {
       if (read_info->number_scenes != 1)
-        (void) FormatMagickString(options,MaxTextExtent,"-dLastPage=%lu",
-          read_info->scene+read_info->number_scenes);
+        (void) FormatLocaleString(options,MaxTextExtent,"-dLastPage=%.20g",
+          (double) (read_info->scene+read_info->number_scenes));
       else
-        (void) FormatMagickString(options,MaxTextExtent,
-          "-dFirstPage=%lu -dLastPage=%lu",read_info->scene+1,read_info->scene+
-          read_info->number_scenes);
+        (void) FormatLocaleString(options,MaxTextExtent,
+          "-dFirstPage=%.20g -dLastPage=%.20g",(double) read_info->scene+1,
+          (double) (read_info->scene+read_info->number_scenes));
       read_info->number_scenes=0;
       if (read_info->scenes != (char *) NULL)
         *read_info->scenes='\0';
     }
   if (read_info->authenticate != (char *) NULL)
-    (void) FormatMagickString(options+strlen(options),MaxTextExtent,
+    (void) FormatLocaleString(options+strlen(options),MaxTextExtent,
       " -sXPSPassword=%s",read_info->authenticate);
   (void) CopyMagickString(filename,read_info->filename,MaxTextExtent);
   (void) AcquireUniqueFilename(read_info->filename);
-  (void) FormatMagickString(command,MaxTextExtent,
+  (void) FormatLocaleString(command,MaxTextExtent,
     GetDelegateCommands(delegate_info),
     read_info->antialias != MagickFalse ? 4 : 1,
     read_info->antialias != MagickFalse ? 4 : 1,density,options,
@@ -351,7 +353,7 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  RegisterXPSImage() adds attributes for the Microsoft XML Paper Specification 
+%  RegisterXPSImage() adds attributes for the Microsoft XML Paper Specification
 %  format to the list of supported formats.  The attributes include the image
 %  format tag, a method to read and/or write the format, whether the format
 %  supports the saving of more than one frame to the same file or blob,
@@ -360,10 +362,10 @@ static Image *ReadXPSImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterXPSImage method is:
 %
-%      unsigned long RegisterXPSImage(void)
+%      size_t RegisterXPSImage(void)
 %
 */
-ModuleExport unsigned long RegisterXPSImage(void)
+ModuleExport size_t RegisterXPSImage(void)
 {
   MagickInfo
     *entry;

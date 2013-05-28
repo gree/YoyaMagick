@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -53,7 +53,9 @@
 #include "magick/cache.h"
 #include "magick/colormap-private.h"
 #include "magick/color-private.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -64,8 +66,8 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/property.h"
-#include "magick/quantum-private.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -83,7 +85,7 @@ typedef struct _PDBInfo
     attributes,
     version;
 
-  unsigned long
+  size_t
     create_time,
     modify_time,
     archive_time,
@@ -95,7 +97,7 @@ typedef struct _PDBInfo
     type[4],  /* database type identifier "vIMG" */
     id[4];    /* database creator identifier "View" */
 
-  unsigned long
+  size_t
     seed,
     next_record;
 
@@ -110,7 +112,7 @@ typedef struct _PDBImage
     version,
     type;
 
-  unsigned long
+  size_t
     reserved_1,
     note;
 
@@ -118,7 +120,7 @@ typedef struct _PDBImage
     x_last,
     y_last;
 
-  unsigned long
+  size_t
     reserved_2;
 
   short int
@@ -270,11 +272,6 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   IndexPacket
     index;
 
-  long
-    img_offset, /* TS */
-    comment_offset = 0,
-    y;
-
   MagickBooleanType
     status;
 
@@ -287,7 +284,7 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
@@ -296,16 +293,20 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   register unsigned char
     *p;
 
+  size_t
+    bits_per_pixel,
+    num_pad_bytes, /* TS */
+    one,
+    packets;
+
   ssize_t
-    count;
+    count,
+    img_offset, /* TS */
+    comment_offset = 0,
+    y;
 
   unsigned char
     *pixels;
-
-  unsigned long
-    num_pad_bytes, /* TS */
-    bits_per_pixel,
-    packets;
 
   /*
     Open image file.
@@ -349,22 +350,21 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Read record header.
   */
-  img_offset=(long) ReadBlobMSBLong(image); /* TS */
+  img_offset=(int) ReadBlobMSBLong(image); /* TS */
   attributes=(unsigned char) ReadBlobByte(image);
+  (void) attributes;
   count=ReadBlob(image,3,(unsigned char *) tag);
   if (count != 3  ||  memcmp(tag,"\x6f\x80\x00",3) != 0)
     ThrowReaderException(CorruptImageError,"CorruptImage");
-
   if (pdb_info.number_records > 1)
     {
-      comment_offset=(long) ReadBlobMSBLong(image);
+      comment_offset=(int) ReadBlobMSBLong(image);
       attributes=(unsigned char) ReadBlobByte(image);
       count=ReadBlob(image,3,(unsigned char *) tag);
       if (count != 3  ||  memcmp(tag,"\x6f\x80\x01",3) != 0)
         ThrowReaderException(CorruptImageError,"CorruptImage");
     }
-
-  num_pad_bytes = (unsigned long) (img_offset - TellBlob( image ));
+  num_pad_bytes = (size_t) (img_offset - TellBlob( image ));
   while (num_pad_bytes--) ReadBlobByte( image );
   /*
     Read image header.
@@ -384,12 +384,13 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
   /*
     Initialize image structure.
   */
-  image->columns=(unsigned long) pdb_image.width;
-  image->rows=(unsigned long) pdb_image.height;
+  image->columns=(size_t) pdb_image.width;
+  image->rows=(size_t) pdb_image.height;
   image->depth=8;
   image->storage_class=PseudoClass;
   bits_per_pixel=pdb_image.type == 0 ? 2UL : pdb_image.type == 2 ? 4UL : 1UL;
-  if (AcquireImageColormap(image,1 << bits_per_pixel) == MagickFalse)
+  one=1;
+  if (AcquireImageColormap(image,one << bits_per_pixel) == MagickFalse)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   if (image_info->ping != MagickFalse)
     {
@@ -432,28 +433,29 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
       /*
         Read 1-bit PDB image.
       */
-      for (y=0; y < (long) image->rows; y++)
+      for (y=0; y < (ssize_t) image->rows; y++)
       {
         q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
         if (q == (PixelPacket *) NULL)
           break;
         indexes=GetAuthenticIndexQueue(image);
-        for (x=0; x < ((long) image->columns-7); x+=8)
+        for (x=0; x < ((ssize_t) image->columns-7); x+=8)
         {
           for (bit=0; bit < 8; bit++)
           {
             index=(IndexPacket) (*p & (0x80 >> bit) ? 0x00 : 0x01);
-            indexes[x+bit]=index;
-            *q++=image->colormap[(long) index];
+            SetPixelIndex(indexes+x+bit,index);
           }
           p++;
         }
         if (SyncAuthenticPixels(image,exception) == MagickFalse)
           break;
-        status=SetImageProgress(image,LoadImageTag,y,image->rows);
+        status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+          image->rows);
         if (status == MagickFalse)
           break;
       }
+      (void) SyncImage(image);
       break;
     }
     case 2:
@@ -461,34 +463,32 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
       /*
         Read 2-bit PDB image.
       */
-      for (y=0; y < (long) image->rows; y++)
+      for (y=0; y < (ssize_t) image->rows; y++)
       {
         q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
         if (q == (PixelPacket *) NULL)
           break;
         indexes=GetAuthenticIndexQueue(image);
-        for (x=0; x < (long) image->columns; x+=4)
+        for (x=0; x < (ssize_t) image->columns; x+=4)
         {
           index=ConstrainColormapIndex(image,3UL-((*p >> 6) & 0x03));
-          indexes[x]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x,index);
           index=ConstrainColormapIndex(image,3UL-((*p >> 4) & 0x03));
-          indexes[x+1]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x+1,index);
           index=ConstrainColormapIndex(image,3UL-((*p >> 2) & 0x03));
-          indexes[x+2]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x+2,index);
           index=ConstrainColormapIndex(image,3UL-((*p) & 0x03));
-          indexes[x+3]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x+3,index);
           p++;
         }
         if (SyncAuthenticPixels(image,exception) == MagickFalse)
           break;
-        status=SetImageProgress(image,LoadImageTag,y,image->rows);
+        status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+          image->rows);
         if (status == MagickFalse)
           break;
       }
+      (void) SyncImage(image);
       break;
     }
     case 4:
@@ -496,28 +496,28 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
       /*
         Read 4-bit PDB image.
       */
-      for (y=0; y < (long) image->rows; y++)
+      for (y=0; y < (ssize_t) image->rows; y++)
       {
         q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
         if (q == (PixelPacket *) NULL)
           break;
         indexes=GetAuthenticIndexQueue(image);
-        for (x=0; x < (long) image->columns; x+=2)
+        for (x=0; x < (ssize_t) image->columns; x+=2)
         {
           index=ConstrainColormapIndex(image,15UL-((*p >> 4) & 0x0f));
-          indexes[x]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x,index);
           index=ConstrainColormapIndex(image,15UL-((*p) & 0x0f));
-          indexes[x+1]=index;
-          *q++=image->colormap[(long) index];
+          SetPixelIndex(indexes+x+1,index);
           p++;
         }
         if (SyncAuthenticPixels(image,exception) == MagickFalse)
           break;
-        status=SetImageProgress(image,LoadImageTag,y,image->rows);
+        status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+          image->rows);
         if (status == MagickFalse)
           break;
       }
+      (void) SyncImage(image);
       break;
     }
     default:
@@ -539,10 +539,10 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
       register char
         *p;
 
-      unsigned long
+      size_t
         length;
 
-      num_pad_bytes = (unsigned long) (comment_offset - TellBlob( image ));
+      num_pad_bytes = (size_t) (comment_offset - TellBlob( image ));
       while (num_pad_bytes--) ReadBlobByte( image );
 
       /*
@@ -597,10 +597,10 @@ static Image *ReadPDBImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterPDBImage method is:
 %
-%      unsigned long RegisterPDBImage(void)
+%      size_t RegisterPDBImage(void)
 %
 */
-ModuleExport unsigned long RegisterPDBImage(void)
+ModuleExport size_t RegisterPDBImage(void)
 {
   MagickInfo
     *entry;
@@ -666,7 +666,7 @@ ModuleExport void UnregisterPDBImage(void)
 */
 
 static unsigned char *EncodeRLE(unsigned char *destination,
-  unsigned char *source,unsigned long literal,unsigned long repeat)
+  unsigned char *source,size_t literal,size_t repeat)
 {
   if (literal > 0)
     *destination++=(unsigned char) (literal-1);
@@ -688,9 +688,6 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   int
     bits;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
@@ -706,25 +703,26 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
 
   register unsigned char
     *q;
 
   size_t
-    packet_size;
+    bits_per_pixel,
+    literal,
+    packets,
+    packet_size,
+    repeat;
+
+  ssize_t
+    y;
 
   unsigned char
     *buffer,
     *runlength,
     *scanline;
-
-  unsigned long
-    bits_per_pixel,
-    literal,
-    packets,
-    repeat;
 
   /*
     Open output image file.
@@ -738,9 +736,8 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
-
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   if (image -> colors <= 2  ||  GetImageType( image, &image -> exception ) == BilevelType) { /* TS */
     bits_per_pixel = 1;
   } else if (image -> colors <= 4) {
@@ -770,16 +767,16 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   (void) WriteBlob(image,32,(unsigned char *) pdb_info.name);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_info.attributes);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_info.version);
-  (void) WriteBlobMSBLong(image,pdb_info.create_time);
-  (void) WriteBlobMSBLong(image,pdb_info.modify_time);
-  (void) WriteBlobMSBLong(image,pdb_info.archive_time);
-  (void) WriteBlobMSBLong(image,pdb_info.modify_number);
-  (void) WriteBlobMSBLong(image,pdb_info.application_info);
-  (void) WriteBlobMSBLong(image,pdb_info.sort_info);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.create_time);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.modify_time);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.archive_time);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.modify_number);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.application_info);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.sort_info);
   (void) WriteBlob(image,4,(unsigned char *) pdb_info.type);
   (void) WriteBlob(image,4,(unsigned char *) pdb_info.id);
-  (void) WriteBlobMSBLong(image,(unsigned long) pdb_info.seed);
-  (void) WriteBlobMSBLong(image,(unsigned long) pdb_info.next_record);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.seed);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_info.next_record);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_info.number_records);
   (void) CopyMagickString(pdb_image.name,pdb_info.name,32);
   pdb_image.version=1;  /* RLE Compressed */
@@ -813,20 +810,20 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
     sizeof(*scanline));
   if (scanline == (unsigned char *) NULL)
     ThrowWriterException(ResourceLimitError,"MemoryAllocationFailed");
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   /*
     Convert to GRAY raster scanline.
   */
   quantum_info=AcquireQuantumInfo(image_info,image);
   if (quantum_info == (QuantumInfo *) NULL)
     ThrowWriterException(ResourceLimitError,"MemoryAllocationFailed");
-  bits=8/(long) bits_per_pixel-1;  /* start at most significant bits */
+  bits=8/(int) bits_per_pixel-1;  /* start at most significant bits */
   literal=0;
   repeat=0;
   q=runlength;
   buffer[0]=0x00;
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
@@ -835,7 +832,7 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
       GrayQuantum,scanline,&image->exception);
     for (x=0; x < pdb_image.width; x++)
     {
-      if (x < (long) image->columns)
+      if (x < (ssize_t) image->columns)
         buffer[literal+repeat]|=(0xff-scanline[x*packet_size]) >>
           (8-bits_per_pixel) << bits*bits_per_pixel;
       bits--;
@@ -876,11 +873,12 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
                   literal-=0x80;
                 }
             }
-        bits=8/(long) bits_per_pixel-1;
+        bits=8/(int) bits_per_pixel-1;
         buffer[literal+repeat]=0x00;
       }
     }
-    status=SetImageProgress(image,SaveImageTag,y,image->rows);
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+                image->rows);
     if (status == MagickFalse)
       break;
   }
@@ -891,7 +889,7 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   /*
     Write the Image record header.
   */
-  (void) WriteBlobMSBLong(image,(unsigned long)
+  (void) WriteBlobMSBLong(image,(unsigned int)
     (TellBlob(image)+8*pdb_info.number_records));
   (void) WriteBlobByte(image,0x40);
   (void) WriteBlobByte(image,0x6f);
@@ -902,7 +900,7 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
       /*
         Write the comment record header.
       */
-      (void) WriteBlobMSBLong(image,(unsigned long) (TellBlob(image)+8+58+q-
+      (void) WriteBlobMSBLong(image,(unsigned int) (TellBlob(image)+8+58+q-
         runlength));
       (void) WriteBlobByte(image,0x40);
       (void) WriteBlobByte(image,0x6f);
@@ -915,11 +913,11 @@ static MagickBooleanType WritePDBImage(const ImageInfo *image_info,Image *image)
   (void) WriteBlob(image,32,(unsigned char *) pdb_image.name);
   (void) WriteBlobByte(image,(unsigned char) pdb_image.version);
   (void) WriteBlobByte(image,(unsigned char) pdb_image.type);
-  (void) WriteBlobMSBLong(image,pdb_image.reserved_1);
-  (void) WriteBlobMSBLong(image,pdb_image.note);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_image.reserved_1);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_image.note);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_image.x_last);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_image.y_last);
-  (void) WriteBlobMSBLong(image,pdb_image.reserved_2);
+  (void) WriteBlobMSBLong(image,(unsigned int) pdb_image.reserved_2);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_image.x_anchor);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_image.y_anchor);
   (void) WriteBlobMSBShort(image,(unsigned short) pdb_image.width);

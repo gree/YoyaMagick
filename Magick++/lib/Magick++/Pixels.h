@@ -14,7 +14,7 @@
 
 namespace Magick
 {
-  class MagickDLLDecl Pixels
+  class MagickPPExport Pixels
   {
   public:
 
@@ -27,14 +27,14 @@ namespace Magick
     // Transfer pixels from the image to the pixel view as defined by
     // the specified region. Modified pixels may be subsequently
     // transferred back to the image via sync.
-    PixelPacket* get ( const int x_, const int y_,
-		       const unsigned int columns_,const  unsigned int rows_ );
+    PixelPacket* get ( const ::ssize_t x_, const ::ssize_t y_,
+		       const size_t columns_,const  size_t rows_ );
 
     // Transfer read-only pixels from the image to the pixel view as
     // defined by the specified region.
-    const PixelPacket* getConst ( const int x_, const int y_,
-                                  const unsigned int columns_,
-                                  const unsigned int rows_ );
+    const PixelPacket* getConst ( const ::ssize_t x_, const ::ssize_t y_,
+                                  const size_t columns_,
+                                  const size_t rows_ );
     
     // Transfers the image view pixels to the image.
     void sync ( void );
@@ -42,23 +42,23 @@ namespace Magick
     // Allocate a pixel view region to store image pixels as defined
     // by the region rectangle.  This area is subsequently transferred
     // from the pixel view to the image via sync.
-    PixelPacket* set ( const int x_, const int y_,
-		       const unsigned int columns_, const unsigned int rows_ );
+    PixelPacket* set ( const ::ssize_t x_, const ::ssize_t y_,
+		       const size_t columns_, const size_t rows_ );
 
     // Return pixel colormap index array
     IndexPacket* indexes ( void );
 
     // Left ordinate of view
-    int x ( void ) const;
+    ::ssize_t x ( void ) const;
 
     // Top ordinate of view
-    int y ( void ) const;
+    ::ssize_t y ( void ) const;
 
     // Width of view
-    unsigned int columns ( void ) const;
+    size_t columns ( void ) const;
 
     // Height of view
-    unsigned int rows ( void ) const;
+    size_t rows ( void ) const;
 
 #if 0
     // Transfer one or more pixel components from a buffer or file
@@ -86,10 +86,10 @@ namespace Magick
 
     Magick::Image          _image;   // Image reference
     MagickCore::CacheView*   _view;    // Image view handle
-    int                    _x;       // Left ordinate of view
-    int                    _y;       // Top ordinate of view
-    unsigned int           _columns; // Width of view
-    unsigned int           _rows;    // Height of view
+    ::ssize_t                  _x;       // Left ordinate of view
+    ::ssize_t                  _y;       // Top ordinate of view
+    size_t           _columns; // Width of view
+    size_t           _rows;    // Height of view
     MagickCore:: ExceptionInfo _exception; // Any thrown exception
 
   }; // class Pixels
@@ -101,25 +101,25 @@ namespace Magick
 //
 
 // Left ordinate of view
-inline int Magick::Pixels::x ( void ) const
+inline ::ssize_t Magick::Pixels::x ( void ) const
 {
   return _x;
 }
 
 // Top ordinate of view
-inline int Magick::Pixels::y ( void ) const
+inline ::ssize_t Magick::Pixels::y ( void ) const
 {
   return _y;
 }
 
 // Width of view
-inline unsigned int Magick::Pixels::columns ( void ) const
+inline size_t Magick::Pixels::columns ( void ) const
 {
   return _columns;
 }
 
 // Height of view
-inline unsigned int Magick::Pixels::rows ( void ) const
+inline size_t Magick::Pixels::rows ( void ) const
 {
   return _rows;
 }

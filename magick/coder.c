@@ -17,7 +17,7 @@
 %                                 May 2001                                    %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -89,16 +89,17 @@ static const CoderMapInfo
     { "APP1JPEG", "META" },
     { "APP1", "META" },
     { "ARW", "DNG" },
+    { "AVI", "MPEG" },
     { "BIE", "JBIG" },
     { "BMP2", "BMP" },
     { "BMP3", "BMP" },
     { "B", "RAW" },
     { "BRF", "BRAILLE" },
-    { "BGR", "RGB" },
-    { "BRG", "RGB" },
+    { "BGRA", "BGR" },
     { "CMYKA", "CMYK" },
     { "C", "RAW" },
     { "CAL", "CALS" },
+    { "CANVAS", "XC" },
     { "CR2", "DNG" },
     { "CRW", "DNG" },
     { "CUR", "ICON" },
@@ -123,10 +124,9 @@ static const CoderMapInfo
     { "G3", "FAX" },
     { "GIF87", "GIF" },
     { "G", "RAW" },
-    { "GBR", "RGB" },
-    { "GRB", "RGB" },
     { "GRANITE", "MAGICK" },
     { "GROUP4", "TIFF" },
+    { "GV", "DOT" },
     { "K25", "DNG" },
     { "KDC", "DNG" },
     { "H", "MAGICK" },
@@ -145,6 +145,7 @@ static const CoderMapInfo
     { "JNG", "PNG" },
     { "JPC", "JP2" },
     { "J2C", "JP2" },
+    { "J2K", "JP2" },
     { "JPG", "JPEG" },
     { "JPX", "JP2" },
     { "K", "RAW" },
@@ -153,14 +154,16 @@ static const CoderMapInfo
     { "M4V", "MPEG" },
     { "M", "RAW" },
     { "MNG", "PNG" },
-    { "MOV", "PNG" },
+    { "MOV", "MPEG" },
     { "MP4", "MPEG" },
     { "MPG", "MPEG" },
     { "MPRI", "MPR" },
+    { "MEF", "DNG" },
     { "MRW", "DNG" },
     { "MSVG", "SVG" },
     { "NEF", "DNG" },
     { "NETSCAPE", "MAGICK" },
+    { "NRW", "DNG" },
     { "O", "RAW" },
     { "ORF", "DNG" },
     { "OTF", "TTF" },
@@ -189,12 +192,13 @@ static const CoderMapInfo
     { "RADIAL-GRADIENT", "GRADIENT" },
     { "RAF", "DNG" },
     { "RAS", "SUN" },
-    { "RBG", "RGB" },
     { "RGBA", "RGB" },
     { "RGBO", "RGB" },
     { "R", "RAW" },
     { "ROSE", "MAGICK" },
+    { "RW2", "DNG" },
     { "SHTML", "HTML" },
+    { "SPARSE-COLOR", "TXT" },
     { "SR2", "DNG" },
     { "SRF", "DNG" },
     { "SVGZ", "SVG" },
@@ -205,6 +209,7 @@ static const CoderMapInfo
     { "UBRL", "BRAILLE" },
     { "VDA", "TGA" },
     { "VST", "TGA" },
+    { "WIZARD", "MAGICK" },
     { "WMV", "MPEG" },
     { "WMFWIN32", "EMF" },
     { "WMZ", "WMF" },
@@ -212,10 +217,8 @@ static const CoderMapInfo
     { "XMP", "META" },
     { "XTRNARRAY", "XTRN" },
     { "XTRNBLOB", "XTRN" },
-    { "XTRNBSTR", "XTRN" },
     { "XTRNFILE", "XTRN" },
     { "XTRNIMAGE", "XTRN" },
-    { "XTRNSTREAM", "XTRN" },
     { "XV", "VIFF" },
     { "Y", "RAW" },
     { "YCbCrA", "YCbCr" }
@@ -350,7 +353,7 @@ MagickExport const CoderInfo *GetCoderInfo(const char *name,
 %  The format of the GetCoderInfoList function is:
 %
 %      const CoderInfo **GetCoderInfoList(const char *pattern,
-%        unsigned long *number_coders,ExceptionInfo *exception)
+%        size_t *number_coders,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -376,7 +379,7 @@ static int CoderInfoCompare(const void *x,const void *y)
 }
 
 MagickExport const CoderInfo **GetCoderInfoList(const char *pattern,
-  unsigned long *number_coders,ExceptionInfo *exception)
+  size_t *number_coders,ExceptionInfo *exception)
 {
   const CoderInfo
     **coder_map;
@@ -384,7 +387,7 @@ MagickExport const CoderInfo **GetCoderInfoList(const char *pattern,
   register const CoderInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -392,7 +395,7 @@ MagickExport const CoderInfo **GetCoderInfoList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_coders != (unsigned long *) NULL);
+  assert(number_coders != (size_t *) NULL);
   *number_coders=0;
   p=GetCoderInfo("*",exception);
   if (p == (const CoderInfo *) NULL)
@@ -417,7 +420,7 @@ MagickExport const CoderInfo **GetCoderInfoList(const char *pattern,
   UnlockSemaphoreInfo(coder_semaphore);
   qsort((void *) coder_map,(size_t) i,sizeof(*coder_map),CoderInfoCompare);
   coder_map[i]=(CoderInfo *) NULL;
-  *number_coders=(unsigned long) i;
+  *number_coders=(size_t) i;
   return(coder_map);
 }
 
@@ -436,7 +439,7 @@ MagickExport const CoderInfo **GetCoderInfoList(const char *pattern,
 %
 %  The format of the GetCoderList function is:
 %
-%      char **GetCoderList(const char *pattern,unsigned long *number_coders,
+%      char **GetCoderList(const char *pattern,size_t *number_coders,
 %        ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -461,7 +464,7 @@ static int CoderCompare(const void *x,const void *y)
 }
 
 MagickExport char **GetCoderList(const char *pattern,
-  unsigned long *number_coders,ExceptionInfo *exception)
+  size_t *number_coders,ExceptionInfo *exception)
 {
   char
     **coder_map;
@@ -469,7 +472,7 @@ MagickExport char **GetCoderList(const char *pattern,
   register const CoderInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -477,7 +480,7 @@ MagickExport char **GetCoderList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_coders != (unsigned long *) NULL);
+  assert(number_coders != (size_t *) NULL);
   *number_coders=0;
   p=GetCoderInfo("*",exception);
   if (p == (const CoderInfo *) NULL)
@@ -502,7 +505,7 @@ MagickExport char **GetCoderList(const char *pattern,
   UnlockSemaphoreInfo(coder_semaphore);
   qsort((void *) coder_map,(size_t) i,sizeof(*coder_map),CoderCompare);
   coder_map[i]=(char *) NULL;
-  *number_coders=(unsigned long) i;
+  *number_coders=(size_t) i;
   return(coder_map);
 }
 
@@ -580,14 +583,14 @@ MagickExport MagickBooleanType ListCoderInfo(FILE *file,
   const CoderInfo
     **coder_info;
 
-  long
-    j;
-
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_coders;
+
+  ssize_t
+    j;
 
   if (file == (const FILE *) NULL)
     file=stdout;
@@ -595,7 +598,7 @@ MagickExport MagickBooleanType ListCoderInfo(FILE *file,
   if (coder_info == (const CoderInfo **) NULL)
     return(MagickFalse);
   path=(const char *) NULL;
-  for (i=0; i < (long) number_coders; i++)
+  for (i=0; i < (ssize_t) number_coders; i++)
   {
     if (coder_info[i]->stealth != MagickFalse)
       continue;
@@ -603,18 +606,19 @@ MagickExport MagickBooleanType ListCoderInfo(FILE *file,
         (LocaleCompare(path,coder_info[i]->path) != 0))
       {
         if (coder_info[i]->path != (char *) NULL)
-          (void) fprintf(file,"\nPath: %s\n\n",coder_info[i]->path);
-        (void) fprintf(file,"Magick      Coder\n");
-        (void) fprintf(file,"-------------------------------------------------"
+          (void) FormatLocaleFile(file,"\nPath: %s\n\n",coder_info[i]->path);
+        (void) FormatLocaleFile(file,"Magick      Coder\n");
+        (void) FormatLocaleFile(file,
+          "-------------------------------------------------"
           "------------------------------\n");
       }
     path=coder_info[i]->path;
-    (void) fprintf(file,"%s",coder_info[i]->magick);
-    for (j=(long) strlen(coder_info[i]->magick); j <= 11; j++)
-      (void) fprintf(file," ");
+    (void) FormatLocaleFile(file,"%s",coder_info[i]->magick);
+    for (j=(ssize_t) strlen(coder_info[i]->magick); j <= 11; j++)
+      (void) FormatLocaleFile(file," ");
     if (coder_info[i]->name != (char *) NULL)
-      (void) fprintf(file,"%s",coder_info[i]->name);
-    (void) fprintf(file,"\n");
+      (void) FormatLocaleFile(file,"%s",coder_info[i]->name);
+    (void) FormatLocaleFile(file,"\n");
   }
   coder_info=(const CoderInfo **) RelinquishMagickMemory((void *) coder_info);
   (void) fflush(file);
@@ -638,7 +642,7 @@ MagickExport MagickBooleanType ListCoderInfo(FILE *file,
 %  The format of the LoadCoderList coder is:
 %
 %      MagickBooleanType LoadCoderList(const char *xml,const char *filename,
-%        const unsigned long depth,ExceptionInfo *exception)
+%        const size_t depth,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -671,7 +675,7 @@ static void *DestroyCoderNode(void *coder_info)
 }
 
 static MagickBooleanType LoadCoderList(const char *xml,const char *filename,
-  const unsigned long depth,ExceptionInfo *exception)
+  const size_t depth,ExceptionInfo *exception)
 {
   char
     keyword[MaxTextExtent],
@@ -781,7 +785,7 @@ static MagickBooleanType LoadCoderList(const char *xml,const char *filename,
         /*
           Coder element.
         */
-        coder_info=(CoderInfo *) AcquireAlignedMemory(1,sizeof(*coder_info));
+        coder_info=(CoderInfo *) AcquireMagickMemory(sizeof(*coder_info));
         if (coder_info == (CoderInfo *) NULL)
           ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
         (void) ResetMagickMemory(coder_info,0,sizeof(*coder_info));
@@ -885,7 +889,7 @@ static MagickBooleanType LoadCoderLists(const char *filename,
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -903,7 +907,7 @@ static MagickBooleanType LoadCoderLists(const char *filename,
           return(MagickFalse);
         }
     }
-  for (i=0; i < (long) (sizeof(CoderMap)/sizeof(*CoderMap)); i++)
+  for (i=0; i < (ssize_t) (sizeof(CoderMap)/sizeof(*CoderMap)); i++)
   {
     CoderInfo
       *coder_info;
@@ -912,7 +916,7 @@ static MagickBooleanType LoadCoderLists(const char *filename,
       *p;
 
     p=CoderMap+i;
-    coder_info=(CoderInfo *) AcquireAlignedMemory(1,sizeof(*coder_info));
+    coder_info=(CoderInfo *) AcquireMagickMemory(sizeof(*coder_info));
     if (coder_info == (CoderInfo *) NULL)
       {
         (void) ThrowMagickException(exception,GetMagickModule(),

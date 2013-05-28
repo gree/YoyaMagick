@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -22,55 +22,98 @@
 extern "C" {
 #endif
 
-#include <magick/pixel.h>
-
-static inline MagickBooleanType IsGrayColorspace(
-  const ColorspaceType colorspace)
-{
-  if ((colorspace == GRAYColorspace) || (colorspace == Rec601LumaColorspace) || 
-      (colorspace == Rec709LumaColorspace))
-    return(MagickTrue);
-  return(MagickFalse);
-}
+#include "magick/image.h"
+#include "magick/image-private.h"
+#include "magick/pixel.h"
+#include "magick/pixel-accessor.h"
 
 static inline void ConvertRGBToCMYK(MagickPixelPacket *pixel)
 {
   MagickRealType
     black,
+    blue,
     cyan,
+    green,
     magenta,
+    red,
     yellow;
                                                                                 
-  cyan=(MagickRealType) (QuantumRange-pixel->red);
-  magenta=(MagickRealType) (QuantumRange-pixel->green);
-  yellow=(MagickRealType) (QuantumRange-pixel->blue);
-  black=(MagickRealType) QuantumRange;
-  if (cyan < black)
-    black=cyan;
+  if (pixel->colorspace != sRGBColorspace)
+    {
+      red=QuantumScale*pixel->red;
+      green=QuantumScale*pixel->green;
+      blue=QuantumScale*pixel->blue;
+    }
+  else
+    {
+      red=DecodePixelGamma(pixel->red);
+      green=DecodePixelGamma(pixel->green);
+      blue=DecodePixelGamma(pixel->blue);
+    }
+  if ((fabs(red) < MagickEpsilon) && (fabs(green) < MagickEpsilon) &&
+      (fabs(blue) < MagickEpsilon))
+    {
+      pixel->index=(MagickRealType) QuantumRange;
+      return;
+    }
+  cyan=(MagickRealType) (1.0-red);
+  magenta=(MagickRealType) (1.0-green);
+  yellow=(MagickRealType) (1.0-blue);
+  black=cyan;
   if (magenta < black)
     black=magenta;
   if (yellow < black)
     black=yellow;
-  if (black == QuantumRange)
-    {
-      cyan=0.0;
-      magenta=0.0;
-      yellow=0.0;
-    }
-  else
-    {
-      cyan=(MagickRealType) (QuantumRange*(cyan-black)/
-        (QuantumRange-black));
-      magenta=(MagickRealType) (QuantumRange*(magenta-black)/
-        (QuantumRange-black));
-      yellow=(MagickRealType) (QuantumRange*(yellow-black)/
-        (QuantumRange-black));
-    }
+  cyan=(MagickRealType) ((cyan-black)/(1.0-black));
+  magenta=(MagickRealType) ((magenta-black)/(1.0-black));
+  yellow=(MagickRealType) ((yellow-black)/(1.0-black));
   pixel->colorspace=CMYKColorspace;
-  pixel->red=cyan;
-  pixel->green=magenta;
-  pixel->blue=yellow;
-  pixel->index=black;
+  pixel->red=QuantumRange*cyan;
+  pixel->green=QuantumRange*magenta;
+  pixel->blue=QuantumRange*yellow;
+  pixel->index=QuantumRange*black;
+}
+
+static inline MagickBooleanType IsCMYKColorspace(
+  const ColorspaceType colorspace)
+{
+  if (colorspace == CMYKColorspace)
+    return(MagickTrue);
+  return(MagickFalse);
+}
+
+static inline MagickBooleanType IsGrayColorspace(
+  const ColorspaceType colorspace)
+{
+  if ((colorspace == GRAYColorspace) || (colorspace == Rec601LumaColorspace) ||
+      (colorspace == Rec709LumaColorspace))
+    return(MagickTrue);
+  return(MagickFalse);
+}
+
+static inline MagickBooleanType IsRGBColorspace(const ColorspaceType colorspace)
+{
+  if ((colorspace == RGBColorspace) || (colorspace == scRGBColorspace))
+    return(MagickTrue);
+  return(MagickFalse);
+}
+
+static inline MagickBooleanType IssRGBColorspace(
+  const ColorspaceType colorspace)
+{
+  if ((colorspace == sRGBColorspace) || (colorspace == TransparentColorspace))
+    return(MagickTrue);
+  return(MagickFalse);
+}
+
+static inline MagickBooleanType IssRGBCompatibleColorspace(
+  const ColorspaceType colorspace)
+{
+  if ((colorspace == sRGBColorspace) || (colorspace == RGBColorspace) ||
+      (colorspace == scRGBColorspace) || (colorspace == GRAYColorspace) ||
+      (colorspace == TransparentColorspace))
+    return(MagickTrue);
+  return(MagickFalse);
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)

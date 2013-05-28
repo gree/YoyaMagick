@@ -17,7 +17,7 @@
 %                                July 1992                                    %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -186,9 +186,7 @@ static MagickBooleanType AnimateUsage(void)
       (char *) NULL
     };
 
-  (void) printf("Version: %s\n",GetMagickVersion((unsigned long *) NULL));
-  (void) printf("Copyright: %s\n",GetMagickCopyright());
-  (void) printf("Features: %s\n\n",GetMagickFeatures());
+  ListMagickVersion(stdout);
   (void) printf("Usage: %s [options ...] file [ [options ...] file ...]\n",
     GetClientName());
   (void) printf("\nImage Settings:\n");
@@ -239,7 +237,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
     } \
   XDestroyResourceInfo(&resource_info); \
   DestroyImageStack(); \
-  for (i=0; i < (long) argc; i++) \
+  for (i=0; i < (ssize_t) argc; i++) \
     argv[i]=DestroyString(argv[i]); \
   argv=(char **) RelinquishMagickMemory(argv); \
 }
@@ -274,13 +272,10 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   ImageStack
     image_stack[MaxImageStackDepth+1];
 
-  long
-    j,
-    k;
-
   MagickBooleanType
     fire,
-    pend;
+    pend,
+    respect_parenthesis;
 
   MagickStatusType
     status;
@@ -288,8 +283,12 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   QuantizeInfo
     *quantize_info;
 
-  register long
+  register ssize_t
     i;
+
+  ssize_t
+    j,
+    k;
 
   XResourceInfo
     resource_info;
@@ -311,10 +310,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       if ((LocaleCompare("version",option+1) == 0) ||
           (LocaleCompare("-version",option+1) == 0))
         {
-          (void) fprintf(stdout,"Version: %s\n",
-            GetMagickVersion((unsigned long *) NULL));
-          (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-          (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+          ListMagickVersion(stdout);
           return(MagickFalse);
         }
     }
@@ -326,6 +322,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   NewImageStack();
   option=(char *) NULL;
   pend=MagickFalse;
+  respect_parenthesis=MagickFalse;
   resource_database=(XrmDatabase) NULL;
   (void) ResetMagickMemory(&resource_info,0,sizeof(XResourceInfo));
   server_name=(char *) NULL;
@@ -338,7 +335,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   if (status == MagickFalse)
     ThrowAnimateException(ResourceLimitError,"MemoryAllocationFailed",
       image_info->filename);
-  for (i=1; i < (long) argc; i++)
+  for (i=1; i < (ssize_t) argc; i++)
   {
     /*
       Check command line for server name.
@@ -350,7 +347,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           User specified server name.
         */
         i++;
-        if (i == (long) argc)
+        if (i == (ssize_t) argc)
           ThrowAnimateException(OptionError,"MissingArgument",option);
         server_name=argv[i];
       }
@@ -377,7 +374,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   resource_value=XGetResourceInstance(resource_database,GetClientName(),
     "interlace","none");
   image_info->interlace=(InterlaceType)
-    ParseMagickOption(MagickInterlaceOptions,MagickFalse,resource_value);
+    ParseCommandOption(MagickInterlaceOptions,MagickFalse,resource_value);
   resource_value=XGetResourceInstance(resource_database,GetClientName(),
     "verbose","False");
   image_info->verbose=IsMagickTrue(resource_value);
@@ -387,9 +384,9 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
   /*
     Parse command line.
   */
-  for (i=1; i <= (long) argc; i++)
+  for (i=1; i <= (ssize_t) argc; i++)
   {
-    if (i < (long) argc)
+    if (i < (ssize_t) argc)
       option=argv[i];
     else
       if (image != (Image *) NULL)
@@ -428,7 +425,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         PopImageStack();
         continue;
       }
-    if (IsMagickOption(option) == MagickFalse)
+    if (IsCommandOption(option) == MagickFalse)
       {
         const char
           *filename;
@@ -441,11 +438,12 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         */
         FireImageStack(MagickFalse,MagickFalse,pend);
         filename=option;
-        if ((LocaleCompare(filename,"--") == 0) && (i < (argc-1)))
+        if ((LocaleCompare(filename,"--") == 0) && (i < (ssize_t) (argc-1)))
           {
             option=argv[++i];
             filename=option;
           }
+        (void) SetImageOption(image_info,"filename",filename);
         (void) CopyMagickString(image_info->filename,filename,MaxTextExtent);
         if (image_info->ping != MagickFalse)
           images=PingImages(image_info,exception);
@@ -465,15 +463,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("alpha",option+1) == 0)
           {
-            long
+            ssize_t
               type;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            type=ParseMagickOption(MagickAlphaOptions,MagickFalse,argv[i]);
+            type=ParseCommandOption(MagickAlphaOptions,MagickFalse,argv[i]);
             if (type < 0)
               ThrowAnimateException(OptionError,"UnrecognizedAlphaChannelType",
                 argv[i]);
@@ -484,7 +482,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -502,7 +500,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.background_color=argv[i];
             break;
@@ -512,7 +510,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.border_color=argv[i];
             break;
@@ -523,7 +521,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if ((i == (long) argc) || (IsGeometry(argv[i]) == MagickFalse))
+            if ((i == (ssize_t) argc) || (IsGeometry(argv[i]) == MagickFalse))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.border_width=(unsigned int)
               StringToUnsignedLong(argv[i]);
@@ -538,7 +536,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -546,13 +544,13 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("channel",option+1) == 0)
           {
-            long
+            ssize_t
               channel;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             channel=ParseChannelOption(argv[i]);
             if (channel < 0)
@@ -576,7 +574,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             else
               {
                 i++;
-                if (i == (long) (argc-1))
+                if (i == (ssize_t) (argc-1))
                   ThrowAnimateException(OptionError,"MissingArgument",option);
                 if (IsSceneGeometry(argv[i],MagickFalse) == MagickFalse)
                   ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -595,7 +593,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.colormap=UndefinedColormap;
             if (LocaleCompare("private",argv[i]) == 0)
@@ -613,7 +611,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -622,15 +620,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("colorspace",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,
               MagickFalse,argv[i]);
             if (colorspace < 0)
               ThrowAnimateException(OptionError,"UnrecognizedColorspace",
@@ -644,7 +642,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -656,15 +654,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("debug",option+1) == 0)
           {
-            long
+            ssize_t
               event;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            event=ParseMagickOption(MagickLogEventOptions,MagickFalse,argv[i]);
+            event=ParseCommandOption(MagickLogEventOptions,MagickFalse,argv[i]);
             if (event < 0)
               ThrowAnimateException(OptionError,"UnrecognizedEventType",
                 argv[i]);
@@ -676,14 +674,14 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("define",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (*option == '+')
               {
@@ -702,7 +700,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -713,7 +711,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -724,7 +722,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -735,21 +733,21 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("dispose",option+1) == 0)
           {
-            long
+            ssize_t
               dispose;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            dispose=ParseMagickOption(MagickDisposeOptions,MagickFalse,argv[i]);
+            dispose=ParseCommandOption(MagickDisposeOptions,MagickFalse,argv[i]);
             if (dispose < 0)
               ThrowAnimateException(OptionError,"UnrecognizedDisposeMethod",
                 argv[i]);
@@ -757,16 +755,16 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("dither",option+1) == 0)
           {
-            long
+            ssize_t
               method;
 
             quantize_info->dither=MagickFalse;
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            method=ParseMagickOption(MagickDitherOptions,MagickFalse,argv[i]);
+            method=ParseCommandOption(MagickDitherOptions,MagickFalse,argv[i]);
             if (method < 0)
               ThrowAnimateException(OptionError,"UnrecognizedDitherMethod",
                 argv[i]);
@@ -779,7 +777,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -794,7 +792,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -806,15 +804,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("filter",option+1) == 0)
           {
-            long
+            ssize_t
               filter;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            filter=ParseMagickOption(MagickFilterOptions,MagickFalse,argv[i]);
+            filter=ParseCommandOption(MagickFilterOptions,MagickFalse,argv[i]);
             if (filter < 0)
               ThrowAnimateException(OptionError,"UnrecognizedImageFilter",
                 argv[i]);
@@ -827,7 +825,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.font=XGetResourceClass(resource_database,
               GetClientName(),"font",argv[i]);
@@ -838,7 +836,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.foreground_color=argv[i];
             break;
@@ -848,7 +846,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -859,7 +857,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         if (LocaleCompare("gamma",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -871,7 +869,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -880,15 +878,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("gravity",option+1) == 0)
           {
-            long
+            ssize_t
               gravity;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            gravity=ParseMagickOption(MagickGravityOptions,MagickFalse,
+            gravity=ParseCommandOption(MagickGravityOptions,MagickFalse,
               argv[i]);
             if (gravity < 0)
               ThrowAnimateException(OptionError,"UnrecognizedGravityType",
@@ -912,7 +910,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -933,15 +931,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("interlace",option+1) == 0)
           {
-            long
+            ssize_t
               interlace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            interlace=ParseMagickOption(MagickInterlaceOptions,MagickFalse,
+            interlace=ParseCommandOption(MagickInterlaceOptions,MagickFalse,
               argv[i]);
             if (interlace < 0)
               ThrowAnimateException(OptionError,"UnrecognizedInterlaceType",
@@ -950,15 +948,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
           }
         if (LocaleCompare("interpolate",option+1) == 0)
           {
-            long
+            ssize_t
               interpolate;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            interpolate=ParseMagickOption(MagickInterpolateOptions,MagickFalse,
+            interpolate=ParseCommandOption(MagickInterpolateOptions,MagickFalse,
               argv[i]);
             if (interpolate < 0)
               ThrowAnimateException(OptionError,"UnrecognizedInterpolateMethod",
@@ -974,7 +972,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -986,51 +984,52 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             double
               value;
 
-            long
+            ssize_t
               resource;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            resource=ParseMagickOption(MagickResourceOptions,MagickFalse,
+            resource=ParseCommandOption(MagickResourceOptions,MagickFalse,
               argv[i]);
             if (resource < 0)
               ThrowAnimateException(OptionError,"UnrecognizedResourceType",
                 argv[i]);
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            value=strtod(argv[i],&p);
+            value=StringToDouble(argv[i],&p);
+            (void) value;
             if ((p == argv[i]) && (LocaleCompare("unlimited",argv[i]) != 0))
               ThrowAnimateInvalidArgumentException(option,argv[i]);
             break;
           }
         if (LocaleCompare("list",option+1) == 0)
           {
-            long
+            ssize_t
               list;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            list=ParseMagickOption(MagickListOptions,MagickFalse,argv[i]);
+            list=ParseCommandOption(MagickListOptions,MagickFalse,argv[i]);
             if (list < 0)
               ThrowAnimateException(OptionError,"UnrecognizedListType",argv[i]);
-            (void) MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
+            status=MogrifyImageInfo(image_info,(int) (i-j+1),(const char **)
               argv+j,exception);
             DestroyAnimate();
-            return(MagickTrue);
+            return(status != 0 ? MagickFalse : MagickTrue);
           }
         if (LocaleCompare("log",option+1) == 0)
           {
             if (*option == '+')
               break;
             i++;
-            if ((i == (long) argc) ||
+            if ((i == (ssize_t) argc) ||
                 (strchr(argv[i],'%') == (char *) NULL))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
@@ -1040,7 +1039,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1057,7 +1056,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
               break;
             (void) CopyMagickString(argv[i]+1,"san",MaxTextExtent);
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.map_type=argv[i];
             break;
@@ -1069,7 +1068,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.matte_color=argv[i];
             break;
@@ -1094,7 +1093,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.name=ConstantString(argv[i]);
             break;
@@ -1111,7 +1110,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1123,14 +1122,14 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
         if (LocaleCompare("profile",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1140,15 +1139,15 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       {
         if (LocaleCompare("quantize",option+1) == 0)
           {
-            long
+            ssize_t
               colorspace;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            colorspace=ParseMagickOption(MagickColorspaceOptions,
+            colorspace=ParseCommandOption(MagickColorspaceOptions,
               MagickFalse,argv[i]);
             if (colorspace < 0)
               ThrowAnimateException(OptionError,"UnrecognizedColorspace",
@@ -1166,7 +1165,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         if (LocaleCompare("remote",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (XRemoteCommand(display,resource_info.window_id,argv[i]) != 0)
               return(MagickFalse);
@@ -1178,7 +1177,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1189,7 +1188,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1200,7 +1199,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1214,7 +1213,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         if (LocaleCompare("rotate",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1229,7 +1228,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1240,7 +1239,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1251,7 +1250,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsSceneGeometry(argv[i],MagickFalse) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1260,12 +1259,12 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         if (LocaleCompare("set",option+1) == 0)
           {
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1280,7 +1279,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1303,7 +1302,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.text_font=XGetResourceClass(resource_database,
               GetClientName(),"font",argv[i]);
@@ -1314,7 +1313,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1326,7 +1325,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.title=argv[i];
             break;
@@ -1336,7 +1335,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) (argc-1))
+            if (i == (ssize_t) (argc-1))
               ThrowAnimateException(OptionError,"MissingArgument",option);
             break;
           }
@@ -1346,7 +1345,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             if (IsGeometry(argv[i]) == MagickFalse)
               ThrowAnimateInvalidArgumentException(option,argv[i]);
@@ -1364,23 +1363,20 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
         if ((LocaleCompare("version",option+1) == 0) ||
             (LocaleCompare("-version",option+1) == 0))
           {
-            (void) fprintf(stdout,"Version: %s\n",
-              GetMagickVersion((unsigned long *) NULL));
-            (void) fprintf(stdout,"Copyright: %s\n",GetMagickCopyright());
-            (void) fprintf(stdout,"Features: %s\n\n",GetMagickFeatures());
+            ListMagickVersion(stdout);
             break;
           }
         if (LocaleCompare("virtual-pixel",option+1) == 0)
           {
-            long
+            ssize_t
               method;
 
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
-            method=ParseMagickOption(MagickVirtualPixelOptions,MagickFalse,
+            method=ParseCommandOption(MagickVirtualPixelOptions,MagickFalse,
               argv[i]);
             if (method < 0)
               ThrowAnimateException(OptionError,
@@ -1393,7 +1389,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.visual_type=argv[i];
             break;
@@ -1408,7 +1404,7 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
             if (*option == '+')
               break;
             i++;
-            if (i == (long) argc)
+            if (i == (ssize_t) argc)
               ThrowAnimateException(OptionError,"MissingArgument",option);
             resource_info.window_id=argv[i];
             break;
@@ -1420,8 +1416,8 @@ WandExport MagickBooleanType AnimateImageCommand(ImageInfo *image_info,
       default:
         ThrowAnimateException(OptionError,"UnrecognizedOption",option);
     }
-    fire=ParseMagickOption(MagickImageListOptions,MagickFalse,option+1) < 0 ?
-      MagickFalse : MagickTrue;
+    fire=(GetCommandOptionFlags(MagickCommandOptions,MagickFalse,option) &
+      FireOptionFlag) == 0 ?  MagickFalse : MagickTrue;
     if (fire != MagickFalse)
       FireImageStack(MagickFalse,MagickTrue,MagickTrue);
   }

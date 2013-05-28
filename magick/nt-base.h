@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
 
   You may not use this file except in compliance with the License.
@@ -22,9 +22,12 @@
 extern "C" {
 #endif
 
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
+
 #include "magick/delegate.h"
 #include "magick/delegate-private.h"
 #include "magick/exception.h"
+#include "magick/geometry.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
@@ -36,7 +39,7 @@ extern "C" {
 #include <io.h>
 #include <process.h>
 #include <errno.h>
-#if defined(_DEBUG) && !defined(__MINGW32__)
+#if defined(_DEBUG) && !defined(__MINGW32__) && !defined(__MINGW64__)
 #include <crtdbg.h>
 #endif
 
@@ -75,7 +78,9 @@ extern "C" {
 #endif
 
 #if !defined(access)
-#  define access(path,mode)  _access(path,mode)
+#if defined(_VISUALC_) && (_MSC_VER >= 1400)
+#  define access(path,mode)  _access_s(path,mode)
+#endif
 #endif
 #if !defined(chdir)
 #  define chdir  _chdir
@@ -92,12 +97,15 @@ extern "C" {
 #if !defined(fileno)
 #  define fileno  _fileno
 #endif
-#if !defined(fseek)
-#  define fseeko  _fseeki64
+#if !defined(fseek) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
+#  define fseek  _fseeki64
+#endif
 #endif
 #if !defined(fstat) && !defined(__BORLANDC__)
-#if defined(__WINDOWS__) && !defined(Windows95) && \
-  !(defined(_MSC_VER) && (_MSC_VER < 1400)) &&  (__MSVCRT_VERSION__ < 0x800)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
 #  define fstat  _fstati64
 #else
 #  define fstat  _fstat
@@ -106,8 +114,11 @@ extern "C" {
 #if !defined(fsync)
 #  define fsync  _commit
 #endif
-#if !defined(ftell)
-#  define ftello  _ftelli64
+#if !defined(ftell) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
+#  define ftell  _ftelli64
+#endif
 #endif
 #if !defined(ftruncate)
 #  define ftruncate(file,length)  NTTruncateFile(file,length)
@@ -126,6 +137,15 @@ extern "C" {
 #endif
 #if !defined(isatty)
 #  define isatty _isatty
+#endif
+#if !defined(locale_t)
+#define locale_t _locale_t
+#endif
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
+#  define lseek  _lseeki64
+#else
+#  define lseek  _lseek
 #endif
 #if !defined(MAGICKCORE_LTDL_DELEGATE)
 #if !defined(lt_dlclose)
@@ -175,6 +195,9 @@ extern "C" {
 #if !defined(popen)
 #  define popen  _popen
 #endif
+#if !defined(fprintf_l)
+#define fprintf_l  _fprintf_s_l
+#endif
 #if !defined(read)
 #  define read  _read
 #endif
@@ -190,9 +213,12 @@ extern "C" {
 #if !defined(spawnvp)
 #  define spawnvp  _spawnvp
 #endif
+#if !defined(strtod_l)
+#define strtod_l  _strtod_l
+#endif
 #if !defined(stat) && !defined(__BORLANDC__)
-#if defined(__WINDOWS__) && !defined(Windows95) && \
-  !(defined(_MSC_VER) && (_MSC_VER < 1400)) &&  (__MSVCRT_VERSION__ < 0x800)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
 #  define stat  _stati64
 #else
 #  define stat  _stat
@@ -207,30 +233,42 @@ extern "C" {
 #if !defined(sysconf)
 #  define sysconf(name)  NTSystemConfiguration(name)
 #endif
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
+#  define tell  _telli64
+#else
+#  define tell  _tell
+#endif
 #if !defined(telldir)
 #  define telldir(directory)  NTTellDirectory(directory)
 #endif
 #if !defined(tempnam)
-#  define tempnam  _tempnam
+#  define tempnam  _tempnam_s
+#endif
+#if !defined(vfprintf_l)
+#define vfprintf_l  _vfprintf_l
 #endif
 #if !defined(vsnprintf)
-#if !defined(_MSC_VER) || (defined(_MSC_VER) && (_MSC_VER < 1500))
+#if !defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER < 1500)
 #define vsnprintf _vsnprintf 
 #endif
+#endif
+#if !defined(vsnprintf_l)
+#define vsnprintf_l  _vsnprintf_l
 #endif
 #if !defined(write)
 #  define write  _write
 #endif
 #if !defined(wstat) && !defined(__BORLANDC__)
-#if defined(__WINDOWS__) && !defined(Windows95) && \
-  !(defined(_MSC_VER) && (_MSC_VER < 1400)) &&  (__MSVCRT_VERSION__ < 0x800)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(Windows95) && \
+  !(defined(_MSC_VER) && (_MSC_VER < 1400)) && (__MSVCRT_VERSION__ < 0x800)
 #  define wstat  _wstati64
 #else
 #  define wstat  _wstat
 #endif
 #endif
 
-#if defined(_MT) && defined(__WINDOWS__)
+#if defined(_MT) && defined(MAGICKCORE_WINDOWS_SUPPORT)
 #  define SAFE_GLOBAL  __declspec(thread)
 #else
 #  define SAFE_GLOBAL
@@ -288,12 +326,14 @@ typedef struct _NTMEMORYSTATUSEX
     ullAvailExtendedVirtual;
 } NTMEMORYSTATUSEX;
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 struct timezone
 {
   int
     tz_minuteswest,
     tz_dsttime;
 };
+#endif
 
 typedef UINT
   (CALLBACK *LPFNDLLFUNC1)(DWORD,UINT);
@@ -303,10 +343,6 @@ typedef UINT
 
 #endif
 
-#if !defined(ssize_t) && !defined(__MINGW32__)
-typedef long ssize_t;
-#endif
-
 #if defined(MAGICKCORE_BZLIB_DELEGATE)
 #  if defined(_WIN32)
 #    define BZ_IMPORT 1
@@ -314,7 +350,8 @@ typedef long ssize_t;
 #endif
 
 extern MagickExport char
-  *NTGetLastError(void);
+  *NTGetLastError(void),
+  **NTArgvToUTF8(const int argc,wchar_t **);
 
 extern MagickExport const GhostInfo
   *NTGhostscriptDLLVectors(void);
@@ -337,7 +374,9 @@ extern MagickExport double
 
 extern MagickExport int
   Exit(int),
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
   gettimeofday(struct timeval *,struct timezone *),
+#endif
   IsWindows95(),
   NTCloseDirectory(DIR *),
   NTCloseLibrary(void *),
@@ -355,7 +394,7 @@ extern MagickExport int
   NTUnmapMemory(void *,size_t),
   NTSystemCommand(const char *);
 
-extern MagickExport long
+extern MagickExport ssize_t
   NTSystemConfiguration(int),
   NTTellDirectory(DIR *);
 
@@ -378,10 +417,12 @@ extern MagickExport void
   *NTGetLibrarySymbol(void *,const char *),
   *NTMapMemory(char *,size_t,int,int,int,MagickOffsetType),
   *NTOpenLibrary(const char *),
-  NTSeekDirectory(DIR *,long),
+  NTSeekDirectory(DIR *,ssize_t),
   NTWarningHandler(const ExceptionType,const char *,const char *);
 
 #endif /* !XS_VERSION */
+
+#endif /* MAGICK_WINDOWS_SUPPORT */
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

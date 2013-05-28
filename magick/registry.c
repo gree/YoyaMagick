@@ -17,7 +17,7 @@
 %                                 March 2000                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -62,7 +62,7 @@ typedef struct _RegistryInfo
   void
     *value;
 
-  unsigned long
+  size_t
     signature;
 } RegistryInfo;
 
@@ -514,7 +514,7 @@ MagickExport MagickBooleanType SetImageRegistry(const RegistryType type,
   }
   if (clone_value == (void *) NULL)
     return(MagickFalse);
-  registry_info=(RegistryInfo *) AcquireAlignedMemory(1,sizeof(*registry_info));
+  registry_info=(RegistryInfo *) AcquireMagickMemory(sizeof(*registry_info));
   if (registry_info == (RegistryInfo *) NULL)
     ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
   (void) ResetMagickMemory(registry_info,0,sizeof(*registry_info));

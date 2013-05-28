@@ -18,7 +18,7 @@
 %                                December 1996                                %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -41,12 +41,13 @@
   Include declarations.
 */
 #include "magick/studio.h"
-#if defined(__WINDOWS__) || defined(__CYGWIN__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) || defined(__CYGWIN__)
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <windows.h>
 #include "magick/cache.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/draw.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -97,8 +98,14 @@ MagickExport void *CropImageToHBITMAP(Image *image,
 {
 #define CropImageTag  "Crop/Image"
 
-  long
-    y;
+  BITMAP
+    bitmap;
+
+  HBITMAP
+    bitmapH;
+
+  HANDLE
+    bitmap_bitsH;
 
   MagickBooleanType
     proceed;
@@ -109,20 +116,14 @@ MagickExport void *CropImageToHBITMAP(Image *image,
   register const PixelPacket
     *p;
 
-  BITMAP
-    bitmap;
-
-  HBITMAP
-    bitmapH;
-
-  HANDLE
-    bitmap_bitsH;
-
   register RGBQUAD
     *q;
 
   RGBQUAD
     *bitmap_bits;
+
+  ssize_t
+    y;
 
   /*
     Check crop geometry.
@@ -134,15 +135,15 @@ MagickExport void *CropImageToHBITMAP(Image *image,
   assert(geometry != (const RectangleInfo *) NULL);
   assert(exception != (ExceptionInfo *) NULL);
   assert(exception->signature == MagickSignature);
-  if (((geometry->x+(long) geometry->width) < 0) ||
-      ((geometry->y+(long) geometry->height) < 0) ||
-      (geometry->x >= (long) image->columns) ||
-      (geometry->y >= (long) image->rows))
+  if (((geometry->x+(ssize_t) geometry->width) < 0) ||
+      ((geometry->y+(ssize_t) geometry->height) < 0) ||
+      (geometry->x >= (ssize_t) image->columns) ||
+      (geometry->y >= (ssize_t) image->rows))
     ThrowImageException(OptionError,"GeometryDoesNotContainImage");
   page=(*geometry);
-  if ((page.x+(long) page.width) > (long) image->columns)
+  if ((page.x+(ssize_t) page.width) > (ssize_t) image->columns)
     page.width=image->columns-page.x;
-  if ((page.y+(long) page.height) > (long) image->rows)
+  if ((page.y+(ssize_t) page.height) > (ssize_t) image->rows)
     page.height=image->rows-page.y;
   if (page.x < 0)
     {
@@ -161,8 +162,8 @@ MagickExport void *CropImageToHBITMAP(Image *image,
     Initialize crop image attributes.
   */
   bitmap.bmType         = 0;
-  bitmap.bmWidth        = page.width;
-  bitmap.bmHeight       = page.height;
+  bitmap.bmWidth        = (LONG) page.width;
+  bitmap.bmHeight       = (LONG) page.height;
   bitmap.bmWidthBytes   = bitmap.bmWidth * 4;
   bitmap.bmPlanes       = 1;
   bitmap.bmBitsPixel    = 32;
@@ -175,13 +176,13 @@ MagickExport void *CropImageToHBITMAP(Image *image,
   bitmap_bits=(RGBQUAD *) GlobalLock((HGLOBAL) bitmap_bitsH);
   if ( bitmap.bmBits == NULL )
     bitmap.bmBits = bitmap_bits;
-  if (image->colorspace != RGBColorspace)
-    TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) SetImageColorspace(image,sRGBColorspace);
   /*
     Extract crop image.
   */
   q=bitmap_bits;
-  for (y=0; y < (long) page.height; y++)
+  for (y=0; y < (ssize_t) page.height; y++)
   {
     p=GetVirtualPixels(image,page.x,page.y+y,page.width,1,exception);
     if (p == (const PixelPacket *) NULL)
@@ -194,15 +195,15 @@ MagickExport void *CropImageToHBITMAP(Image *image,
 
 #else  /* 16 or 32 bit Quantum */
       {
-        long
+        ssize_t
           x;
 
         /* Transfer pixels, scaling to Quantum */
-        for( x=page.width ; x> 0 ; x-- )
+        for( x=(ssize_t) page.width ; x> 0 ; x-- )
           {
-            q->rgbRed = ScaleQuantumToChar(GetRedPixelComponent(p));
-            q->rgbGreen = ScaleQuantumToChar(GetGreenPixelComponent(p));
-            q->rgbBlue = ScaleQuantumToChar(GetBluePixelComponent(p));
+            q->rgbRed = ScaleQuantumToChar(GetPixelRed(p));
+            q->rgbGreen = ScaleQuantumToChar(GetPixelGreen(p));
+            q->rgbBlue = ScaleQuantumToChar(GetPixelBlue(p));
             q->rgbReserved = 0;
             ++q;
             ++p;
@@ -213,7 +214,7 @@ MagickExport void *CropImageToHBITMAP(Image *image,
     if (proceed == MagickFalse)
       break;
   }
-  if (y < (long) page.height)
+  if (y < (ssize_t) page.height)
     {
       GlobalUnlock((HGLOBAL) bitmap_bitsH);
       GlobalFree((HGLOBAL) bitmap_bitsH);
@@ -382,7 +383,7 @@ MagickExport MagickBooleanType NTLoadTypeLists(SplayTreeInfo *type_list,
           continue;
         *pos='\0'; /* Remove (TrueType) from string */
 
-        type_info=(TypeInfo *) AcquireAlignedMemory(1,sizeof(*type_info));
+        type_info=(TypeInfo *) AcquireMagickMemory(sizeof(*type_info));
         if (type_info == (TypeInfo *) NULL)
           ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
         (void) ResetMagickMemory(type_info,0,sizeof(TypeInfo));
@@ -592,10 +593,7 @@ MagickExport void *ImageToHBITMAP(Image *image)
   HBITMAP
     bitmapH;
 
-  long
-    y;
-
-  register long
+  register ssize_t
     x;
 
   register const PixelPacket
@@ -610,10 +608,13 @@ MagickExport void *ImageToHBITMAP(Image *image)
   size_t
     length;
 
+  ssize_t
+    y;
+
   (void) ResetMagickMemory(&bitmap,0,sizeof(bitmap));
   bitmap.bmType=0;
-  bitmap.bmWidth=image->columns;
-  bitmap.bmHeight=image->rows;
+  bitmap.bmWidth=(LONG) image->columns;
+  bitmap.bmHeight=(LONG) image->rows;
   bitmap.bmWidthBytes=4*bitmap.bmWidth;
   bitmap.bmPlanes=1;
   bitmap.bmBitsPixel=32;
@@ -635,18 +636,18 @@ MagickExport void *ImageToHBITMAP(Image *image)
   q=bitmap_bits;
   if (bitmap.bmBits == NULL)
     bitmap.bmBits=bitmap_bits;
-  (void) TransformImageColorspace(image,RGBColorspace);
+  (void) SetImageColorspace(image,sRGBColorspace);
   exception=(&image->exception);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,exception);
     if (p == (const PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      q->rgbRed=ScaleQuantumToChar(GetRedPixelComponent(p));
-      q->rgbGreen=ScaleQuantumToChar(GetGreenPixelComponent(p));
-      q->rgbBlue=ScaleQuantumToChar(GetBluePixelComponent(p));
+      q->rgbRed=ScaleQuantumToChar(GetPixelRed(p));
+      q->rgbGreen=ScaleQuantumToChar(GetPixelGreen(p));
+      q->rgbBlue=ScaleQuantumToChar(GetPixelBlue(p));
       q->rgbReserved=0;
       p++;
       q++;

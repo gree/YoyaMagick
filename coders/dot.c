@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -54,8 +54,9 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/option.h"
-#include "magick/resource_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -130,11 +131,16 @@ static Image *ReadDOTImage(const ImageInfo *image_info,ExceptionInfo *exception)
   if (status == MagickFalse)
     return((Image *) NULL);
   read_info=CloneImageInfo(image_info);
-  (void) CopyMagickString(read_info->magick,"PS",MaxTextExtent);
+  SetImageInfoBlob(read_info,(void *) NULL,0);
+  (void) CopyMagickString(read_info->magick,"SVG",MaxTextExtent);
   (void) AcquireUniqueFilename(read_info->filename);
-  (void) FormatMagickString(command,MaxTextExtent,"-Tps2 -o%s %s",
+  (void) FormatLocaleString(command,MaxTextExtent,"-Tsvg -o%s %s",
     read_info->filename,image_info->filename);
+#if !defined(WITH_CGRAPH)
   graph=agread(GetBlobFileHandle(image));
+#else
+  graph=agread(GetBlobFileHandle(image),(Agdisc_t *) NULL);
+#endif
   if (graph == (graph_t *) NULL)
     return ((Image *) NULL);
   option=GetImageOption(image_info,"dot:layout-engine");
@@ -142,10 +148,11 @@ static Image *ReadDOTImage(const ImageInfo *image_info,ExceptionInfo *exception)
     gvLayout(graphic_context,graph,(char *) "dot");
   else
     gvLayout(graphic_context,graph,(char *) option);
-  gvRenderFilename(graphic_context,graph,(char *) "ps2",read_info->filename);
+  gvRenderFilename(graphic_context,graph,(char *) "svg",read_info->filename);
   gvFreeLayout(graphic_context,graph);
+  agclose(graph);
   /*
-    Read Postscript graph.
+    Read SVG graph.
   */
   image=ReadImage(read_info,exception);
   (void) RelinquishUniqueFileResource(read_info->filename);
@@ -176,15 +183,23 @@ static Image *ReadDOTImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterDOTImage method is:
 %
-%      unsigned long RegisterDOTImage(void)
+%      size_t RegisterDOTImage(void)
 %
 */
-ModuleExport unsigned long RegisterDOTImage(void)
+ModuleExport size_t RegisterDOTImage(void)
 {
   MagickInfo
     *entry;
 
   entry=SetMagickInfo("DOT");
+#if defined(MAGICKCORE_GVC_DELEGATE)
+  entry->decoder=(DecodeImageHandler *) ReadDOTImage;
+#endif
+  entry->blob_support=MagickFalse;
+  entry->description=ConstantString("Graphviz");
+  entry->module=ConstantString("DOT");
+  (void) RegisterMagickInfo(entry);
+  entry=SetMagickInfo("GV");
 #if defined(MAGICKCORE_GVC_DELEGATE)
   entry->decoder=(DecodeImageHandler *) ReadDOTImage;
 #endif
@@ -219,6 +234,7 @@ ModuleExport unsigned long RegisterDOTImage(void)
 */
 ModuleExport void UnregisterDOTImage(void)
 {
+  (void) UnregisterMagickInfo("GV");
   (void) UnregisterMagickInfo("DOT");
 #if defined(MAGICKCORE_GVC_DELEGATE)
   gvFreeContext(graphic_context);

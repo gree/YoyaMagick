@@ -1,8 +1,7 @@
 This file documents how to use the binary distribution packages built by
 ImageMagick Studio LLC, and found in the ImageMagick 'binaries' subdirectory
 of ImageMagick ftp sites.  Those who want to build ImageMagick from source
-code should refer to the file README.txt in the ImageMagick source package
-or http://www.imagemagick.org/script/install-source.php on the web.
+code should refer to http://www.imagemagick.org/script/install-source.php.
 
 Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
 
@@ -28,15 +27,15 @@ Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
   Set the MAGICK_HOME environment variable to the path where you extracted the
   ImageMagick files. For example
 
-     export MAGICK_HOME="$HOME/ImageMagick-6.6.0"
+     export MAGICK_HOME="$HOME/ImageMagick-6.8.5"
 
   On Linux and Solaris machines set the LD_LIBRARY_PATH environment variable:
 
-     export LD_LIBRARY_PATH="$HOME/ImageMagick-6.6.0/lib"
+     export LD_LIBRARY_PATH="$HOME/ImageMagick-6.8.5/lib"
 
   On Mac OS X (Darwin) machines set the DYLD_LIBRARY_PATH environment variable:
 
-     export DYLD_LIBRARY_PATH="$HOME/ImageMagick-6.6.0/lib"
+     export DYLD_LIBRARY_PATH="$HOME/ImageMagick-6.8.5/lib"
 
   Now, test ImageMagick to see if it is working
 
@@ -45,7 +44,7 @@ Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
 
   To install PerlMagick type
 
-      cd ImageMagick-6.6.0/PerlMagick
+      cd ImageMagick-6.8.5/PerlMagick
       perl Makefile.PL
       make
       make install
@@ -68,10 +67,10 @@ Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
       loads them if found:
 
           $MAGICK_CONFIGURE_PATH
-          $MAGICK_HOME/lib/ImageMagick-6.6.0/config
-          $MAGICK_HOME/share/ImageMagick-6.6.0/config
+          $MAGICK_HOME/etc/ImageMagick
+          $MAGICK_HOME/share/ImageMagick-6.8.5/config
           $HOME/.magick/
-          <client path>/lib/ImageMagick-6.6.0/
+          <client path>/etc/ImageMagick/
           <current directory>/
 
     Font Files
@@ -81,10 +80,10 @@ Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
       order, and loads them if found:
 
           $MAGICK_CONFIGURE_PATH
-          $MAGICK_HOME/lib/ImageMagick-6.6.0/config
-          $MAGICK_HOME/share/ImageMagick-6.6.0/config
+          $MAGICK_HOME/etc/ImageMagick
+          $MAGICK_HOME/share/ImageMagick-6.8.5/config
           $HOME/.magick/
-          <client path>/lib/ImageMagick-6.6.0/
+          <client path>/etc/ImageMagick/
           <current directory>/
           $MAGICK_FONT_PATH
 
@@ -95,23 +94,23 @@ Unix/Linux/Darwin/Mac OS X/Cygwin/MinGW Install:
       and it uses the first match found:
 
           <current directory>/
-          $MAGICK_HOME/lib/ImageMagick-6.6.0/modules-Q16/coders/
+          $MAGICK_HOME/etc/ImageMagick/modules-Q16/coders/
           $HOME/.magick/
-          <client path>/../lib/ImageMagick-6.6.0/modules-Q16/coders/
-          $MAGICK_HOME/lib/ImageMagick-6.6.0/modules-Q16/coders
-          $MAGICK_HOME/share/ImageMagick-6.6.0/modules-Q16/coders
+          <client path>/../etc/ImageMagick/modules-Q16/coders/
+          $MAGICK_HOME/etc/ImageMagick/modules-Q16/coders
+          $MAGICK_HOME/share/ImageMagick-6.8.5/modules-Q16/coders
           $HOME/.magick/
-          <client path>/lib/ImageMagick-6.6.0/modules-Q16/coders
+          <client path>/etc/ImageMagick/modules-Q16/coders
           <current directory>/
 
 Windows Vista, XP, and NT Install:
 
   Download one of
 
-      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.6.0-0-Q16-windows-dll.exe
-      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.6.0-0-Q16-windows-static.exe
-      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.6.0-0-Q8-windows-dll.exe
-      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.6.0-0-Q8-windows-static.exe
+      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.8.5-0-Q16-windows-dll.exe
+      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.8.5-0-Q16-windows-static.exe
+      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.8.5-0-Q8-windows-dll.exe
+      ftp://ftp.imagemagick.org/pub/ImageMagick/binaries/ImageMagick-6.8.5-0-Q8-windows-static.exe
 
   and execute it (or "open" it from your browser) to start the installation
   program.

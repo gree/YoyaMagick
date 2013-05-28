@@ -1,4 +1,4 @@
-#  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+#  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
 #  dedicated to making software imaging solutions freely available.
 #
 #  You may not use this file except in compliance with the License.  You may
@@ -15,29 +15,29 @@
 #  Makefile for building MagickWand API.
 #
 
-wandincdir = $(topincludedir)/wand
+wandincdir = $(INCLUDE_PATH)/wand
 
 WAND_SOURCES = \
 	wand/MagickWand.h \
-  wand/animate.c \
+	wand/animate.c \
 	wand/animate.h \
-  wand/compare.c \
+	wand/compare.c \
 	wand/compare.h \
-  wand/composite.c \
+	wand/composite.c \
 	wand/composite.h \
-  wand/conjure.c \
+	wand/conjure.c \
 	wand/conjure.h \
-  wand/convert.c \
+	wand/convert.c \
 	wand/convert.h \
 	wand/deprecate.h \
 	wand/deprecate.c \
-  wand/display.c \
+	wand/display.c \
 	wand/display.h \
-  wand/drawing-wand.c \
+	wand/drawing-wand.c \
 	wand/drawing-wand.h \
-  wand/identify.c \
+	wand/identify.c \
 	wand/identify.h \
-  wand/import.c \
+	wand/import.c \
 	wand/import.h \
 	wand/magick-image.c \
 	wand/magick-image.h \
@@ -46,15 +46,14 @@ WAND_SOURCES = \
 	wand/magick-wand.c \
 	wand/magick-wand.h \
 	wand/magick-wand-private.h \
-  wand/mogrify.c \
+	wand/method-attribute.h \
+	wand/mogrify.c \
 	wand/mogrify.h \
 	wand/mogrify-private.h \
-  wand/montage.c \
+	wand/montage.c \
 	wand/montage.h \
 	wand/pixel-iterator.c \
 	wand/pixel-iterator.h \
-	wand/pixel-view.c \
-	wand/pixel-view.h \
 	wand/pixel-wand.c \
 	wand/pixel-wand.h \
 	wand/pixel-wand-private.h \
@@ -62,7 +61,9 @@ WAND_SOURCES = \
 	wand/stream.h \
 	wand/studio.h \
 	wand/wand.c \
-	wand/wand.h
+	wand/wand.h \
+	wand/wand-view.c \
+	wand/wand-view.h 
 
 WAND_INCLUDE_HDRS = \
 	wand/MagickWand.h \
@@ -80,19 +81,20 @@ WAND_INCLUDE_HDRS = \
 	wand/magick-property.h \
 	wand/magick-wand.h \
 	wand/magick_wand.h \
+	wand/method-attribute.h \
 	wand/mogrify.h \
 	wand/montage.h \
 	wand/pixel-iterator.h \
-	wand/pixel-view.h \
 	wand/pixel-wand.h \
-	wand/stream.h
+	wand/stream.h \
+	wand/wand-view.h
 
 WAND_NOINST_HDRS = \
-  wand/mogrify-private.h \
-  wand/magick-wand-private.h \
-  wand/pixel-wand-private.h \
-  wand/studio.h \
-  wand/wand.h
+	wand/mogrify-private.h \
+	wand/magick-wand-private.h \
+	wand/pixel-wand-private.h \
+	wand/studio.h \
+	wand/wand.h
 
 # Headers which are installed
 wandinc_HEADERS = \
@@ -104,7 +106,9 @@ WAND_BIN_SCRPTS = \
 
 WAND_PKGCONFIG = \
 	wand/MagickWand.pc \
-	wand/Wand.pc
+	wand/Wand.pc \
+	wand/MagickWand-@MAGICK_MAJOR_VERSION@.@MAGICK_ABI_SUFFIX@.pc \
+	wand/Wand-@MAGICK_MAJOR_VERSION@.@MAGICK_ABI_SUFFIX@.pc
 
 WAND_MANS = \
 	wand/MagickWand-config.1 \
@@ -112,44 +116,29 @@ WAND_MANS = \
 
 WAND_BUILT_SRCS = 
 
-MAGICKWAND_LIBS = wand/libMagickWand.la
+MAGICKWAND_LIBS = wand/libMagickWand-@MAGICK_MAJOR_VERSION@.@MAGICK_ABI_SUFFIX@.la
 
-wand_libMagickWand_la_SOURCES = $(WAND_SOURCES)
-wand_libMagickWand_la_CPPFLAGS = $(LIBRARY_EXTRA_CPPFLAGS)
-wand_libMagickWand_la_LDFLAGS = -no-undefined -export-symbols-regex ".*" \
-  -version-info \
-  $(MAGICK_LIBRARY_CURRENT):$(MAGICK_LIBRARY_REVISION):$(MAGICK_LIBRARY_AGE)
-wand_libMagickWand_la_LIBADD = $(MAGICKCORE_LIBS) $(X11_LIBS) $(GOMP_LIBS) $(MATH_LIBS)
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_SOURCES = $(WAND_SOURCES)
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_CPPFLAGS = $(LIBRARY_EXTRA_CPPFLAGS)
+
+if HAVE_LD_VERSION_SCRIPT
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_LDFLAGS_VERSION =  -Wl,--version-script=$(top_srcdir)/wand/libMagickWand.map
+else
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_LDFLAGS_VERSION = -export-symbols-regex ".*"
+endif
+
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_LDFLAGS = -no-undefined \
+  $(wand_libMagickWand_la_LDFLAGS_VERSION) $(MAGICK_LT_RELEASE_OPTS) \
+	-version-info \
+	$(MAGICK_LIBRARY_CURRENT):$(MAGICK_LIBRARY_REVISION):$(MAGICK_LIBRARY_AGE)
+wand_libMagickWand_@MAGICK_MAJOR_VERSION@_@MAGICK_ABI_SUFFIX@_la_LIBADD = $(MAGICKCORE_LIBS) $(X11_LIBS) $(GOMP_LIBS) $(MATH_LIBS)
 
 WAND_EXTRA_DIST = \
 	wand/ChangeLog \
-	wand/input_256c.miff \
-	wand/input_bilevel.miff \
-	wand/input_gray.miff \
-	wand/input_truecolor.miff \
-  wand/MagickWand-config.1 \
+	wand/libMagickWand.map \
+	wand/MagickWand-config.1 \
 	wand/MagickWand.pc.in \
-	wand/sequence.miff \
-  wand/Wand-config.1 \
-	wand/Wand.pc.in  \
-	wand/common.sh \
-	$(WAND_TESTS)
+	wand/Wand-config.1 \
+	wand/Wand.pc.in
 
-wand_drawtest_SOURCES      = wand/drawtest.c
-wand_drawtest_LDFLAGS      = $(LDFLAGS)
-wand_drawtest_LDADD        = $(MAGICKWAND_LIBS)
-
-wand_wandtest_SOURCES      = wand/wandtest.c
-wand_wandtest_LDFLAGS      = $(LDFLAGS)
-wand_wandtest_LDADD        = $(MAGICKWAND_LIBS)
-
-WAND_CHECK_PGRMS = \
-	wand/drawtest \
-	wand/wandtest
-
-WAND_TESTS = \
-	wand/drawtest.sh \
-	wand/wandtest.sh
-
-WAND_CLEANFILES = \
-	wand/*_out.*
+WAND_CLEANFILES =

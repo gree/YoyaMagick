@@ -46,7 +46,7 @@ testReadWrite( 'input_mono.png',
 testReadWrite( 'input.mng',
   'output.mng',
   q/quality=>55/,
-  '030111e35491010550814468283f13a8d3d621efb0031bae005bd86e9d0038c5' );
+  '40805ef3db6e3a94c85e30e591e5881dc660ff863591d6f56605dba64d03d83d' );
 
 #
 # 5) Test 16-bit Portable Network Graphics
@@ -55,7 +55,7 @@ testReadWrite( 'input.mng',
 testReadWrite( 'input_16.png',
   'output_16.png',
   q/quality=>55/,
-  'fa6b164245b385b3dea5764074be2c959a503dde90ecb1d4ba9c76a46bb8e4e6',
+  '6f2b7a49124d65616f37d4dbebec3e46b6a4a4b53abc6b197dc6f7e9b4cdeb33',
   '82f48df83eec5bacbe2c38f13ce7e2219e5e318f4b2974d928d0ea7f7cec65fd');
 
 

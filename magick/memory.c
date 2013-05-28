@@ -17,7 +17,7 @@
 %                                 July 1998                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -44,7 +44,7 @@
 %  written by Yoo C. Chung.
 %
 %  By default, ANSI memory methods are called (e.g. malloc).  Use the
-%  custom memory allocator by defining MAGICKCORE_EMBEDDABLE_SUPPORT
+%  custom memory allocator by defining MAGICKCORE_ZERO_CONFIGURATION_SUPPORT
 %  to allocate memory with private anonymous mapping rather than from the
 %  heap.
 %
@@ -59,6 +59,7 @@
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/memory_.h"
+#include "magick/memory-private.h"
 #include "magick/semaphore.h"
 #include "magick/string_.h"
 
@@ -70,7 +71,6 @@
 #define BlockHeader(block)  ((size_t *) (block)-1)
 #define BlockSize  4096
 #define BlockThreshold  1024
-#define AlignedSize  (32*sizeof(void *))
 #define MaxBlockExponent  16
 #define MaxBlocks ((BlockThreshold/(4*sizeof(size_t)))+MaxBlockExponent+1)
 #define MaxSegments  1024
@@ -141,10 +141,10 @@ static MagickMemoryMethods
   {
     (AcquireMemoryHandler) malloc,
     (ResizeMemoryHandler) realloc,
-    (DestroyMemoryHandler)free
+    (DestroyMemoryHandler) free
   };
 
-#if defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
 static MemoryInfo
   memory_info;
 
@@ -188,8 +188,16 @@ static MagickBooleanType
 */
 MagickExport void *AcquireAlignedMemory(const size_t count,const size_t quantum)
 {
+#define AlignedExtent(size,alignment) \
+  (((size)+((alignment)-1)) & ~((alignment)-1))
+
   size_t
+    alignment,
+    extent,
     size;
+
+  void
+    *memory;
 
   size=count*quantum;
   if ((count == 0) || (quantum != (size/count)))
@@ -197,19 +205,37 @@ MagickExport void *AcquireAlignedMemory(const size_t count,const size_t quantum)
       errno=ENOMEM;
       return((void *) NULL);
     }
+  memory=NULL;
+  alignment=CACHE_LINE_SIZE;
+  extent=AlignedExtent(size,alignment);
+  if ((size == 0) || (alignment < sizeof(void *)) || (extent < size))
+    return((void *) NULL);
 #if defined(MAGICKCORE_HAVE_POSIX_MEMALIGN)
+  if (posix_memalign(&memory,alignment,extent) != 0)
+    memory=NULL;
+#elif defined(MAGICKCORE_HAVE__ALIGNED_MALLOC)
+  memory=_aligned_malloc(extent,alignment);
+#else
   {
     void
-      *memory;
+      *p;
 
-    if (posix_memalign(&memory,AlignedSize,size) == 0)
-      return(memory);
+    extent=(size+alignment-1)+sizeof(void *);
+    if (extent > size)
+      {
+        p=malloc(extent);
+        if (p != NULL)
+          {
+            memory=(void *) AlignedExtent((size_t) p+sizeof(void *),alignment);
+            *((void **) memory-1)=p;
+          }
+      }
   }
 #endif
-  return(malloc(size));
+  return(memory);
 }
 
-#if defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -386,7 +412,7 @@ MagickExport void *AcquireMagickMemory(const size_t size)
   register void
     *memory;
 
-#if !defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if !defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
   memory=memory_methods.acquire_memory_handler(size == 0 ? 1UL : size);
 #else
   if (memory_semaphore == (SemaphoreInfo *) NULL)
@@ -396,7 +422,7 @@ MagickExport void *AcquireMagickMemory(const size_t size)
       LockSemaphoreInfo(memory_semaphore);
       if (free_segments == (DataSegmentInfo *) NULL)
         {
-          register long
+          register ssize_t
             i;
 
           assert(2*sizeof(size_t) > (size_t) (~SizeMask));
@@ -512,6 +538,7 @@ MagickExport void *CopyMagickMemory(void *destination,const void *source,
     switch (size)
     {
       default: return(memcpy(destination,source,size));
+      case 8: *q++=(*p++);
       case 7: *q++=(*p++);
       case 6: *q++=(*p++);
       case 5: *q++=(*p++);
@@ -544,15 +571,15 @@ MagickExport void *CopyMagickMemory(void *destination,const void *source,
 */
 MagickExport void DestroyMagickMemory(void)
 {
-#if defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
-  register long
+#if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
+  register ssize_t
     i;
 
   if (memory_semaphore == (SemaphoreInfo *) NULL)
     AcquireSemaphoreInfo(&memory_semaphore);
   LockSemaphoreInfo(memory_semaphore);
   UnlockSemaphoreInfo(memory_semaphore);
-  for (i=0; i < (long) memory_info.number_segments; i++)
+  for (i=0; i < (ssize_t) memory_info.number_segments; i++)
     if (memory_info.segments[i]->mapped == MagickFalse)
       memory_methods.destroy_memory_handler(
         memory_info.segments[i]->allocation);
@@ -565,7 +592,7 @@ MagickExport void DestroyMagickMemory(void)
 #endif
 }
 
-#if defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -597,7 +624,7 @@ static MagickBooleanType ExpandHeap(size_t size)
   MagickBooleanType
     mapped;
 
-  register long
+  register ssize_t
     i;
 
   register void
@@ -623,7 +650,7 @@ static MagickBooleanType ExpandHeap(size_t size)
   segment_info->length=blocksize;
   segment_info->allocation=segment;
   segment_info->bound=(char *) segment+blocksize;
-  i=(long) memory_info.number_segments-1;
+  i=(ssize_t) memory_info.number_segments-1;
   for ( ; (i >= 0) && (memory_info.segments[i]->allocation > segment); i--)
     memory_info.segments[i+1]=memory_info.segments[i];
   memory_info.segments[i+1]=segment_info;
@@ -710,8 +737,14 @@ MagickExport void *RelinquishAlignedMemory(void *memory)
 {
   if (memory == (void *) NULL)
     return((void *) NULL);
+#if defined(MAGICKCORE_HAVE_POSIX_MEMALIGN)
   free(memory);
-  return((void *) NULL);
+#elif defined(MAGICKCORE_HAVE__ALIGNED_MALLOC)
+  _aligned_free(memory);
+#else
+  free(*((void **) memory-1));
+#endif
+  return(NULL);
 }
 
 /*
@@ -741,12 +774,12 @@ MagickExport void *RelinquishMagickMemory(void *memory)
 {
   if (memory == (void *) NULL)
     return((void *) NULL);
-#if !defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if !defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
   memory_methods.destroy_memory_handler(memory);
 #else
+  LockSemaphoreInfo(memory_semaphore);
   assert((SizeOfBlock(memory) % (4*sizeof(size_t))) == 0);
   assert((*BlockHeader(NextBlock(memory)) & PreviousBlockBit) != 0);
-  LockSemaphoreInfo(memory_semaphore);
   if ((*BlockHeader(memory) & PreviousBlockBit) == 0)
     {
       void
@@ -842,7 +875,7 @@ MagickExport void *ResetMagickMemory(void *memory,int byte,const size_t size)
 %
 */
 
-#if defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
 static inline void *ResizeBlock(void *block,size_t size)
 {
   register void
@@ -869,7 +902,7 @@ MagickExport void *ResizeMagickMemory(void *memory,const size_t size)
 
   if (memory == (void *) NULL)
     return(AcquireMagickMemory(size));
-#if !defined(MAGICKCORE_EMBEDDABLE_SUPPORT)
+#if !defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
   block=memory_methods.resize_memory_handler(memory,size == 0 ? 1UL : size);
   if (block == (void *) NULL)
     memory=RelinquishMagickMemory(memory);
@@ -950,7 +983,8 @@ MagickExport void *ResizeQuantumMemory(void *memory,const size_t count,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  SetMagickMemoryMethods() sets the methods to acquire, resize, and destroy
-%  memory.
+%  memory. Your custom memory methods must be set prior to the
+%  MagickCoreGenesis() method.
 %
 %  The format of the SetMagickMemoryMethods() method is:
 %

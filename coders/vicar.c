@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -43,7 +43,9 @@
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
+#include "magick/colormap.h"
 #include "magick/colorspace.h"
+#include "magick/colorspace-private.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -55,7 +57,7 @@
 #include "magick/module.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
-#include "magick/quantum-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -152,9 +154,6 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
   int
     c;
 
-  long
-    y;
-
   MagickBooleanType
     status,
     value_expected;
@@ -168,11 +167,12 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
   register PixelPacket
     *q;
 
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count,
+    y;
 
   unsigned char
     *pixels;
@@ -280,8 +280,6 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
   if ((image->columns == 0) || (image->rows == 0))
     ThrowReaderException(CorruptImageError,"NegativeOrZeroImageSize");
   image->depth=8;
-  if (AcquireImageColormap(image,256) == MagickFalse)
-    ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   if (image_info->ping != MagickFalse)
     {
       (void) CloseBlob(image);
@@ -290,13 +288,14 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
   /*
     Read VICAR pixels.
   */
-  quantum_type=IndexQuantum;
+  (void) SetImageColorspace(image,GRAYColorspace);
+  quantum_type=GrayQuantum;
   quantum_info=AcquireQuantumInfo(image_info,image);
   if (quantum_info == (QuantumInfo *) NULL)
     ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
   pixels=GetQuantumPixels(quantum_info);
-  length=GetQuantumExtent(image,quantum_info,IndexQuantum);
-  for (y=0; y < (long) image->rows; y++)
+  length=GetQuantumExtent(image,quantum_info,quantum_type);
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
@@ -306,7 +305,8 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
       quantum_type,pixels,exception);
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
-    status=SetImageProgress(image,LoadImageTag,y,image->rows);
+    status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }
@@ -339,10 +339,10 @@ static Image *ReadVICARImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterVICARImage method is:
 %
-%      unsigned long RegisterVICARImage(void)
+%      size_t RegisterVICARImage(void)
 %
 */
-ModuleExport unsigned long RegisterVICARImage(void)
+ModuleExport size_t RegisterVICARImage(void)
 {
   MagickInfo
     *entry;
@@ -399,8 +399,7 @@ ModuleExport void UnregisterVICARImage(void)
 %  stacked together to form image cubes.  This method only writes a single
 %  grayscale plane.
 %
-%  WriteVICARImage was written contributed by
-%  gorelick@esther.la.asu.edu.
+%  WriteVICARImage was written contributed by gorelick@esther.la.asu.edu.
 %
 %  The format of the WriteVICARImage method is:
 %
@@ -432,11 +431,11 @@ static MagickBooleanType WriteVICARImage(const ImageInfo *image_info,
   register const PixelPacket
     *p;
 
-  ssize_t
-    count;
-
   size_t
     length;
+
+  ssize_t
+    count;
 
   unsigned char
     *pixels;
@@ -453,17 +452,17 @@ static MagickBooleanType WriteVICARImage(const ImageInfo *image_info,
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
-  if (image->colorspace != RGBColorspace)
-    (void) TransformImageColorspace(image,RGBColorspace);
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   /*
     Write header.
   */
   (void) ResetMagickMemory(header,' ',MaxTextExtent);
-  (void) FormatMagickString(header,MaxTextExtent,
-    "LBLSIZE=%lu FORMAT='BYTE' TYPE='IMAGE' BUFSIZE=20000 DIM=2 EOL=0 "
-    "RECSIZE=%lu ORG='BSQ' NL=%lu NS=%lu NB=1 N1=0 N2=0 N3=0 N4=0 NBB=0 "
-    "NLB=0 TASK='ImageMagick'",(unsigned long) MaxTextExtent,image->columns,
-    image->rows,image->columns);
+  (void) FormatLocaleString(header,MaxTextExtent,
+    "LBLSIZE=%.20g FORMAT='BYTE' TYPE='IMAGE' BUFSIZE=20000 DIM=2 EOL=0 "
+    "RECSIZE=%.20g ORG='BSQ' NL=%.20g NS=%.20g NB=1 N1=0 N2=0 N3=0 N4=0 NBB=0 "
+    "NLB=0 TASK='ImageMagick'",(double) MaxTextExtent,(double) image->columns,
+    (double) image->rows,(double) image->columns);
   (void) WriteBlob(image,MaxTextExtent,(unsigned char *) header);
   /*
     Write VICAR pixels.
@@ -473,7 +472,7 @@ static MagickBooleanType WriteVICARImage(const ImageInfo *image_info,
   if (quantum_info == (QuantumInfo *) NULL)
     ThrowWriterException(ResourceLimitError,"MemoryAllocationFailed");
   pixels=GetQuantumPixels(quantum_info);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
@@ -483,7 +482,8 @@ static MagickBooleanType WriteVICARImage(const ImageInfo *image_info,
     count=WriteBlob(image,length,pixels);
     if (count != (ssize_t) length)
       break;
-    status=SetImageProgress(image,SaveImageTag,y,image->rows);
+    status=SetImageProgress(image,SaveImageTag,(MagickOffsetType) y,
+      image->rows);
     if (status == MagickFalse)
       break;
   }

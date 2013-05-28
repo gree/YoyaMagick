@@ -17,7 +17,7 @@
 %                                 April 2007                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -50,6 +50,7 @@
 #include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/property.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
@@ -151,17 +152,17 @@ static Image *ReadEXRImage(const ImageInfo *image_info,ExceptionInfo *exception)
     min_x,
     min_y;
 
-  long
-    y;
+  MagickBooleanType
+    status;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
 
-  MagickBooleanType
-    status;
+  ssize_t
+    y;
 
   /*
     Open image.
@@ -195,10 +196,11 @@ static Image *ReadEXRImage(const ImageInfo *image_info,ExceptionInfo *exception)
       return((Image *) NULL);
     }
   hdr_info=ImfInputHeader(file);
-  ImfHeaderDataWindow(hdr_info,&min_x,&min_y,&max_x,&max_y);
+  ImfHeaderDisplayWindow(hdr_info,&min_x,&min_y,&max_x,&max_y);
   image->columns=max_x-min_x+1UL;
   image->rows=max_y-min_y+1UL;
   image->matte=MagickTrue;
+  SetImageColorspace(image,RGBColorspace);
   if (image_info->ping != MagickFalse)
     {
       (void) ImfCloseInputFile(file);
@@ -214,24 +216,25 @@ static Image *ReadEXRImage(const ImageInfo *image_info,ExceptionInfo *exception)
       (void) ImfCloseInputFile(file);
       ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
     }
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
+    ResetMagickMemory(scanline,0,image->columns*sizeof(*scanline));
     ImfInputSetFrameBuffer(file,scanline-min_x-image->columns*(min_y+y),1,
       image->columns);
     ImfInputReadPixels(file,min_y+y,min_y+y);
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      q->red=ClampToQuantum((MagickRealType) QuantumRange*ImfHalfToFloat(
-        scanline[x].r));
-      q->green=ClampToQuantum((MagickRealType) QuantumRange*ImfHalfToFloat(
-        scanline[x].g));
-      q->blue=ClampToQuantum((MagickRealType) QuantumRange*ImfHalfToFloat(
-        scanline[x].b));
-      q->opacity=ClampToQuantum((MagickRealType) QuantumRange-QuantumRange*
-        ImfHalfToFloat(scanline[x].a));
+      SetPixelRed(q,ClampToQuantum((MagickRealType) QuantumRange*
+        ImfHalfToFloat(scanline[x].r)));
+      SetPixelGreen(q,ClampToQuantum((MagickRealType) QuantumRange*
+        ImfHalfToFloat(scanline[x].g)));
+      SetPixelBlue(q,ClampToQuantum((MagickRealType) QuantumRange*
+        ImfHalfToFloat(scanline[x].b)));
+      SetPixelAlpha(q,ClampToQuantum((MagickRealType) QuantumRange*
+        ImfHalfToFloat(scanline[x].a)));
       q++;
     }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
@@ -267,10 +270,10 @@ static Image *ReadEXRImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterEXRImage method is:
 %
-%      unsigned long RegisterEXRImage(void)
+%      size_t RegisterEXRImage(void)
 %
 */
-ModuleExport unsigned long RegisterEXRImage(void)
+ModuleExport size_t RegisterEXRImage(void)
 {
   MagickInfo
     *entry;
@@ -359,17 +362,17 @@ static MagickBooleanType WriteEXRImage(const ImageInfo *image_info,Image *image)
   int
     compression;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
   register const PixelPacket
     *p;
 
-  register long
+  register ssize_t
     x;
+
+  ssize_t
+    y;
 
   /*
     Open output image file.
@@ -383,6 +386,7 @@ static MagickBooleanType WriteEXRImage(const ImageInfo *image_info,Image *image)
   status=OpenBlob(image_info,image,WriteBinaryBlobMode,&image->exception);
   if (status == MagickFalse)
     return(status);
+  (void) SetImageColorspace(image,RGBColorspace);
   write_info=CloneImageInfo(image_info);
   (void) AcquireUniqueFilename(write_info->filename);
   hdr_info=ImfNewHeader();
@@ -424,23 +428,25 @@ static MagickBooleanType WriteEXRImage(const ImageInfo *image_info,Image *image)
       (void) ImfCloseOutputFile(file);
       ThrowWriterException(ResourceLimitError,"MemoryAllocationFailed");
     }
-  for (y=0; y < (long) image->rows; y++)
+  ResetMagickMemory(scanline,0,image->columns*sizeof(*scanline));
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     p=GetVirtualPixels(image,0,y,image->columns,1,&image->exception);
     if (p == (const PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      ImfFloatToHalf(QuantumScale*p->red,&half_quantum);
+      ImfFloatToHalf(QuantumScale*GetPixelRed(p),&half_quantum);
       scanline[x].r=half_quantum;
-      ImfFloatToHalf(QuantumScale*p->green,&half_quantum);
+      ImfFloatToHalf(QuantumScale*GetPixelGreen(p),&half_quantum);
       scanline[x].g=half_quantum;
-      ImfFloatToHalf(QuantumScale*p->blue,&half_quantum);
+      ImfFloatToHalf(QuantumScale*GetPixelBlue(p),&half_quantum);
       scanline[x].b=half_quantum;
       if (image->matte == MagickFalse)
         ImfFloatToHalf(1.0,&half_quantum);
       else
-        ImfFloatToHalf(1.0-QuantumScale*p->opacity,&half_quantum);
+        ImfFloatToHalf(1.0-QuantumScale*GetPixelOpacity(p),
+          &half_quantum);
       scanline[x].a=half_quantum;
       p++;
     }

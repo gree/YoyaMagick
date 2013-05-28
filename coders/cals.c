@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -60,17 +60,20 @@
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
 #include "magick/option.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
 
+#if defined(MAGICKCORE_TIFF_DELEGATE)
 /*
  Forward declarations.
 */
 static MagickBooleanType
   WriteCALSImage(const ImageInfo *,Image *);
+#endif
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -161,7 +164,7 @@ static Image *ReadCALSImage(const ImageInfo *image_info,
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
 
   unsigned long
@@ -226,7 +229,7 @@ static Image *ReadCALSImage(const ImageInfo *image_info,
             if (pel_path == 90)
               orientation=5;
             else
-              if (pel_path == 90)
+              if (pel_path == 180)
                 orientation=3;
               else
                 if (pel_path == 270)
@@ -260,11 +263,11 @@ static Image *ReadCALSImage(const ImageInfo *image_info,
   image=DestroyImage(image);
   read_info=CloneImageInfo(image_info);
   SetImageInfoBlob(read_info,(void *) NULL,0);
-  (void) FormatMagickString(read_info->filename,MaxTextExtent,"group4:%.1024s",
+  (void) FormatLocaleString(read_info->filename,MaxTextExtent,"group4:%s",
     filename);
-  (void) FormatMagickString(message,MaxTextExtent,"%lux%lu",width,height);
+  (void) FormatLocaleString(message,MaxTextExtent,"%lux%lu",width,height);
   read_info->size=ConstantString(message);
-  (void) FormatMagickString(message,MaxTextExtent,"%lu",density);
+  (void) FormatLocaleString(message,MaxTextExtent,"%lu",density);
   read_info->density=ConstantString(message);
   read_info->orientation=(OrientationType) orientation;
   image=ReadImage(read_info,exception);
@@ -301,10 +304,10 @@ static Image *ReadCALSImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterCALSImage method is:
 %
-%      unsigned long RegisterCALSImage(void)
+%      size_t RegisterCALSImage(void)
 %
 */
-ModuleExport unsigned long RegisterCALSImage(void)
+ModuleExport size_t RegisterCALSImage(void)
 {
   MagickInfo
     *entry;
@@ -402,16 +405,17 @@ static ssize_t WriteCALSRecord(Image *image,const char *data)
   char
     pad[128];
 
-  ssize_t
-    count;
-
   register const char
     *p;
 
-  register long
+  register ssize_t
     i;
 
+  ssize_t
+    count;
+
   i=0;
+  count=0;
   if (data != (const char *) NULL)
     {
       p=data;
@@ -421,7 +425,7 @@ static ssize_t WriteCALSRecord(Image *image,const char *data)
   if (i < 128)
     {
       i=128-i;
-      (void) ResetMagickMemory(pad,' ',(const size_t) i);
+      (void) ResetMagickMemory(pad,' ',(size_t) i);
       count=WriteBlob(image,(size_t) i,(const unsigned char *) pad);
     }
   return(count);
@@ -442,22 +446,20 @@ static MagickBooleanType WriteCALSImage(const ImageInfo *image_info,
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
+
+  size_t
+    density,
+    length,
+    orient_x,
+    orient_y;
 
   ssize_t
     count;
 
-  size_t
-    length;
-
   unsigned char
     *group4;
-
-  unsigned long
-    density,
-    orient_x,
-    orient_y;
 
   /*
     Open output image file.
@@ -475,6 +477,7 @@ static MagickBooleanType WriteCALSImage(const ImageInfo *image_info,
     Create standard CALS header.
   */
   count=WriteCALSRecord(image,"srcdocid: NONE");
+  (void) count;
   count=WriteCALSRecord(image,"dstdocid: NONE");
   count=WriteCALSRecord(image,"txtfilid: NONE");
   count=WriteCALSRecord(image,"figid: NONE");
@@ -529,12 +532,12 @@ static MagickBooleanType WriteCALSImage(const ImageInfo *image_info,
       orient_y=270;
     }
   }
-  (void) FormatMagickString(header,MaxTextExtent,"rorient: %03ld,%03ld",
-    orient_x,orient_y);
+  (void) FormatLocaleString(header,MaxTextExtent,"rorient: %03ld,%03ld",
+    (long) orient_x,(long) orient_y);
   count=WriteCALSRecord(image,header);
-  (void) FormatMagickString(header,MaxTextExtent,"rpelcnt: %06lu,%06lu",
-    image->columns,image->rows);
-  count=WriteCALSRecord(image,header);  
+  (void) FormatLocaleString(header,MaxTextExtent,"rpelcnt: %06lu,%06lu",
+    (unsigned long) image->columns,(unsigned long) image->rows);
+  count=WriteCALSRecord(image,header);
   density=200;
   if (image_info->density != (char *) NULL)
     {
@@ -542,9 +545,10 @@ static MagickBooleanType WriteCALSImage(const ImageInfo *image_info,
         geometry_info;
 
       (void) ParseGeometry(image_info->density,&geometry_info);
-      density=(unsigned long) (geometry_info.rho+0.5);
+      density=(size_t) floor(geometry_info.rho+0.5);
     }
-  (void) FormatMagickString(header,MaxTextExtent,"rdensty: %04lu",density);
+  (void) FormatLocaleString(header,MaxTextExtent,"rdensty: %04lu",
+    (unsigned long) density);
   count=WriteCALSRecord(image,header);
   count=WriteCALSRecord(image,"notes: NONE");
   (void) ResetMagickMemory(header,' ',128);

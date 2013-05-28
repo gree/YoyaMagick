@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -26,7 +26,16 @@ extern "C" {
 }
 #endif
 
+#include "magick/morphology.h"
+
+extern MagickExport Image
+  *MorphologyApply(const Image *,const ChannelType,const MorphologyMethod,
+    const ssize_t,const KernelInfo *,const CompositeOperator,const double,
+    ExceptionInfo *);
+
 extern MagickExport void
+  ScaleKernelInfo(KernelInfo *,const double,const GeometryFlags),
+  UnityAddKernelInfo(KernelInfo *,const double),
   ZeroKernelNans(KernelInfo *);
 
 #endif

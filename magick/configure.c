@@ -17,7 +17,7 @@
 %                                 July 2003                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -58,6 +58,29 @@
   Define declarations.
 */
 #define ConfigureFilename  "configure.xml"
+
+#ifdef _OPENMP
+#define MAGICKCORE_FEATURE_OPENMP_STR "OpenMP "
+#else
+#define MAGICKCORE_FEATURE_OPENMP_STR ""
+#endif
+#ifdef _OPENCL
+#define MAGICKCORE_FEATURE_OPENCL_STR "OpenCL "
+#else
+#define MAGICKCORE_FEATURE_OPENCL_STR ""
+#endif
+#ifdef MAGICKCORE_ZERO_CONFIGURATION_SUPPORT
+#define MAGICKCORE_FEATURE_ZERO_CONFIGURATION_STR "Zero-Configuration "
+#else 
+#define MAGICKCORE_FEATURE_ZERO_CONFIGURATION_STR ""
+#endif
+#ifdef HDRI_SUPPORT
+#define MAGICKCORE_FEATURE_HDRI_STR "HDRI"
+#else
+#define MAGICKCORE_FEATURE_HDRI_STR ""
+#endif
+
+#define MAGICKCORE_FEATURES_STR MAGICKCORE_FEATURE_OPENMP_STR MAGICKCORE_FEATURE_OPENCL_STR MAGICKCORE_FEATURE_ZERO_CONFIGURATION_STR MAGICKCORE_FEATURE_HDRI_STR
 
 /*
   Typedef declarations.
@@ -75,7 +98,9 @@ typedef struct _ConfigureMapInfo
 static const ConfigureMapInfo
   ConfigureMap[] =
   {
-    { "NAME", "ImageMagick" }
+    { "NAME", "ImageMagick" },
+    { "QuantumDepth", MAGICKCORE_STRING_XQUOTE(MAGICKCORE_QUANTUM_DEPTH) },
+    { "FEATURES", MAGICKCORE_FEATURES_STR }
   };
 
 static LinkedListInfo
@@ -286,7 +311,7 @@ MagickExport const ConfigureInfo *GetConfigureInfo(const char *name,
 %  The format of the GetConfigureInfoList function is:
 %
 %      const ConfigureInfo **GetConfigureInfoList(const char *pattern,
-%        unsigned long *number_options,ExceptionInfo *exception)
+%        size_t *number_options,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -321,7 +346,7 @@ static int ConfigureInfoCompare(const void *x,const void *y)
 #endif
 
 MagickExport const ConfigureInfo **GetConfigureInfoList(const char *pattern,
-  unsigned long *number_options,ExceptionInfo *exception)
+  size_t *number_options,ExceptionInfo *exception)
 {
   const ConfigureInfo
     **options;
@@ -329,7 +354,7 @@ MagickExport const ConfigureInfo **GetConfigureInfoList(const char *pattern,
   register const ConfigureInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -337,7 +362,7 @@ MagickExport const ConfigureInfo **GetConfigureInfoList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_options != (unsigned long *) NULL);
+  assert(number_options != (size_t *) NULL);
   *number_options=0;
   p=GetConfigureInfo("*",exception);
   if (p == (const ConfigureInfo *) NULL)
@@ -362,7 +387,7 @@ MagickExport const ConfigureInfo **GetConfigureInfoList(const char *pattern,
   UnlockSemaphoreInfo(configure_semaphore);
   qsort((void *) options,(size_t) i,sizeof(*options),ConfigureInfoCompare);
   options[i]=(ConfigureInfo *) NULL;
-  *number_options=(unsigned long) i;
+  *number_options=(size_t) i;
   return(options);
 }
 
@@ -383,7 +408,7 @@ MagickExport const ConfigureInfo **GetConfigureInfoList(const char *pattern,
 %  The format of the GetConfigureList function is:
 %
 %      char **GetConfigureList(const char *pattern,
-%        unsigned long *number_options,ExceptionInfo *exception)
+%        size_t *number_options,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -415,7 +440,7 @@ static int ConfigureCompare(const void *x,const void *y)
 #endif
 
 MagickExport char **GetConfigureList(const char *pattern,
-  unsigned long *number_options,ExceptionInfo *exception)
+  size_t *number_options,ExceptionInfo *exception)
 {
   char
     **options;
@@ -423,7 +448,7 @@ MagickExport char **GetConfigureList(const char *pattern,
   register const ConfigureInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -431,7 +456,7 @@ MagickExport char **GetConfigureList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_options != (unsigned long *) NULL);
+  assert(number_options != (size_t *) NULL);
   *number_options=0;
   p=GetConfigureInfo("*",exception);
   if (p == (const ConfigureInfo *) NULL)
@@ -453,7 +478,7 @@ MagickExport char **GetConfigureList(const char *pattern,
   UnlockSemaphoreInfo(configure_semaphore);
   qsort((void *) options,(size_t) i,sizeof(*options),ConfigureCompare);
   options[i]=(char *) NULL;
-  *number_options=(unsigned long) i;
+  *number_options=(size_t) i;
   return(options);
 }
 
@@ -560,7 +585,7 @@ MagickExport LinkedListInfo *GetConfigureOptions(const char *filename,
       element=(const char *) GetNextValueInLinkedList(paths);
       while (element != (const char *) NULL)
       {
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",element,filename);
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",element,filename);
         (void) LogMagickEvent(ConfigureEvent,GetMagickModule(),
           "Searching for configure file: \"%s\"",path);
         xml=ConfigureFileToStringInfo(path);
@@ -570,20 +595,22 @@ MagickExport LinkedListInfo *GetConfigureOptions(const char *filename,
       }
       paths=DestroyLinkedList(paths,RelinquishMagickMemory);
     }
-#if defined(__WINDOWS__)
-  {
-    char
-      *blob;
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
+  if (GetNumberOfElementsInLinkedList(options) == 0)
+    {
+      char
+        *blob;
 
-    blob=(char *) NTResourceToBlob(filename);
-    if (blob != (char *) NULL)
-      {
-        xml=StringToStringInfo(blob);
-        SetStringInfoPath(xml,filename);
-        (void) AppendValueToLinkedList(options,xml);
-        blob=DestroyString(blob);
-      }
-  }
+      blob=(char *) NTResourceToBlob(filename);
+      if (blob != (char *) NULL)
+        {
+          xml=AcquireStringInfo(0);
+          SetStringInfoLength(xml,strlen(blob)+1);
+          SetStringInfoDatum(xml,(unsigned char *) blob);
+          SetStringInfoPath(xml,filename);
+          (void) AppendValueToLinkedList(options,xml);
+        }
+    }
 #endif
   if (GetNumberOfElementsInLinkedList(options) == 0)
     (void) ThrowMagickException(exception,GetMagickModule(),ConfigureWarning,
@@ -621,6 +648,10 @@ MagickExport LinkedListInfo *GetConfigureOptions(const char *filename,
 MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
   ExceptionInfo *exception)
 {
+#define RegistryKey  "ConfigurePath"
+#define MagickCoreDLL  "CORE_RL_magick_.dll"
+#define MagickCoreDebugDLL  "CORE_DB_magick_.dll"
+
   char
     path[MaxTextExtent];
 
@@ -663,9 +694,12 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
       }
   }
 #if defined(MAGICKCORE_INSTALLED_SUPPORT)
-#if defined(MAGICKCORE_SHARE_CONFIGURE_PATH)
+#if defined(MAGICKCORE_SHARE_PATH)
+  (void) AppendValueToLinkedList(paths,ConstantString(MAGICKCORE_SHARE_PATH));
+#endif
+#if defined(MAGICKCORE_SHAREARCH_PATH)
   (void) AppendValueToLinkedList(paths,ConstantString(
-    MAGICKCORE_SHARE_CONFIGURE_PATH));
+    MAGICKCORE_SHAREARCH_PATH));
 #endif
 #if defined(MAGICKCORE_CONFIGURE_PATH)
   (void) AppendValueToLinkedList(paths,ConstantString(
@@ -675,25 +709,18 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
   (void) AppendValueToLinkedList(paths,ConstantString(
     MAGICKCORE_DOCUMENTATION_PATH));
 #endif
-#if defined(MAGICKCORE_SHARE_PATH)
-  (void) AppendValueToLinkedList(paths,ConstantString(MAGICKCORE_SHARE_PATH));
-#endif
-#if defined(__WINDOWS__) && !(defined(MAGICKCORE_CONFIGURE_PATH) || defined(MAGICKCORE_SHARE_CONFIGURE_PATH))
+#if defined(MAGICKCORE_WINDOWS_SUPPORT) && !(defined(MAGICKCORE_CONFIGURE_PATH) || defined(MAGICKCORE_SHARE_PATH))
   {
-    char
-      *registry_key;
-
     unsigned char
       *key_value;
 
     /*
       Locate file via registry key.
     */
-    registry_key="ConfigurePath";
-    key_value=NTRegistryKeyLookup(registry_key);
+    key_value=NTRegistryKeyLookup(RegistryKey);
     if (key_value != (unsigned char *) NULL)
       {
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",(char *) key_value,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",(char *) key_value,
           DirectorySeparator);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
         key_value=(unsigned char *) RelinquishMagickMemory(key_value);
@@ -712,15 +739,18 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
     if (home != (char *) NULL)
       {
 #if !defined(MAGICKCORE_POSIX_SUPPORT)
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",home,
           DirectorySeparator);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
 #else
-        (void) FormatMagickString(path,MaxTextExtent,"%s/lib/%s/",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s/etc/%s/",home,
           MAGICKCORE_CONFIGURE_RELATIVE_PATH);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
-        (void) FormatMagickString(path,MaxTextExtent,"%s/share/%s/",home,
-          MAGICKCORE_SHARE_CONFIGURE_RELATIVE_PATH);
+        (void) FormatLocaleString(path,MaxTextExtent,"%s/share/%s/",home,
+          MAGICKCORE_SHARE_RELATIVE_PATH);
+        (void) AppendValueToLinkedList(paths,ConstantString(path));
+        (void) FormatLocaleString(path,MaxTextExtent,"%s",
+          MAGICKCORE_SHAREARCH_PATH);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
 #endif
         home=DestroyString(home);
@@ -729,7 +759,7 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
   if (*GetClientPath() != '\0')
     {
 #if !defined(MAGICKCORE_POSIX_SUPPORT)
-      (void) FormatMagickString(path,MaxTextExtent,"%s%s",GetClientPath(),
+      (void) FormatLocaleString(path,MaxTextExtent,"%s%s",GetClientPath(),
         DirectorySeparator);
       (void) AppendValueToLinkedList(paths,ConstantString(path));
 #else
@@ -741,11 +771,14 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
       */
       (void) CopyMagickString(prefix,GetClientPath(),MaxTextExtent);
       ChopPathComponents(prefix,1);
-      (void) FormatMagickString(path,MaxTextExtent,"%s/share/%s/",prefix,
-        MAGICKCORE_SHARE_CONFIGURE_RELATIVE_PATH);
-      (void) AppendValueToLinkedList(paths,ConstantString(path));
-      (void) FormatMagickString(path,MaxTextExtent,"%s/lib/%s/",prefix,
+      (void) FormatLocaleString(path,MaxTextExtent,"%s/etc/%s/",prefix,
         MAGICKCORE_CONFIGURE_RELATIVE_PATH);
+      (void) AppendValueToLinkedList(paths,ConstantString(path));
+      (void) FormatLocaleString(path,MaxTextExtent,"%s/share/%s/",prefix,
+        MAGICKCORE_SHARE_RELATIVE_PATH);
+      (void) AppendValueToLinkedList(paths,ConstantString(path));
+      (void) FormatLocaleString(path,MaxTextExtent,"%s",
+        MAGICKCORE_SHAREARCH_PATH);
       (void) AppendValueToLinkedList(paths,ConstantString(path));
 #endif
     }
@@ -766,42 +799,44 @@ MagickExport LinkedListInfo *GetConfigurePaths(const char *filename,
         /*
           Search $HOME/.magick.
         */
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s.magick%s",home,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s.magick%s",home,
           DirectorySeparator,DirectorySeparator);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
         home=DestroyString(home);
       }
   }
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
+
   {
     char
       module_path[MaxTextExtent];
 
-    if ((NTGetModulePath("CORE_RL_magick_.dll",module_path) != MagickFalse) ||
-        (NTGetModulePath("CORE_DB_magick_.dll",module_path) != MagickFalse))
+    if ((NTGetModulePath(MagickCoreDLL,module_path) != MagickFalse) ||
+        (NTGetModulePath(MagickCoreDebugDLL,module_path) != MagickFalse))
       {
-        char
-          *element;
+        unsigned char
+          *key_value;
 
         /*
           Search module path.
         */
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",module_path,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",module_path,
           DirectorySeparator);
-        element=(char *) RemoveElementByValueFromLinkedList(paths,path);
-        if (element != (char *) NULL)
-          element=DestroyString(element);
-        (void) AppendValueToLinkedList(paths,ConstantString(path));
+        key_value=NTRegistryKeyLookup(RegistryKey);
+        if (key_value == (unsigned char *) NULL)
+          (void) AppendValueToLinkedList(paths,ConstantString(path));
+        else
+          key_value=(unsigned char *) RelinquishMagickMemory(key_value);
       }
     if (NTGetModulePath("Magick.dll",module_path) != MagickFalse)
       {
         /*
           Search PerlMagick module path.
         */
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",module_path,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",module_path,
           DirectorySeparator);
         (void) AppendValueToLinkedList(paths,ConstantString(path));
-        (void) FormatMagickString(path,MaxTextExtent,"%s%s",module_path,
+        (void) FormatLocaleString(path,MaxTextExtent,"%s%s",module_path,
           "\\inc\\lib\\auto\\Image\\Magick\\");
         (void) AppendValueToLinkedList(paths,ConstantString(path));
       }
@@ -916,14 +951,14 @@ MagickExport MagickBooleanType ListConfigureInfo(FILE *file,
   const ConfigureInfo
     **configure_info;
 
-  long
-    j;
-
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_options;
+
+  ssize_t
+    j;
 
   if (file == (const FILE *) NULL)
     file=stdout;
@@ -931,7 +966,7 @@ MagickExport MagickBooleanType ListConfigureInfo(FILE *file,
   if (configure_info == (const ConfigureInfo **) NULL)
     return(MagickFalse);
   path=(const char *) NULL;
-  for (i=0; i < (long) number_options; i++)
+  for (i=0; i < (ssize_t) number_options; i++)
   {
     if (configure_info[i]->stealth != MagickFalse)
       continue;
@@ -939,28 +974,30 @@ MagickExport MagickBooleanType ListConfigureInfo(FILE *file,
         (LocaleCompare(path,configure_info[i]->path) != 0))
       {
         if (configure_info[i]->path != (char *) NULL)
-          (void) fprintf(file,"\nPath: %s\n\n",configure_info[i]->path);
-        (void) fprintf(file,"Name          Value\n");
-        (void) fprintf(file,"-------------------------------------------------"
+          (void) FormatLocaleFile(file,"\nPath: %s\n\n",
+            configure_info[i]->path);
+        (void) FormatLocaleFile(file,"Name           Value\n");
+        (void) FormatLocaleFile(file,
+          "-------------------------------------------------"
           "------------------------------\n");
       }
     path=configure_info[i]->path;
     name="unknown";
     if (configure_info[i]->name != (char *) NULL)
       name=configure_info[i]->name;
-    (void) fprintf(file,"%s",name);
-    for (j=(long) strlen(name); j <= 12; j++)
-      (void) fprintf(file," ");
-    (void) fprintf(file," ");
+    (void) FormatLocaleFile(file,"%s",name);
+    for (j=(ssize_t) strlen(name); j <= 13; j++)
+      (void) FormatLocaleFile(file," ");
+    (void) FormatLocaleFile(file," ");
     value="unknown";
     if (configure_info[i]->value != (char *) NULL)
       value=configure_info[i]->value;
-    (void) fprintf(file,"%s",value);
-    (void) fprintf(file,"\n");
+    (void) FormatLocaleFile(file,"%s",value);
+    (void) FormatLocaleFile(file,"\n");
   }
   (void) fflush(file);
-  configure_info=(const ConfigureInfo **)
-    RelinquishMagickMemory((void *) configure_info);
+  configure_info=(const ConfigureInfo **) RelinquishMagickMemory((void *)
+    configure_info);
   return(MagickTrue);
 }
 
@@ -981,7 +1018,7 @@ MagickExport MagickBooleanType ListConfigureInfo(FILE *file,
 %  The format of the LoadConfigureList method is:
 %
 %      MagickBooleanType LoadConfigureList(const char *xml,const char *filename,
-%        const unsigned long depth,ExceptionInfo *exception)
+%        const size_t depth,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -995,7 +1032,7 @@ MagickExport MagickBooleanType ListConfigureInfo(FILE *file,
 %
 */
 static MagickBooleanType LoadConfigureList(const char *xml,const char *filename,
-  const unsigned long depth,ExceptionInfo *exception)
+  const size_t depth,ExceptionInfo *exception)
 {
   char
     keyword[MaxTextExtent],
@@ -1209,7 +1246,7 @@ static MagickBooleanType LoadConfigureLists(const char *filename,
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -1226,7 +1263,7 @@ static MagickBooleanType LoadConfigureLists(const char *filename,
           return(MagickFalse);
         }
     }
-  for (i=0; i < (long) (sizeof(ConfigureMap)/sizeof(*ConfigureMap)); i++)
+  for (i=0; i < (ssize_t) (sizeof(ConfigureMap)/sizeof(*ConfigureMap)); i++)
   {
     ConfigureInfo
       *configure_info;

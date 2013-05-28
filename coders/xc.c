@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,6 +52,8 @@
 #include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
+#include "magick/pixel.h"
+#include "magick/pixel-accessor.h"
 #include "magick/pixel-private.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
@@ -102,17 +104,17 @@ static Image *ReadXCImage(const ImageInfo *image_info,ExceptionInfo *exception)
   MagickPixelPacket
     color;
 
-  long
-    y;
-
   PixelPacket
     pixel;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
+
+  ssize_t
+    y;
 
   /*
     Initialize Image structure.
@@ -136,22 +138,22 @@ static Image *ReadXCImage(const ImageInfo *image_info,ExceptionInfo *exception)
       image=DestroyImage(image);
       return((Image *) NULL);
     }
-  image->colorspace=color.colorspace;
+  SetImageColorspace(image,color.colorspace);
   image->matte=color.matte;
   index=0;
   SetPixelPacket(image,&color,&pixel,&index);
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
     if (q == (PixelPacket *) NULL)
       break;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
       *q++=pixel;
     if (image->colorspace == CMYKColorspace)
       {
         indexes=GetAuthenticIndexQueue(image);
-        for (x=0; x < (long) image->columns; x++)
-          indexes[x]=index;
+        for (x=0; x < (ssize_t) image->columns; x++)
+          SetPixelIndex(indexes+x,index);
       }
     if (SyncAuthenticPixels(image,exception) == MagickFalse)
       break;
@@ -179,10 +181,10 @@ static Image *ReadXCImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterXCImage method is:
 %
-%      unsigned long RegisterXCImage(void)
+%      size_t RegisterXCImage(void)
 %
 */
-ModuleExport unsigned long RegisterXCImage(void)
+ModuleExport size_t RegisterXCImage(void)
 {
   MagickInfo
     *entry;
@@ -190,7 +192,16 @@ ModuleExport unsigned long RegisterXCImage(void)
   entry=SetMagickInfo("XC");
   entry->decoder=(DecodeImageHandler *) ReadXCImage;
   entry->adjoin=MagickFalse;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
+  entry->raw=MagickTrue;
+  entry->endian_support=MagickTrue;
+  entry->description=ConstantString("Constant image uniform color");
+  entry->module=ConstantString("XC");
+  (void) RegisterMagickInfo(entry);
+  entry=SetMagickInfo("CANVAS");
+  entry->decoder=(DecodeImageHandler *) ReadXCImage;
+  entry->adjoin=MagickFalse;
+  entry->format_type=ImplicitFormatType;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
   entry->description=ConstantString("Constant image uniform color");
@@ -220,5 +231,6 @@ ModuleExport unsigned long RegisterXCImage(void)
 */
 ModuleExport void UnregisterXCImage(void)
 {
+  (void) UnregisterMagickInfo("CANVAS");
   (void) UnregisterMagickInfo("XC");
 }

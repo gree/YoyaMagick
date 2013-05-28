@@ -17,7 +17,7 @@
 %                               December 2001                                 %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -76,7 +76,8 @@
 %
 %
 */
-int main(int argc,char **argv)
+
+static int ConjureMain(int argc,char **argv)
 {
   ExceptionInfo
     *exception;
@@ -97,3 +98,29 @@ int main(int argc,char **argv)
   MagickCoreTerminus();
   return(status);
 }
+
+#if !defined(MAGICKCORE_WINDOWS_SUPPORT) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
+int main(int argc,char **argv)
+{
+  return(ConjureMain(argc,argv));
+}
+#else
+int wmain(int argc,wchar_t *argv[])
+{
+  char
+    **utf8;
+
+  int
+    status;
+
+  register int
+    i;
+
+  utf8=NTArgvToUTF8(argc,argv);
+  status=ConjureMain(argc,utf8);
+  for (i=0; i < argc; i++)
+    utf8[i]=DestroyString(utf8[i]);
+  utf8=(char **) RelinquishMagickMemory(utf8);
+  return(status);
+}
+#endif

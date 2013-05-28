@@ -13,18 +13,18 @@
 namespace Magick
 {
 
-  class MagickDLLDecl Color;
+  class MagickPPExport Color;
 
   // Compare two Color objects regardless of LHS/RHS
-  int MagickDLLDecl operator == ( const Magick::Color& left_, const Magick::Color& right_ );
-  int MagickDLLDecl operator != ( const Magick::Color& left_, const Magick::Color& right_ );
-  int MagickDLLDecl operator >  ( const Magick::Color& left_, const Magick::Color& right_ );
-  int MagickDLLDecl operator <  ( const Magick::Color& left_, const Magick::Color& right_ );
-  int MagickDLLDecl operator >= ( const Magick::Color& left_, const Magick::Color& right_ );
-  int MagickDLLDecl operator <= ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator == ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator != ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator >  ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator <  ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator >= ( const Magick::Color& left_, const Magick::Color& right_ );
+  int MagickPPExport operator <= ( const Magick::Color& left_, const Magick::Color& right_ );
 
   // Base color class stores RGB components scaled to fit Quantum
-  class MagickDLLDecl Color
+  class MagickPPExport Color
   {
   public:
     Color ( Quantum red_,
@@ -40,19 +40,19 @@ namespace Magick
     virtual        ~Color ( void );
     Color ( const Color & color_ );
 
-    // Red color (range 0 to MaxRGB)
+    // Red color (range 0 to QuantumRange)
     void           redQuantum ( Quantum red_ );
     Quantum        redQuantum ( void ) const;
 
-    // Green color (range 0 to MaxRGB)
+    // Green color (range 0 to QuantumRange)
     void           greenQuantum ( Quantum green_ );
     Quantum        greenQuantum ( void ) const;
 
-    // Blue color (range 0 to MaxRGB)
+    // Blue color (range 0 to QuantumRange)
     void           blueQuantum ( Quantum blue_ );
     Quantum        blueQuantum ( void ) const;
 
-    // Alpha level (range OpaqueOpacity=0 to TransparentOpacity=MaxRGB)
+    // Alpha level (range OpaqueOpacity=0 to TransparentOpacity=QuantumRange)
     void           alphaQuantum ( Quantum alpha_ );
     Quantum        alphaQuantum ( void ) const;
 
@@ -94,20 +94,22 @@ namespace Magick
         return (0.299*(_pixel->red)+0.587*(_pixel->green)+0.114*(_pixel->blue));
       }
 
-    // Scale a value expressed as a double (0-1) to Quantum range (0-MaxRGB)
+    // Scale a value expressed as a double (0-1) to Quantum range (0-QuantumRange)
     static Quantum scaleDoubleToQuantum( const double double_ )
       {
-        return (static_cast<Magick::Quantum>(double_*MaxRGB));
+        return (static_cast<Magick::Quantum>(double_*QuantumRange));
       }
 
-    // Scale a value expressed as a Quantum (0-MaxRGB) to double range (0-1)
+    // Scale a value expressed as a Quantum (0-QuantumRange) to double range (0-1)
+#if (MAGICKCORE_QUANTUM_DEPTH < 64)
     static double scaleQuantumToDouble( const Quantum quantum_ )
       {
-        return (static_cast<double>(quantum_)/MaxRGB);
+        return (static_cast<double>(quantum_)/QuantumRange);
       }
+#endif
     static double scaleQuantumToDouble( const double quantum_ )
       {
-        return (quantum_/MaxRGB);
+        return (quantum_/QuantumRange);
       }
 
 
@@ -144,10 +146,10 @@ namespace Magick
     void pixel ( PixelPacket* rep_, PixelType pixelType_ );
 
     // PixelPacket represents a color pixel:
-    //  red     = red   (range 0 to MaxRGB)
-    //  green   = green (range 0 to MaxRGB)
-    //  blue    = blue  (range 0 to MaxRGB)
-    //  opacity = alpha (range OpaqueOpacity=0 to TransparentOpacity=MaxRGB)
+    //  red     = red   (range 0 to QuantumRange)
+    //  green   = green (range 0 to QuantumRange)
+    //  blue    = blue  (range 0 to QuantumRange)
+    //  opacity = alpha (range OpaqueOpacity=0 to TransparentOpacity=QuantumRange)
     //  index   = PseudoColor colormap index
     PixelPacket*     _pixel;
 
@@ -170,7 +172,7 @@ namespace Magick
   //
   // HSL Colorspace colors
   //
-  class MagickDLLDecl ColorHSL : public Color
+  class MagickPPExport ColorHSL : public Color
   {
   public:
     ColorHSL ( double hue_, double saturation_, double luminosity_ );
@@ -200,7 +202,7 @@ namespace Magick
   //
   // Grayscale is simply RGB with equal parts of red, green, and blue
   // All double arguments have a valid range of 0.0 - 1.0.
-  class MagickDLLDecl ColorGray : public Color
+  class MagickPPExport ColorGray : public Color
   {
   public:
     ColorGray ( double shade_ );
@@ -224,7 +226,7 @@ namespace Magick
   //
   // Color arguments are constrained to 'false' (black pixel) and 'true'
   // (white pixel)
-  class MagickDLLDecl ColorMono : public Color
+  class MagickPPExport ColorMono : public Color
   {
   public:
     ColorMono ( bool mono_ );
@@ -247,7 +249,7 @@ namespace Magick
   // RGB color
   //
   // All color arguments have a valid range of 0.0 - 1.0.
-  class MagickDLLDecl ColorRGB : public Color
+  class MagickPPExport ColorRGB : public Color
   {
   public:
     ColorRGB ( double red_, double green_, double blue_ );
@@ -279,7 +281,7 @@ namespace Magick
   //        Y:  0.0 through 1.0
   //        U: -0.5 through 0.5
   //        V: -0.5 through 0.5
-  class MagickDLLDecl ColorYUV : public Color
+  class MagickPPExport ColorYUV : public Color
   {
   public:
     ColorYUV ( double y_, double u_, double v_ );

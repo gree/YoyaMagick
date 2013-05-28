@@ -17,7 +17,7 @@
 %                                 May  2004                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -68,12 +68,12 @@ static SemaphoreInfo
 %
 %  The format of the AcquireWandId() method is:
 %
-%      unsigned long AcquireWandId()
+%      size_t AcquireWandId()
 %
 */
-WandExport unsigned long AcquireWandId(void)
+WandExport size_t AcquireWandId(void)
 {
-  static unsigned long
+  static size_t
     id = 0;
 
   if (wand_semaphore == (SemaphoreInfo *) NULL)
@@ -138,14 +138,14 @@ WandExport void DestroyWandIds(void)
 %
 %  The format of the RelinquishWandId() method is:
 %
-%      void RelinquishWandId(const unsigned long *id)
+%      void RelinquishWandId(const size_t *id)
 %
 %  A description of each parameter follows:
 %
 %    o id: a unique wand id.
 %
 */
-WandExport void RelinquishWandId(const unsigned long id)
+WandExport void RelinquishWandId(const size_t id)
 {
   LockSemaphoreInfo(wand_semaphore);
   if (wand_ids != (SplayTreeInfo *) NULL)

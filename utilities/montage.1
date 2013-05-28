@@ -1,13 +1,13 @@
 .TH montage 1 "Date: 2009/01/10 01:00:00" "ImageMagick"
 .SH NAME
-montage \- create a composite image by combining several separate images. The images are tiled on the composite image optionall adorned with a border, frame, image name, and more.
+montage \- create a composite image by combining several separate images. The images are tiled on the composite image optionally adorned with a border, frame, image name, and more.
 .SH SYNOPSIS
 .TP
-\fBmontage\fP \fIinput-file\fP [\fIoptions\fP] \fIoutput-file\fP
+\fBmontage\fP \fIinput-file[s]\fP [\fIoptions\fP] \fIoutput-file\fP
 .SH OVERVIEW
 The \fBmontage\fP program is a member of the ImageMagick(1) suite of tools.  Use it to create a composite image by combining several separate images. The images are tiled on the composite image optionally adorned with a border, frame, image name, and more.
 
-For more information about the montage command, point your browser to file:///usr/share/doc/ImageMagick-6.6.0/www/montage.html or http://www.imagemagick.org/script/montage.php.
+For more information about the montage command, point your browser to file:///usr/share/doc/ImageMagick-6/www/montage.html or http://www.imagemagick.org/script/montage.php.
 .SH DESCRIPTION
 Image Settings:
   \-adjoin              join images into a single multi-image file
@@ -43,6 +43,7 @@ Image Settings:
   \-identify            identify the format and characteristics of the image
   \-interlace type      type of image interlacing scheme
   \-interpolate method  pixel color interpolation method
+  \-kerning value       set the space between two letters
   \-label string        assign a label to an image
   \-limit type value    pixel cache resource limit
   \-matte               store matte channel if the image has one
@@ -66,6 +67,7 @@ Image Settings:
   \-size geometry       width and height of image
   \-stroke color        color to use when stroking a graphic primitive
   \-support factor      resize support: > 1.0 is blurry, < 1.0 is sharp
+  \-synchronize         synchronize image to storage device
   \-texture filename    name of texture to tile onto the image background
   \-thumbnail geometry  create a thumbnail of the image
   \-tile geometry       number of tiles per row and column
@@ -106,6 +108,14 @@ Image Operators:
 Image Sequence Operators:
   \-coalesce            merge a sequence of images
 
+Image Stack Operators:
+  \-clone indexes       clone an image
+  \-delete indexes      delete the image from the image sequence
+  \-duplicate count,indexes
+                        duplicate an image one or more times
+  \-insert index        insert last image into the image sequence
+  \-swap indexes        swap two images in the image sequence
+
 Miscellaneous Options:
   \-debug events        display copious debugging information
   \-help                print program options
@@ -121,4 +131,4 @@ ImageMagick(1)
 
 .SH COPYRIGHT
 
-\fBCopyright (C) 1999-2010 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file:///usr/share/doc/ImageMagick-6.6.0/www/license.html or http://www.imagemagick.org/script/license.php\fP
+\fBCopyright (C) 1999-2013 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file:///usr/share/doc/ImageMagick-6/www/license.html or http://www.imagemagick.org/script/license.php\fP

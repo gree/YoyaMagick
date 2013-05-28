@@ -16,7 +16,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -46,6 +46,7 @@
 #include "magick/cache.h"
 #include "magick/color.h"
 #include "magick/color-private.h"
+#include "magick/colorspace-private.h"
 #include "magick/client.h"
 #include "magick/configure.h"
 #include "magick/exception.h"
@@ -79,13 +80,15 @@ typedef struct _ColorMapInfo
   const char
     *name;
 
-  const float
+  const unsigned char
     red,
     green,
-    blue,
+    blue;
+
+  const float
     alpha;
 
-  const long
+  const ssize_t
     compliance;
 } ColorMapInfo;
 
@@ -95,7 +98,7 @@ typedef struct _ColorMapInfo
 static const ColorMapInfo
   ColorMap[] =
   {
-    { "none", 0, 0, 0, 0, SVGCompliance },
+    { "none", 0, 0, 0, 0, SVGCompliance | XPMCompliance },
     { "black", 0, 0, 0, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "red", 255, 0, 0, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "magenta", 255, 0, 255, 1, SVGCompliance | X11Compliance | XPMCompliance },
@@ -143,7 +146,6 @@ static const ColorMapInfo
     { "burlywood2", 238, 197, 145, 1, X11Compliance },
     { "burlywood3", 205, 170, 125, 1, X11Compliance },
     { "burlywood4", 139, 115, 85, 1, X11Compliance },
-    { "cadet blue", 95, 158, 160, 1, X11Compliance },
     { "CadetBlue", 95, 158, 160, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "CadetBlue1", 152, 245, 255, 1, X11Compliance },
     { "CadetBlue2", 142, 229, 238, 1, X11Compliance },
@@ -175,7 +177,6 @@ static const ColorMapInfo
     { "cyan2", 0, 238, 238, 1, X11Compliance },
     { "cyan3", 0, 205, 205, 1, X11Compliance },
     { "cyan4", 0, 139, 139, 1, X11Compliance },
-    { "dark violet", 148, 0, 211, 1, X11Compliance },
     { "DarkBlue", 0, 0, 139, 1, SVGCompliance | X11Compliance },
     { "DarkCyan", 0, 139, 139, 1, SVGCompliance | X11Compliance },
     { "DarkGoldenrod", 184, 134, 11, 1, SVGCompliance | X11Compliance | XPMCompliance },
@@ -308,7 +309,7 @@ static const ColorMapInfo
     { "gray48", 122, 122, 122, 1, X11Compliance | XPMCompliance },
     { "gray49", 125, 125, 125, 1, X11Compliance | XPMCompliance },
     { "gray5", 13, 13, 13, 1, X11Compliance | XPMCompliance },
-    { "gray50", 127.5, 127.5, 127.5, 1, X11Compliance | XPMCompliance },
+    { "gray50", 127, 127, 127, 1, X11Compliance | XPMCompliance },
     { "gray51", 130, 130, 130, 1, X11Compliance | XPMCompliance },
     { "gray52", 133, 133, 133, 1, X11Compliance | XPMCompliance },
     { "gray53", 135, 135, 135, 1, X11Compliance | XPMCompliance },
@@ -873,32 +874,31 @@ MagickExport void ColorComponentTerminus(void)
 %                                                                             %
 %                                                                             %
 %                                                                             %
-+   G e t C o l o r I n f o                                                   %
++   G e t C o l o r C o m p l i a n c e                                       %
 %                                                                             %
 %                                                                             %
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  GetColorInfo() searches the color list for the specified name and if found
-%  returns attributes for that color.
+%  GetColorInfo() searches the color list for the specified name and standards
+%  compliance and if found returns attributes for that color.
 %
 %  The format of the GetColorInfo method is:
 %
 %      const PixelPacket *GetColorInfo(const char *name,
-%        ExceptionInfo *exception)
+%        const ComplianceType compliance,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
-%    o color_info: search the color list for the specified name and if found
-%      return attributes for that color.
-%
 %    o name: the color name.
+%
+%    o compliance: Adhere to this color standard: SVG, X11, or XPM.
 %
 %    o exception: return any errors or warnings in this structure.
 %
 */
-MagickExport const ColorInfo *GetColorInfo(const char *name,
-  ExceptionInfo *exception)
+MagickExport const ColorInfo *GetColorCompliance(const char *name,
+  const ComplianceType compliance,ExceptionInfo *exception)
 {
   char
     colorname[MaxTextExtent];
@@ -938,7 +938,8 @@ MagickExport const ColorInfo *GetColorInfo(const char *name,
   p=(const ColorInfo *) GetNextValueInLinkedList(color_list);
   while (p != (const ColorInfo *) NULL)
   {
-    if (LocaleCompare(colorname,p->name) == 0)
+    if (((p->compliance & compliance) != 0) &&
+        (LocaleCompare(colorname,p->name) == 0))
       break;
     p=(const ColorInfo *) GetNextValueInLinkedList(color_list);
   }
@@ -950,6 +951,41 @@ MagickExport const ColorInfo *GetColorInfo(const char *name,
       RemoveElementByValueFromLinkedList(color_list,p));
   UnlockSemaphoreInfo(color_semaphore);
   return(p);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   G e t C o l o r I n f o                                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetColorInfo() searches the color list for the specified name and if found
+%  returns attributes for that color.
+%
+%  The format of the GetColorInfo method is:
+%
+%      const PixelPacket *GetColorInfo(const char *name,
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o color_info: search the color list for the specified name and if found
+%      return attributes for that color.
+%
+%    o name: the color name.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickExport const ColorInfo *GetColorInfo(const char *name,
+  ExceptionInfo *exception)
+{
+  return(GetColorCompliance(name,AllCompliance,exception));
 }
 
 /*
@@ -1025,46 +1061,51 @@ MagickExport void ConcatenateColorComponent(const MagickPixelPacket *pixel,
     {
       if (pixel->depth > 16)
         {
-          (void) FormatMagickString(component,MaxTextExtent,"%10lu",
+          (void) FormatLocaleString(component,MaxTextExtent,"%10lu",
             (unsigned long) ScaleQuantumToLong(ClampToQuantum(color)));
           (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
           return;
         }
       if (pixel->depth > 8)
         {
-          (void) FormatMagickString(component,MaxTextExtent,"%5d",
+          (void) FormatLocaleString(component,MaxTextExtent,"%5d",
             ScaleQuantumToShort(ClampToQuantum(color)));
           (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
           return;
         }
-      (void) FormatMagickString(component,MaxTextExtent,"%3d",
+      (void) FormatLocaleString(component,MaxTextExtent,"%3d",
         ScaleQuantumToChar(ClampToQuantum(color)));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
   if (channel == OpacityChannel)
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%g",
+      (void) FormatLocaleString(component,MaxTextExtent,"%g",
         (double) (QuantumScale*color));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
-  if ((pixel->colorspace == HSLColorspace) ||
-      (pixel->colorspace == HSBColorspace))
+  if ((pixel->colorspace == HCLColorspace) ||
+      (pixel->colorspace == HCLpColorspace) ||
+      (pixel->colorspace == HSBColorspace) ||
+      (pixel->colorspace == HSIColorspace) ||
+      (pixel->colorspace == HSLColorspace) ||
+      (pixel->colorspace == HSVColorspace) ||
+      (pixel->colorspace == HWBColorspace))
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%g%%",
+      (void) FormatLocaleString(component,MaxTextExtent,"%g%%",
         (double) (100.0*QuantumScale*color));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
   if (pixel->depth > 8)
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%g%%",
+      (void) FormatLocaleString(component,MaxTextExtent,"%g%%",
         (double) (100.0*QuantumScale*color));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
-  (void) FormatMagickString(component,MaxTextExtent,"%d",
+  (void) FormatLocaleString(component,MaxTextExtent,"%d",
     ScaleQuantumToChar(ClampToQuantum(color)));
   (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
 }
@@ -1085,7 +1126,7 @@ MagickExport void ConcatenateColorComponent(const MagickPixelPacket *pixel,
 %  The format of the GetColorInfoList function is:
 %
 %      const ColorInfo **GetColorInfoList(const char *pattern,
-%        unsigned long *number_colors,ExceptionInfo *exception)
+%        size_t *number_colors,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -1119,7 +1160,7 @@ static int ColorInfoCompare(const void *x,const void *y)
 #endif
 
 MagickExport const ColorInfo **GetColorInfoList(const char *pattern,
-  unsigned long *number_colors,ExceptionInfo *exception)
+  size_t *number_colors,ExceptionInfo *exception)
 {
   const ColorInfo
     **colors;
@@ -1127,7 +1168,7 @@ MagickExport const ColorInfo **GetColorInfoList(const char *pattern,
   register const ColorInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -1135,7 +1176,7 @@ MagickExport const ColorInfo **GetColorInfoList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_colors != (unsigned long *) NULL);
+  assert(number_colors != (size_t *) NULL);
   *number_colors=0;
   p=GetColorInfo("*",exception);
   if (p == (const ColorInfo *) NULL)
@@ -1160,7 +1201,7 @@ MagickExport const ColorInfo **GetColorInfoList(const char *pattern,
   UnlockSemaphoreInfo(color_semaphore);
   qsort((void *) colors,(size_t) i,sizeof(*colors),ColorInfoCompare);
   colors[i]=(ColorInfo *) NULL;
-  *number_colors=(unsigned long) i;
+  *number_colors=(size_t) i;
   return(colors);
 }
 
@@ -1179,7 +1220,7 @@ MagickExport const ColorInfo **GetColorInfoList(const char *pattern,
 %
 %  The format of the GetColorList function is:
 %
-%      char **GetColorList(const char *pattern,unsigned long *number_colors,
+%      char **GetColorList(const char *pattern,size_t *number_colors,
 %        ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -1212,7 +1253,7 @@ static int ColorCompare(const void *x,const void *y)
 #endif
 
 MagickExport char **GetColorList(const char *pattern,
-  unsigned long *number_colors,ExceptionInfo *exception)
+  size_t *number_colors,ExceptionInfo *exception)
 {
   char
     **colors;
@@ -1220,7 +1261,7 @@ MagickExport char **GetColorList(const char *pattern,
   register const ColorInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -1228,7 +1269,7 @@ MagickExport char **GetColorList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_colors != (unsigned long *) NULL);
+  assert(number_colors != (size_t *) NULL);
   *number_colors=0;
   p=GetColorInfo("*",exception);
   if (p == (const ColorInfo *) NULL)
@@ -1253,7 +1294,7 @@ MagickExport char **GetColorList(const char *pattern,
   UnlockSemaphoreInfo(color_semaphore);
   qsort((void *) colors,(size_t) i,sizeof(*colors),ColorCompare);
   colors[i]=(char *) NULL;
-  *number_colors=(unsigned long) i;
+  *number_colors=(size_t) i;
   return(colors);
 }
 
@@ -1328,26 +1369,27 @@ static void ConcatentateHexColorComponent(const MagickPixelPacket *pixel,
   }
   if (pixel->depth > 32)
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%08lX",
-        ScaleQuantumToLong(ClampToQuantum(color)));
+      (void) FormatLocaleString(component,MaxTextExtent,"%08lX%08lX",
+        (unsigned long) ScaleQuantumToLong(ClampToQuantum(color)),
+        (unsigned long) ScaleQuantumToLong(ClampToQuantum(color)));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
   if (pixel->depth > 16)
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%08X",
+      (void) FormatLocaleString(component,MaxTextExtent,"%08X",
         (unsigned int) ScaleQuantumToLong(ClampToQuantum(color)));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
   if (pixel->depth > 8)
     {
-      (void) FormatMagickString(component,MaxTextExtent,"%04X",
+      (void) FormatLocaleString(component,MaxTextExtent,"%04X",
         ScaleQuantumToShort(ClampToQuantum(color)));
       (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
       return;
     }
-  (void) FormatMagickString(component,MaxTextExtent,"%02X",
+  (void) FormatLocaleString(component,MaxTextExtent,"%02X",
     ScaleQuantumToChar(ClampToQuantum(color)));
   (void) ConcatenateMagickString(tuple,component,MaxTextExtent);
   return;
@@ -1403,16 +1445,21 @@ MagickExport void GetColorTuple(const MagickPixelPacket *pixel,
       if (status != MagickFalse)
         color.depth=8;
     }
-  (void) ConcatenateMagickString(tuple,MagickOptionToMnemonic(
-    MagickColorspaceOptions,(long) color.colorspace),MaxTextExtent);
+  (void) ConcatenateMagickString(tuple,CommandOptionToMnemonic(
+    MagickColorspaceOptions,(ssize_t) color.colorspace),MaxTextExtent);
   if (color.matte != MagickFalse)
     (void) ConcatenateMagickString(tuple,"a",MaxTextExtent);
   (void) ConcatenateMagickString(tuple,"(",MaxTextExtent);
-  ConcatenateColorComponent(&color,RedChannel,SVGCompliance,tuple);
-  (void) ConcatenateMagickString(tuple,",",MaxTextExtent);
-  ConcatenateColorComponent(&color,GreenChannel,SVGCompliance,tuple);
-  (void) ConcatenateMagickString(tuple,",",MaxTextExtent);
-  ConcatenateColorComponent(&color,BlueChannel,SVGCompliance,tuple);
+  if (color.colorspace == GRAYColorspace)
+    ConcatenateColorComponent(&color,GrayChannel,SVGCompliance,tuple);
+  else
+    {
+      ConcatenateColorComponent(&color,RedChannel,SVGCompliance,tuple);
+      (void) ConcatenateMagickString(tuple,",",MaxTextExtent);
+      ConcatenateColorComponent(&color,GreenChannel,SVGCompliance,tuple);
+      (void) ConcatenateMagickString(tuple,",",MaxTextExtent);
+      ConcatenateColorComponent(&color,BlueChannel,SVGCompliance,tuple);
+    }
   if (color.colorspace == CMYKColorspace)
     {
       (void) ConcatenateMagickString(tuple,",",MaxTextExtent);
@@ -1515,31 +1562,62 @@ MagickExport MagickBooleanType IsColorSimilar(const Image *image,
     pixel;
 
   register MagickRealType
-    alpha,
-    beta,
-    distance;
+    distance,
+    scale;
 
   if ((image->fuzz == 0.0) && (image->matte == MagickFalse))
     return(IsColorEqual(p,q));
-  fuzz=3.0*MagickMax(image->fuzz,MagickSQ1_2)*MagickMax(image->fuzz,
-    MagickSQ1_2);
-  alpha=1.0;
-  beta=1.0;
+  fuzz=MagickMax(image->fuzz,MagickSQ1_2)*MagickMax(image->fuzz,MagickSQ1_2);
+  scale=1.0;
+  distance=0.0;
   if (image->matte != MagickFalse)
     {
-      alpha=(MagickRealType) (QuantumScale*(GetAlphaPixelComponent(p)));
-      beta=(MagickRealType) (QuantumScale*GetAlphaPixelComponent(q));
+      /*
+        Transparencies are involved - set alpha distance
+      */
+      pixel=(MagickRealType) ((image->matte != MagickFalse ? GetPixelOpacity(p) :
+        OpaqueOpacity)-(image->matte != MagickFalse ? q->opacity :
+        OpaqueOpacity));
+      distance=pixel*pixel;
+      if (distance > fuzz)
+        return(MagickFalse);
+      /*
+        Generate a alpha scaling factor to generate a 4D cone on colorspace
+        Note that if one color is transparent, distance has no color component.
+      */
+      scale=(QuantumScale*GetPixelAlpha(p));
+      scale*=(QuantumScale*GetPixelAlpha(q));
+      if (scale <= MagickEpsilon)
+        return(MagickTrue);
     }
-  pixel=alpha*p->red-beta*q->red;
-  distance=pixel*pixel;
+  /*
+    RGB or CMY color cube
+  */
+  distance*=3.0;  /* rescale appropriately */
+  fuzz*=3.0;
+  pixel=(MagickRealType) GetPixelRed(p)-GetPixelRed(q);
+  if ((image->colorspace == HCLColorspace) ||
+      (image->colorspace == HSBColorspace) ||
+      (image->colorspace == HSLColorspace) ||
+      (image->colorspace == HWBColorspace))
+    {
+      /* This calculates a arc distance for hue.  Really it should be a vector
+         angle of 'S'/'W' length with 'L'/'B' forming appropriate cones.  In
+         other words this is a hack - Anthony
+      */
+      if (fabs((double) pixel) > (QuantumRange/2))
+        pixel-=QuantumRange;
+      pixel*=2;
+    }
+  distance+=scale*pixel*pixel;
   if (distance > fuzz)
     return(MagickFalse);
-  pixel=alpha*p->green-beta*q->green;
-  distance+=pixel*pixel;
+  pixel=(MagickRealType) GetPixelGreen(p)-q->green;
+  distance+=scale*pixel*pixel;
   if (distance > fuzz)
     return(MagickFalse);
-  pixel=alpha*p->blue-beta*q->blue;
-  distance+=pixel*pixel;
+  pixel=(MagickRealType) GetPixelBlue(p)-q->blue;
+  distance+=scale*pixel*pixel;
   if (distance > fuzz)
     return(MagickFalse);
   return(MagickTrue);
@@ -1562,7 +1640,7 @@ MagickExport MagickBooleanType IsColorSimilar(const Image *image,
 %  The format of the IsImageSimilar method is:
 %
 %      MagickBooleanType IsImageSimilar(const Image *image,
-%        const Image *target_image,long *x_offset,long *y_offset,
+%        const Image *target_image,ssize_t *x_offset,ssize_t *y_offset,
 %        ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -1581,7 +1659,7 @@ MagickExport MagickBooleanType IsColorSimilar(const Image *image,
 %
 */
 MagickExport MagickBooleanType IsImageSimilar(const Image *image,
-  const Image *target_image,long *x_offset,long *y_offset,
+  const Image *target_image,ssize_t *x_offset,ssize_t *y_offset,
   ExceptionInfo *exception)
 {
 #define SearchImageText  "  Searching image...  "
@@ -1589,10 +1667,6 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
   CacheView
     *image_view,
     *target_view;
-
-  long
-    j,
-    y;
 
   MagickBooleanType
     status;
@@ -1609,9 +1683,13 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
     *indexes,
     *target_indexes;
 
-  register long
+  register ssize_t
     i,
     x;
+
+  ssize_t
+    j,
+    y;
 
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
@@ -1619,21 +1697,22 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
     (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   assert(target_image != (Image *) NULL);
   assert(target_image->signature == MagickSignature);
-  assert(x_offset != (long *) NULL);
-  assert(y_offset != (long *) NULL);
+  assert(x_offset != (ssize_t *) NULL);
+  assert(y_offset != (ssize_t *) NULL);
   assert(exception != (ExceptionInfo *) NULL);
   x=0;
+  status=MagickTrue;
   GetMagickPixelPacket(image,&pixel);
   GetMagickPixelPacket(image,&target);
-  image_view=AcquireCacheView(image);
-  target_view=AcquireCacheView(target_image);
-  for (y=(*y_offset); y < (long) image->rows; y++)
+  image_view=AcquireVirtualCacheView(image,exception);
+  target_view=AcquireVirtualCacheView(target_image,exception);
+  for (y=(*y_offset); y < (ssize_t) image->rows; y++)
   {
-    for (x=y == 0 ? *x_offset : 0; x < (long) image->columns; x++)
+    for (x=y == 0 ? *x_offset : 0; x < (ssize_t) image->columns; x++)
     {
-      for (j=0; j < (long) target_image->rows; j++)
+      for (j=0; j < (ssize_t) target_image->rows; j++)
       {
-        for (i=0; i < (long) target_image->columns; i++)
+        for (i=0; i < (ssize_t) target_image->columns; i++)
         {
           p=GetCacheViewVirtualPixels(image_view,x+i,y+j,1,1,exception);
           indexes=GetCacheViewVirtualIndexQueue(image_view);
@@ -1644,20 +1723,21 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
           if (IsMagickColorSimilar(&pixel,&target) == MagickFalse)
             break;
         }
-        if (i < (long) target_image->columns)
+        if (i < (ssize_t) target_image->columns)
           break;
       }
-      if (j == (long) target_image->rows)
+      if (j == (ssize_t) target_image->rows)
         break;
     }
-    if (x < (long) image->columns)
+    if (x < (ssize_t) image->columns)
       break;
     if (image->progress_monitor != (MagickProgressMonitor) NULL)
       {
         MagickBooleanType
           proceed;
 
-        proceed=SetImageProgress(image,SearchImageText,y,image->rows);
+        proceed=SetImageProgress(image,SearchImageText,(MagickOffsetType) y,
+          image->rows);
         if (proceed == MagickFalse)
           status=MagickFalse;
       }
@@ -1666,7 +1746,9 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
   image_view=DestroyCacheView(image_view);
   *x_offset=x;
   *y_offset=y;
-  return(y < (long) image->rows ? MagickTrue : MagickFalse);
+  if (status == MagickFalse)
+    return(status);
+  return(y < (ssize_t) image->rows ? MagickTrue : MagickFalse);
 }
 
 /*
@@ -1684,6 +1766,23 @@ MagickExport MagickBooleanType IsImageSimilar(const Image *image,
 %  less than the specified distance in a linear three dimensional color space.
 %  This method is used by ColorFloodFill() and other algorithms which
 %  compare two colors.
+%
+%  This implements the equivalent of...
+%    fuzz < sqrt( color_distance^2 * u.a*v.a  + alpha_distance^2 )
+%
+%  Which produces a multi-dimensional cone for that colorspace along the
+%  transparency vector.
+%
+%  For example for an RGB
+%    color_distance^2  = ( (u.r-v.r)^2 + (u.g-v.g)^2 + (u.b-v.b)^2 ) / 3
+%
+%  See http://www.imagemagick.org/Usage/bugs/fuzz_distance/
+%
+%  Hue colorspace distances need more work.  Hue is not a distance, it is an
+%  angle!
+%
+%  A check that q is in the same color space as p should be made and the
+%  appropriate mapping made.  -- Anthony Thyssen  8 December 2010
 %
 %  The format of the IsMagickColorSimilar method is:
 %
@@ -1705,56 +1804,79 @@ MagickExport MagickBooleanType IsMagickColorSimilar(const MagickPixelPacket *p,
     pixel;
 
   register MagickRealType
-    alpha,
-    beta,
+    scale,
     distance;
 
   if ((p->fuzz == 0.0) && (q->fuzz == 0.0))
     return(IsMagickColorEqual(p,q));
   if (p->fuzz == 0.0)
     fuzz=MagickMax(q->fuzz,MagickSQ1_2)*MagickMax(q->fuzz,MagickSQ1_2);
+  else if (q->fuzz == 0.0)
+    fuzz=MagickMax(p->fuzz,MagickSQ1_2)*MagickMax(p->fuzz,MagickSQ1_2);
   else
-    if (q->fuzz == 0.0)
-      fuzz=3.0*MagickMax(p->fuzz,MagickSQ1_2)*MagickMax(p->fuzz,MagickSQ1_2);
-    else
-      fuzz=3.0*MagickMax(p->fuzz,MagickSQ1_2)*MagickMax(q->fuzz,MagickSQ1_2);
-  alpha=1.0;
-  if (p->matte != MagickFalse)
-    alpha=(MagickRealType) (QuantumScale*(GetAlphaPixelComponent(p)));
-  beta=1.0;
-  if (q->matte != MagickFalse)
-    beta=(MagickRealType) (QuantumScale*GetAlphaPixelComponent(q));
+    fuzz=MagickMax(p->fuzz,MagickSQ1_2)*MagickMax(q->fuzz,MagickSQ1_2);
+  scale=1.0;
+  distance=0.0;
+  if ((p->matte != MagickFalse) || (q->matte != MagickFalse))
+    {
+      /*
+        Transparencies are involved - set alpha distance.
+      */
+      pixel=(p->matte != MagickFalse ? GetPixelOpacity(p) : OpaqueOpacity)-
+        (q->matte != MagickFalse ? q->opacity : OpaqueOpacity);
+      distance=pixel*pixel;
+      if (distance > fuzz)
+        return(MagickFalse);
+      /*
+        Generate a alpha scaling factor to generate a 4D cone on colorspace.
+        Note that if one color is transparent, distance has no color component
+      */
+      if (p->matte != MagickFalse)
+        scale=(QuantumScale*GetPixelAlpha(p));
+      if (q->matte != MagickFalse)
+        scale*=(QuantumScale*GetPixelAlpha(q));
+      if ( scale <= MagickEpsilon )
+        return(MagickTrue);
+    }
+  /*
+    CMYK create a CMY cube with a multi-dimensional cone toward black.
+  */
   if (p->colorspace == CMYKColorspace)
     {
-      alpha*=(MagickRealType) (QuantumScale*(QuantumRange-p->index));
-      beta*=(MagickRealType) (QuantumScale*(QuantumRange-q->index));
+      pixel=p->index-q->index;
+      distance+=pixel*pixel*scale;
+      if (distance > fuzz)
+        return(MagickFalse);
+      scale*=(MagickRealType) (QuantumScale*(QuantumRange-p->index));
+      scale*=(MagickRealType) (QuantumScale*(QuantumRange-q->index));
     }
-  pixel=alpha*p->red-beta*q->red;
-  if ((p->colorspace == HSLColorspace) || (p->colorspace == HSBColorspace) ||
-      (p->colorspace == HWBColorspace))
+  /*
+    RGB or CMY color cube.
+  */
+  distance*=3.0;  /* rescale appropriately */
+  fuzz*=3.0;
+  pixel=p->red-q->red;
+  if ((p->colorspace == HCLColorspace) || (p->colorspace == HSBColorspace) ||
+      (p->colorspace == HSLColorspace) || (p->colorspace == HWBColorspace))
     {
-      if (fabs(p->red-q->red) > (QuantumRange/2))
-        {
-          if (p->red > (QuantumRange/2))
-            pixel=alpha*(p->red-QuantumRange)-beta*q->red;
-          else
-            pixel=alpha*p->red-beta*(q->red-QuantumRange);
-        }
-        pixel*=2;
-     }
-  distance=pixel*pixel;
+      /* This calculates a arc distance for hue
+         Really if should be a vector angle of 'S'/'W' length
+         with 'L'/'B' forming appropriate cones.
+         In other words this is a hack - Anthony
+      */
+      if (fabs((double) pixel) > (QuantumRange/2))
+        pixel-=QuantumRange;
+      pixel*=2;
+    }
+  distance+=pixel*pixel*scale;
   if (distance > fuzz)
     return(MagickFalse);
-  pixel=alpha*p->green-beta*q->green;
-  distance+=pixel*pixel;
+  pixel=GetPixelGreen(p)-q->green;
+  distance+=pixel*pixel*scale;
   if (distance > fuzz)
     return(MagickFalse);
-  pixel=alpha*p->blue-beta*q->blue;
-  distance+=pixel*pixel;
-  if (distance > fuzz)
-    return(MagickFalse);
-  pixel=p->opacity-q->opacity;
-  distance+=pixel*pixel;
+  pixel=GetPixelBlue(p)-q->blue;
+  distance+=pixel*pixel*scale;
   if (distance > fuzz)
     return(MagickFalse);
   return(MagickTrue);
@@ -1802,10 +1924,10 @@ MagickExport MagickBooleanType IsOpacitySimilar(const Image *image,
 
   if (image->matte == MagickFalse)
     return(MagickTrue);
-  if (p->opacity == q->opacity)
+  if (GetPixelOpacity(p) == q->opacity)
     return(MagickTrue);
   fuzz=MagickMax(image->fuzz,MagickSQ1_2)*MagickMax(image->fuzz,MagickSQ1_2);
-  pixel=(MagickRealType) p->opacity-(MagickRealType) q->opacity;
+  pixel=(MagickRealType) GetPixelOpacity(p)-(MagickRealType) q->opacity;
   distance=pixel*pixel;
   if (distance > fuzz)
     return(MagickFalse);
@@ -1850,10 +1972,10 @@ MagickExport MagickBooleanType ListColorInfo(FILE *file,
   const ColorInfo
     **color_info;
 
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_colors;
 
   /*
@@ -1865,7 +1987,7 @@ MagickExport MagickBooleanType ListColorInfo(FILE *file,
   if (color_info == (const ColorInfo **) NULL)
     return(MagickFalse);
   path=(const char *) NULL;
-  for (i=0; i < (long) number_colors; i++)
+  for (i=0; i < (ssize_t) number_colors; i++)
   {
     if (color_info[i]->stealth != MagickFalse)
       continue;
@@ -1873,23 +1995,25 @@ MagickExport MagickBooleanType ListColorInfo(FILE *file,
         (LocaleCompare(path,color_info[i]->path) != 0))
       {
         if (color_info[i]->path != (char *) NULL)
-          (void) fprintf(file,"\nPath: %s\n\n",color_info[i]->path);
-        (void) fprintf(file,"Name                  Color                  "
+          (void) FormatLocaleFile(file,"\nPath: %s\n\n",color_info[i]->path);
+        (void) FormatLocaleFile(file,
+          "Name                  Color                  "
           "                       Compliance\n");
-        (void) fprintf(file,"-------------------------------------------------"
+        (void) FormatLocaleFile(file,
+          "-------------------------------------------------"
           "------------------------------\n");
       }
     path=color_info[i]->path;
-    (void) fprintf(file,"%-21.21s ",color_info[i]->name);
+    (void) FormatLocaleFile(file,"%-21.21s ",color_info[i]->name);
     GetColorTuple(&color_info[i]->color,MagickFalse,tuple);
-    (void) fprintf(file,"%-45.45s ",tuple);
+    (void) FormatLocaleFile(file,"%-45.45s ",tuple);
     if ((color_info[i]->compliance & SVGCompliance) != 0)
-      (void) fprintf(file,"SVG ");
+      (void) FormatLocaleFile(file,"SVG ");
     if ((color_info[i]->compliance & X11Compliance) != 0)
-      (void) fprintf(file,"X11 ");
+      (void) FormatLocaleFile(file,"X11 ");
     if ((color_info[i]->compliance & XPMCompliance) != 0)
-      (void) fprintf(file,"XPM ");
-    (void) fprintf(file,"\n");
+      (void) FormatLocaleFile(file,"XPM ");
+    (void) FormatLocaleFile(file,"\n");
   }
   color_info=(const ColorInfo **) RelinquishMagickMemory((void *) color_info);
   (void) fflush(file);
@@ -1913,7 +2037,7 @@ MagickExport MagickBooleanType ListColorInfo(FILE *file,
 %  The format of the LoadColorList method is:
 %
 %      MagickBooleanType LoadColorList(const char *xml,const char *filename,
-%        const unsigned long depth,ExceptionInfo *exception)
+%        const size_t depth,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -1927,7 +2051,7 @@ MagickExport MagickBooleanType ListColorInfo(FILE *file,
 %
 */
 static MagickBooleanType LoadColorList(const char *xml,const char *filename,
-  const unsigned long depth,ExceptionInfo *exception)
+  const size_t depth,ExceptionInfo *exception)
 {
   char
     keyword[MaxTextExtent],
@@ -2036,7 +2160,7 @@ static MagickBooleanType LoadColorList(const char *xml,const char *filename,
         /*
           Color element.
         */
-        color_info=(ColorInfo *) AcquireAlignedMemory(1,sizeof(*color_info));
+        color_info=(ColorInfo *) AcquireMagickMemory(sizeof(*color_info));
         if (color_info == (ColorInfo *) NULL)
           ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
         (void) ResetMagickMemory(color_info,0,sizeof(*color_info));
@@ -2073,7 +2197,7 @@ static MagickBooleanType LoadColorList(const char *xml,const char *filename,
           }
         if (LocaleCompare((char *) keyword,"compliance") == 0)
           {
-            long
+            ssize_t
               compliance;
 
             compliance=color_info->compliance;
@@ -2151,13 +2275,10 @@ static MagickBooleanType LoadColorLists(const char *filename,
   LinkedListInfo
     *options;
 
-  MagickRealType
-    scale;
-
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -2174,8 +2295,7 @@ static MagickBooleanType LoadColorLists(const char *filename,
           return(MagickFalse);
         }
     }
-  scale=(MagickRealType) ScaleCharToQuantum(1);
-  for (i=0; i < (long) (sizeof(ColorMap)/sizeof(*ColorMap)); i++)
+  for (i=0; i < (ssize_t) (sizeof(ColorMap)/sizeof(*ColorMap)); i++)
   {
     ColorInfo
       *color_info;
@@ -2184,7 +2304,7 @@ static MagickBooleanType LoadColorLists(const char *filename,
       *p;
 
     p=ColorMap+i;
-    color_info=(ColorInfo *) AcquireAlignedMemory(1,sizeof(*color_info));
+    color_info=(ColorInfo *) AcquireMagickMemory(sizeof(*color_info));
     if (color_info == (ColorInfo *) NULL)
       {
         (void) ThrowMagickException(exception,GetMagickModule(),
@@ -2195,9 +2315,12 @@ static MagickBooleanType LoadColorLists(const char *filename,
     color_info->path=(char *) "[built-in]";
     color_info->name=(char *) p->name;
     GetMagickPixelPacket((Image *) NULL,&color_info->color);
-    color_info->color.red=scale*GetRedPixelComponent(p);
-    color_info->color.green=scale*GetGreenPixelComponent(p);
-    color_info->color.blue=scale*GetBluePixelComponent(p);
+    color_info->color.red=(MagickRealType) ScaleCharToQuantum(
+      GetPixelRed(p));
+    color_info->color.green=(MagickRealType) ScaleCharToQuantum(
+      GetPixelGreen(p));
+    color_info->color.blue=(MagickRealType) ScaleCharToQuantum(
+      GetPixelBlue(p));
     color_info->color.opacity=(MagickRealType) (QuantumRange-QuantumRange*
       p->alpha);
     color_info->compliance=(ComplianceType) p->compliance;
@@ -2221,6 +2344,76 @@ static MagickBooleanType LoadColorLists(const char *filename,
   }
   options=DestroyConfigureOptions(options);
   return(status != 0 ? MagickTrue : MagickFalse);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   Q u e r y C o l o r C o m p l i e n c e                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  QueryColorCompliance() returns the red, green, blue, and opacity intensities
+%  for a given color name.
+%
+%  The format of the QueryColorCompliance method is:
+%
+%      MagickBooleanType QueryColorCompliance(const char *name,
+%        const ComplianceType compliance,PixelPacket *color,
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o name: the color name (e.g. white, blue, yellow).
+%
+%    o compliance: Adhere to this color standard: SVG, X11, or XPM.
+%
+%    o color: the red, green, blue, and opacity intensities values of the
+%      named color in this structure.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+
+static inline double MagickMin(const double x,const double y)
+{
+  if (x < y)
+    return(x);
+  return(y);
+}
+
+MagickExport MagickBooleanType QueryColorCompliance(const char *name,
+  const ComplianceType compliance,PixelPacket *color,ExceptionInfo *exception)
+{
+  MagickBooleanType
+    status;
+
+  MagickPixelPacket
+    pixel;
+
+  status=QueryMagickColorCompliance(name,compliance,&pixel,exception);
+  SetPixelOpacity(color,ClampToQuantum(pixel.opacity));
+  if (pixel.colorspace == CMYKColorspace)
+    {
+      SetPixelRed(color,ClampToQuantum((MagickRealType)
+        (QuantumRange-MagickMin(QuantumRange,(MagickRealType) (QuantumScale*
+        pixel.red*(QuantumRange-pixel.index)+pixel.index)))));
+      SetPixelGreen(color,ClampToQuantum((MagickRealType)
+        (QuantumRange-MagickMin(QuantumRange,(MagickRealType) (QuantumScale*
+        pixel.green*(QuantumRange-pixel.index)+pixel.index)))));
+      SetPixelBlue(color,ClampToQuantum((MagickRealType)
+        (QuantumRange-MagickMin(QuantumRange,(MagickRealType) (QuantumScale*
+        pixel.blue*(QuantumRange-pixel.index)+pixel.index)))));
+      return(status);
+    }
+  SetPixelRed(color,ClampToQuantum(pixel.red));
+  SetPixelGreen(color,ClampToQuantum(pixel.green));
+  SetPixelBlue(color,ClampToQuantum(pixel.blue));
+  return(status);
 }
 
 /*
@@ -2252,42 +2445,10 @@ static MagickBooleanType LoadColorLists(const char *filename,
 %    o exception: return any errors or warnings in this structure.
 %
 */
-
-static inline double MagickMin(const double x,const double y)
-{
-  if (x < y)
-    return(x);
-  return(y);
-}
-
 MagickExport MagickBooleanType QueryColorDatabase(const char *name,
   PixelPacket *color,ExceptionInfo *exception)
 {
-  MagickBooleanType
-    status;
-
-  MagickPixelPacket
-    pixel;
-
-  status=QueryMagickColor(name,&pixel,exception);
-  color->opacity=ClampToQuantum(pixel.opacity);
-  if (pixel.colorspace == CMYKColorspace)
-    {
-      color->red=ClampToQuantum((MagickRealType) (QuantumRange-MagickMin(
-        QuantumRange,(MagickRealType) (QuantumScale*pixel.red*(QuantumRange-
-        pixel.index)+pixel.index))));
-      color->green=ClampToQuantum((MagickRealType) (QuantumRange-MagickMin(
-        QuantumRange,(MagickRealType) (QuantumScale*pixel.green*(QuantumRange-
-        pixel.index)+pixel.index))));
-      color->blue=ClampToQuantum((MagickRealType) (QuantumRange-MagickMin(
-        QuantumRange,(MagickRealType) (QuantumScale*pixel.blue*(QuantumRange-
-        pixel.index)+pixel.index))));
-      return(status);
-    }
-  color->red=ClampToQuantum(pixel.red);
-  color->green=ClampToQuantum(pixel.green);
-  color->blue=ClampToQuantum(pixel.blue);
-  return(status);
+  return(QueryColorCompliance(name,AllCompliance,color,exception));
 }
 
 /*
@@ -2340,6 +2501,331 @@ MagickExport MagickBooleanType QueryColorname(const Image *image,
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%   Q u e r y M a g i c k C o l o r C o m p l i a n c e                       %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  QueryMagickColorCompliance() returns the red, green, blue, and opacity
+%  intensities for a given color name and standards compliance.
+%
+%  The format of the QueryMagickColor method is:
+%
+%      MagickBooleanType QueryMagickColorCompilence(const char *name,
+%        const ComplianceType compliance,MagickPixelPacket *color,
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o name: the color name (e.g. white, blue, yellow).
+%
+%    o compliance: Adhere to this color standard: SVG, X11, or XPM.
+%
+%    o color: the red, green, blue, and opacity intensities values of the
+%      named color in this structure.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickExport MagickBooleanType QueryMagickColorCompliance(const char *name,
+  const ComplianceType compliance,MagickPixelPacket *color,
+  ExceptionInfo *exception)
+{
+  double
+    scale;
+
+  GeometryInfo
+    geometry_info;
+
+  MagickStatusType
+    flags;
+
+  register const ColorInfo
+    *p;
+
+  register ssize_t
+    i;
+
+  ssize_t
+    type;
+
+  /*
+    Initialize color return value.
+  */
+  assert(name != (const char *) NULL);
+  (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",name);
+  assert(color != (MagickPixelPacket *) NULL);
+  GetMagickPixelPacket((Image *) NULL,color);
+  if ((name == (char *) NULL) || (*name == '\0'))
+    name=BackgroundColor;
+  while (isspace((int) ((unsigned char) *name)) != 0)
+    name++;
+  if (*name == '#')
+    {
+      char
+        c;
+
+      LongPixelPacket
+        pixel;
+
+      QuantumAny
+        range;
+
+      size_t
+        depth,
+        n;
+
+      /*
+        Parse hex color.
+      */
+      (void) ResetMagickMemory(&pixel,0,sizeof(pixel));
+      name++;
+      for (n=0; isxdigit((int) ((unsigned char) name[n])) != 0; n++) ;
+      if ((n % 3) == 0)
+        {
+          do
+          {
+            pixel.red=pixel.green;
+            pixel.green=pixel.blue;
+            pixel.blue=0;
+            for (i=(ssize_t) (n/3-1); i >= 0; i--)
+            {
+              c=(*name++);
+              pixel.blue<<=4;
+              if ((c >= '0') && (c <= '9'))
+                pixel.blue|=(int) (c-'0');
+              else
+                if ((c >= 'A') && (c <= 'F'))
+                  pixel.blue|=(int) c-((int) 'A'-10);
+                else
+                  if ((c >= 'a') && (c <= 'f'))
+                    pixel.blue|=(int) c-((int) 'a'-10);
+                  else
+                    return(MagickFalse);
+            }
+          } while (isxdigit((int) ((unsigned char) *name)) != 0);
+          depth=4*(n/3);
+        }
+      else
+        {
+          if ((n % 4) != 0)
+            {
+              (void) ThrowMagickException(exception,GetMagickModule(),
+                OptionWarning,"UnrecognizedColor","`%s'",name);
+              return(MagickFalse);
+            }
+          do
+          {
+            pixel.red=pixel.green;
+            pixel.green=pixel.blue;
+            pixel.blue=pixel.opacity;
+            pixel.opacity=0;
+            for (i=(ssize_t) (n/4-1); i >= 0; i--)
+            {
+              c=(*name++);
+              pixel.opacity<<=4;
+              if ((c >= '0') && (c <= '9'))
+                pixel.opacity|=(int) (c-'0');
+              else
+                if ((c >= 'A') && (c <= 'F'))
+                  pixel.opacity|=(int) c-((int) 'A'-10);
+                else
+                  if ((c >= 'a') && (c <= 'f'))
+                    pixel.opacity|=(int) c-((int) 'a'-10);
+                  else
+                    return(MagickFalse);
+            }
+          } while (isxdigit((int) ((unsigned char) *name)) != MagickFalse);
+          depth=4*(n/4);
+        }
+      color->colorspace=sRGBColorspace;
+      color->matte=MagickFalse;
+      range=GetQuantumRange(depth);
+      color->red=(MagickRealType) ScaleAnyToQuantum(pixel.red,range);
+      color->green=(MagickRealType) ScaleAnyToQuantum(pixel.green,range);
+      color->blue=(MagickRealType) ScaleAnyToQuantum(pixel.blue,range);
+      color->opacity=(MagickRealType) OpaqueOpacity;
+      if ((n % 3) != 0)
+        {
+          color->matte=MagickTrue;
+          color->opacity=(MagickRealType) (QuantumRange-ScaleAnyToQuantum(
+            pixel.opacity,range));
+        }
+      color->index=0.0;
+      return(MagickTrue);
+    }
+  if (strchr(name,'(') != (char *) NULL)
+    {
+      char
+        colorspace[MaxTextExtent];
+
+      MagickBooleanType
+        icc_color;
+
+      /*
+        Parse color of the form rgb(100,255,0).
+      */
+      (void) CopyMagickString(colorspace,name,MaxTextExtent);
+      for (i=0; colorspace[i] != '\0'; i++)
+        if (colorspace[i] == '(')
+          break;
+      colorspace[i--]='\0';
+      scale=(MagickRealType) ScaleCharToQuantum(1);
+      icc_color=MagickFalse;
+      if (LocaleNCompare(colorspace,"device-",7) == 0)
+        {
+          (void) CopyMagickString(colorspace,colorspace+7,MaxTextExtent);
+          scale=(double) QuantumRange;
+          icc_color=MagickTrue;
+        }
+      if (LocaleCompare(colorspace,"icc-color") == 0)
+        {
+          register ssize_t
+            j;
+
+          (void) CopyMagickString(colorspace,name+i+2,MaxTextExtent);
+          for (j=0; colorspace[j] != '\0'; j++)
+            if (colorspace[j] == ',')
+              break;
+          colorspace[j--]='\0';
+          i+=j+3;
+          scale=(MagickRealType) QuantumRange;
+          icc_color=MagickTrue;
+        }
+      LocaleLower(colorspace);
+      color->matte=MagickFalse;
+      if ((i > 0) && (colorspace[i] == 'a'))
+        {
+          colorspace[i]='\0';
+          color->matte=MagickTrue;
+        }
+      type=ParseCommandOption(MagickColorspaceOptions,MagickFalse,colorspace);
+      if (type < 0)
+        {
+          (void) ThrowMagickException(exception,GetMagickModule(),
+            OptionWarning,"UnrecognizedColor","`%s'",name);
+          return(MagickFalse);
+        }
+      color->colorspace=(ColorspaceType) type;
+      if ((icc_color == MagickFalse) && (color->colorspace == RGBColorspace))
+        color->colorspace=sRGBColorspace;  /* as required by SVG standard */
+      SetGeometryInfo(&geometry_info);
+      flags=ParseGeometry(name+i+1,&geometry_info);
+      if (flags == 0)
+        {
+          char
+            *colorname;
+
+          ColorspaceType
+            colorspace;
+
+          colorspace=color->colorspace;
+          colorname=AcquireString(name+i+1);
+          (void) SubstituteString(&colorname,")","");
+          (void) QueryMagickColor(colorname,color,exception);
+          colorname=DestroyString(colorname);
+          color->colorspace=colorspace;
+        }
+      else
+        {
+          if ((flags & PercentValue) != 0)
+            scale=(MagickRealType) (QuantumRange/100.0);
+          if ((flags & RhoValue) != 0)
+            color->red=(MagickRealType) ClampToQuantum(scale*geometry_info.rho);
+          if ((flags & SigmaValue) != 0)
+            color->green=(MagickRealType) ClampToQuantum(scale*
+              geometry_info.sigma);
+          if ((flags & XiValue) != 0)
+            color->blue=(MagickRealType) ClampToQuantum(scale*geometry_info.xi);
+          color->opacity=(MagickRealType) OpaqueOpacity;
+          if ((flags & PsiValue) != 0)
+            {
+              if (color->colorspace == CMYKColorspace)
+                color->index=(MagickRealType) ClampToQuantum(scale*
+                  geometry_info.psi);
+              else
+                if (color->matte != MagickFalse)
+                  color->opacity=(MagickRealType) ClampToQuantum(
+                    (MagickRealType) (QuantumRange-QuantumRange*
+                    geometry_info.psi));
+            }
+          if (((flags & ChiValue) != 0) && (color->matte != MagickFalse))
+            color->opacity=(MagickRealType) ClampToQuantum((MagickRealType)
+              (QuantumRange-QuantumRange*geometry_info.chi));
+          if (LocaleCompare(colorspace,"gray") == 0)
+            {
+              color->colorspace=GRAYColorspace;
+              color->green=color->red;
+              color->blue=color->red;
+              if (((flags & SigmaValue) != 0) && (color->matte != MagickFalse))
+                color->opacity=(MagickRealType) ClampToQuantum((MagickRealType)
+                  (QuantumRange-QuantumRange*geometry_info.sigma));
+            }
+          if ((LocaleCompare(colorspace,"HCL") == 0) ||
+              (LocaleCompare(colorspace,"HSB") == 0) ||
+              (LocaleCompare(colorspace,"HSL") == 0) ||
+              (LocaleCompare(colorspace,"HWB") == 0))
+            {
+              PixelPacket
+                pixel;
+
+              scale=1.0/360.0;
+              if ((flags & PercentValue) != 0)
+                scale=1.0/100.0;
+              geometry_info.rho*=360.0*scale;
+              scale=1.0/255.0;
+              if ((flags & PercentValue) != 0)
+                scale=1.0/100.0;
+              geometry_info.sigma*=scale;
+              geometry_info.xi*=scale;
+              if (LocaleCompare(colorspace,"HCL") == 0)
+                ConvertHCLToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,360.0)/
+                  360.0,geometry_info.sigma,geometry_info.xi,&pixel.red,
+                  &pixel.green,&pixel.blue);
+              else
+                if (LocaleCompare(colorspace,"HSB") == 0)
+                  ConvertHSBToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,
+                    360.0)/360.0,geometry_info.sigma,geometry_info.xi,
+                    &pixel.red,&pixel.green,&pixel.blue);
+                else
+                  if (LocaleCompare(colorspace,"HSL") == 0)
+                    ConvertHSLToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,
+                      360.0)/360.0,geometry_info.sigma,geometry_info.xi,
+                      &pixel.red,&pixel.green,&pixel.blue);
+                  else
+                    ConvertHWBToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,
+                      360.0)/360.0,geometry_info.sigma,geometry_info.xi,
+                      &pixel.red,&pixel.green,&pixel.blue);
+              color->colorspace=sRGBColorspace;
+              color->red=(MagickRealType) pixel.red;
+              color->green=(MagickRealType) pixel.green;
+              color->blue=(MagickRealType) pixel.blue;
+            }
+        }
+      return(MagickTrue);
+    }
+  /*
+    Parse named color.
+  */
+  p=GetColorCompliance(name,compliance,exception);
+  if (p == (const ColorInfo *) NULL)
+    return(MagickFalse);
+  color->colorspace=sRGBColorspace;
+  color->matte=p->color.opacity != OpaqueOpacity ? MagickTrue : MagickFalse;
+  color->red=(MagickRealType) p->color.red;
+  color->green=(MagickRealType) p->color.green;
+  color->blue=(MagickRealType) p->color.blue;
+  color->opacity=(MagickRealType) p->color.opacity;
+  color->index=0.0;
+  return(MagickTrue);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
 %   Q u e r y M a g i c k C o l o r                                           %
 %                                                                             %
 %                                                                             %
@@ -2367,240 +2853,7 @@ MagickExport MagickBooleanType QueryColorname(const Image *image,
 MagickExport MagickBooleanType QueryMagickColor(const char *name,
   MagickPixelPacket *color,ExceptionInfo *exception)
 {
-  GeometryInfo
-    geometry_info;
-
-  long
-    type;
-
-  MagickRealType
-    scale;
-
-  MagickStatusType
-    flags;
-
-  register const ColorInfo
-    *p;
-
-  register long
-    i;
-
-  /*
-    Initialize color return value.
-  */
-  assert(name != (const char *) NULL);
-  (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",name);
-  assert(color != (MagickPixelPacket *) NULL);
-  GetMagickPixelPacket((Image *) NULL,color);
-  if ((name == (char *) NULL) || (*name == '\0'))
-    name=BackgroundColor;
-  while (isspace((int) ((unsigned char) *name)) != 0)
-    name++;
-  if (*name == '#')
-    {
-      char
-        c;
-
-      LongPixelPacket
-        pixel;
-
-      QuantumAny
-        range;
-
-      unsigned long
-        depth,
-        n;
-
-      /*
-        Parse hex color.
-      */
-      (void) ResetMagickMemory(&pixel,0,sizeof(pixel));
-      name++;
-      for (n=0; isxdigit((int) ((unsigned char) name[n])) != MagickFalse; n++) ;
-      if ((n % 3) == 0)
-        {
-          do
-          {
-            pixel.red=pixel.green;
-            pixel.green=pixel.blue;
-            pixel.blue=0;
-            for (i=(long) (n/3-1); i >= 0; i--)
-            {
-              c=(*name++);
-              pixel.blue<<=4;
-              if ((c >= '0') && (c <= '9'))
-                pixel.blue|=(int) (c-'0');
-              else
-                if ((c >= 'A') && (c <= 'F'))
-                  pixel.blue|=(int) c-((int) 'A'-10);
-                else
-                  if ((c >= 'a') && (c <= 'f'))
-                    pixel.blue|=(int) c-((int) 'a'-10);
-                  else
-                    return(MagickFalse);
-            }
-          } while (isxdigit((int) ((unsigned char) *name)) != MagickFalse);
-          depth=4*(n/3);
-        }
-      else
-        {
-          if ((n % 4) != 0)
-            {
-              (void) ThrowMagickException(exception,GetMagickModule(),
-                OptionWarning,"UnrecognizedColor","`%s'",name);
-              return(MagickFalse);
-            }
-          do
-          {
-            pixel.red=pixel.green;
-            pixel.green=pixel.blue;
-            pixel.blue=pixel.opacity;
-            pixel.opacity=0;
-            for (i=(long) (n/4-1); i >= 0; i--)
-            {
-              c=(*name++);
-              pixel.opacity<<=4;
-              if ((c >= '0') && (c <= '9'))
-                pixel.opacity|=(int) (c-'0');
-              else
-                if ((c >= 'A') && (c <= 'F'))
-                  pixel.opacity|=(int) c-((int) 'A'-10);
-                else
-                  if ((c >= 'a') && (c <= 'f'))
-                    pixel.opacity|=(int) c-((int) 'a'-10);
-                  else
-                    return(MagickFalse);
-            }
-          } while (isxdigit((int) ((unsigned char) *name)) != MagickFalse);
-          depth=4*(n/4);
-        }
-      color->colorspace=RGBColorspace;
-      color->matte=MagickFalse;
-      range=GetQuantumRange(depth);
-      color->red=(MagickRealType) ScaleAnyToQuantum(pixel.red,range);
-      color->green=(MagickRealType) ScaleAnyToQuantum(pixel.green,range);
-      color->blue=(MagickRealType) ScaleAnyToQuantum(pixel.blue,range);
-      color->opacity=(MagickRealType) OpaqueOpacity;
-      if ((n % 3) != 0)
-        {
-          color->matte=MagickTrue;
-          color->opacity=(MagickRealType) (QuantumRange-ScaleAnyToQuantum(
-            pixel.opacity,range));
-        }
-      color->index=0.0;
-      return(MagickTrue);
-    }
-  if (strchr(name,'(') != (char *) NULL)
-    {
-      char
-        colorspace[MaxTextExtent];
-
-      /*
-        Parse color of the form rgb(100,255,0).
-      */
-      (void) CopyMagickString(colorspace,name,MaxTextExtent);
-      for (i=0; colorspace[i] != '\0'; i++)
-        if (colorspace[i] == '(')
-          break;
-      colorspace[i--]='\0';
-      LocaleLower(colorspace);
-      color->matte=MagickFalse;
-      if ((i > 0) && (colorspace[i] == 'a'))
-        {
-          colorspace[i]='\0';
-          color->matte=MagickTrue;
-        }
-      type=ParseMagickOption(MagickColorspaceOptions,MagickFalse,colorspace);
-      if (type < 0)
-        {
-          (void) ThrowMagickException(exception,GetMagickModule(),
-            OptionWarning,"UnrecognizedColor","`%s'",name);
-          return(MagickFalse);
-        }
-      color->colorspace=(ColorspaceType) type;
-      SetGeometryInfo(&geometry_info);
-      flags=ParseGeometry(name+i+1,&geometry_info);
-      scale=(MagickRealType) ScaleCharToQuantum(1);
-      if ((flags & PercentValue) != 0)
-        scale=(MagickRealType) (QuantumRange/100.0);
-      if ((flags & RhoValue) != 0)
-        color->red=(MagickRealType) ClampToQuantum(scale*geometry_info.rho);
-      if ((flags & SigmaValue) != 0)
-        color->green=(MagickRealType) ClampToQuantum(scale*geometry_info.sigma);
-      if ((flags & XiValue) != 0)
-        color->blue=(MagickRealType) ClampToQuantum(scale*geometry_info.xi);
-      color->opacity=(MagickRealType) OpaqueOpacity;
-      if ((flags & PsiValue) != 0)
-        {
-          if (color->colorspace == CMYKColorspace)
-            color->index=(MagickRealType) ClampToQuantum(scale*
-              geometry_info.psi);
-          else
-            if (color->matte != MagickFalse)
-              color->opacity=(MagickRealType) ClampToQuantum((MagickRealType)
-                (QuantumRange-QuantumRange*geometry_info.psi));
-        }
-      if (((flags & ChiValue) != 0) && (color->matte != MagickFalse))
-        color->opacity=(MagickRealType) ClampToQuantum((MagickRealType)
-          (QuantumRange-QuantumRange*geometry_info.chi));
-      if (LocaleCompare(colorspace,"gray") == 0)
-        {
-          color->green=color->red;
-          color->blue=color->red;
-          if (((flags & SigmaValue) != 0) && (color->matte != MagickFalse))
-            color->opacity=(MagickRealType) ClampToQuantum((MagickRealType)
-              (QuantumRange-QuantumRange*geometry_info.sigma));
-        }
-      if ((LocaleCompare(colorspace,"HSB") == 0) ||
-          (LocaleCompare(colorspace,"HSL") == 0) ||
-          (LocaleCompare(colorspace,"HWB") == 0))
-        {
-          PixelPacket
-            pixel;
-
-          scale=1.0/360.0;
-          if ((flags & PercentValue) != 0)
-            scale=1.0/100.0;
-          geometry_info.rho*=360.0*scale;
-          scale=1.0/255.0;
-          if ((flags & PercentValue) != 0)
-            scale=1.0/100.0;
-          geometry_info.sigma*=scale;
-          geometry_info.xi*=scale;
-          if (LocaleCompare(colorspace,"HSB") == 0)
-            ConvertHSBToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,360.0)/
-              360.0,geometry_info.sigma,geometry_info.xi,&pixel.red,
-              &pixel.green,&pixel.blue);
-          else
-            if (LocaleCompare(colorspace,"HSL") == 0)
-              ConvertHSLToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,360.0)/
-                360.0,geometry_info.sigma,geometry_info.xi,&pixel.red,
-                &pixel.green,&pixel.blue);
-            else
-              ConvertHWBToRGB(fmod(fmod(geometry_info.rho,360.0)+360.0,360.0)/
-                360.0,geometry_info.sigma,geometry_info.xi,&pixel.red,
-                &pixel.green,&pixel.blue);
-          color->colorspace=RGBColorspace;
-          color->red=(MagickRealType) pixel.red;
-          color->green=(MagickRealType) pixel.green;
-          color->blue=(MagickRealType) pixel.blue;
-        }
-      return(MagickTrue);
-    }
-  /*
-    Parse named color.
-  */
-  p=GetColorInfo(name,exception);
-  if (p == (const ColorInfo *) NULL)
-    return(MagickFalse);
-  color->colorspace=RGBColorspace;
-  color->matte=p->color.opacity != OpaqueOpacity ? MagickTrue : MagickFalse;
-  color->red=(MagickRealType) p->color.red;
-  color->green=(MagickRealType) p->color.green;
-  color->blue=(MagickRealType) p->color.blue;
-  color->opacity=(MagickRealType) p->color.opacity;
-  color->index=0.0;
-  return(MagickTrue);
+  return(QueryMagickColorCompliance(name,AllCompliance,color,exception));
 }
 
 /*
@@ -2656,12 +2909,12 @@ MagickExport MagickBooleanType QueryMagickColorname(const Image *image,
   if (compliance == XPMCompliance)
     {
       pixel.matte=MagickFalse;
-      pixel.depth=(unsigned long) MagickMin(1.0*image->depth,16.0);
-      GetColorTuple(&pixel,MagickTrue,name);
-      return(MagickTrue);
+      pixel.depth=(size_t) MagickMin(1.0*image->depth,16.0);
     }
   GetColorTuple(&pixel,compliance != SVGCompliance ? MagickTrue : MagickFalse,
     name);
+  if (IssRGBColorspace(pixel.colorspace) == MagickFalse)
+    return(MagickFalse);
   (void) GetColorInfo("*",exception);
   ResetLinkedListIterator(color_list);
   opacity=image->matte != MagickFalse ? color->opacity : OpaqueOpacity;

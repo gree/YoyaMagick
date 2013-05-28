@@ -17,7 +17,7 @@
 %                                 March 2000                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -193,8 +193,7 @@ MagickExport MagickBooleanType DeleteImageArtifact(Image *image,
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if (image->artifacts == (void *) NULL)
     return(MagickFalse);
   return(DeleteNodeFromSplayTree((SplayTreeInfo *) image->artifacts,artifact));
@@ -228,8 +227,7 @@ MagickExport void DestroyImageArtifacts(Image *image)
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if (image->artifacts != (void *) NULL)
     image->artifacts=(void *) DestroySplayTree((SplayTreeInfo *)
       image->artifacts);
@@ -247,6 +245,8 @@ MagickExport void DestroyImageArtifacts(Image *image)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  GetImageArtifact() gets a value associated with an image artifact.
+%
+%  Note, the artifact is a constant.  Do not attempt to free it.
 %
 %  The format of the GetImageArtifact method is:
 %
@@ -279,8 +279,8 @@ MagickExport const char *GetImageArtifact(const Image *image,
     }
   if (image->artifacts != (void *) NULL)
     {
-      p=(const char *) GetValueFromSplayTree((SplayTreeInfo *)
-        image->artifacts,artifact);
+      p=(const char *) GetValueFromSplayTree((SplayTreeInfo *) image->artifacts,
+        artifact);
       if (p != (const char *) NULL)
         return(p);
     }
@@ -314,8 +314,7 @@ MagickExport char *GetNextImageArtifact(const Image *image)
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if (image->artifacts == (void *) NULL)
     return((char *) NULL);
   return((char *) GetNextKeyInSplayTree((SplayTreeInfo *) image->artifacts));
@@ -354,8 +353,7 @@ MagickExport char *RemoveImageArtifact(Image *image,const char *artifact)
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if (image->artifacts == (void *) NULL)
     return((char *) NULL);
   value=(char *) RemoveNodeFromSplayTree((SplayTreeInfo *) image->artifacts,
@@ -392,8 +390,7 @@ MagickExport void ResetImageArtifactIterator(const Image *image)
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if (image->artifacts == (void *) NULL)
     return;
   ResetSplayTreeIterator((SplayTreeInfo *) image->artifacts);
@@ -410,7 +407,8 @@ MagickExport void ResetImageArtifactIterator(const Image *image)
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  SetImageArtifact() associates a value with an image artifact.
+%  SetImageArtifact() associates makes a copy of the given string arguments
+%  and inserts it into the artifact tree of the given image.
 %
 %  The format of the SetImageArtifact method is:
 %
@@ -421,9 +419,9 @@ MagickExport void ResetImageArtifactIterator(const Image *image)
 %
 %    o image: the image.
 %
-%    o artifact: the image artifact.
+%    o artifact: the image artifact key.
 %
-%    o values: the image artifact values.
+%    o value: the image artifact value.
 %
 */
 MagickExport MagickBooleanType SetImageArtifact(Image *image,
@@ -435,13 +433,21 @@ MagickExport MagickBooleanType SetImageArtifact(Image *image,
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
   if (image->debug != MagickFalse)
-    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
-      image->filename);
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
+  /*
+    Create tree if needed.
+  */
   if (image->artifacts == (void *) NULL)
-    image->artifacts=NewSplayTree(CompareSplayTreeString,
-      RelinquishMagickMemory,RelinquishMagickMemory);
-  if ((value == (const char *) NULL) || (*value == '\0'))
+    image->artifacts=NewSplayTree(CompareSplayTreeString,RelinquishMagickMemory,
+      RelinquishMagickMemory);
+  /*
+    Delete artifact if NULL --  empty string values are valid!
+  */
+  if (value == (const char *) NULL)
     return(DeleteImageArtifact(image,artifact));
+  /*
+    Add artifact to tree.
+  */
   status=AddValueToSplayTree((SplayTreeInfo *) image->artifacts,
     ConstantString(artifact),ConstantString(value));
   return(status);

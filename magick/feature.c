@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -80,6 +80,7 @@
 #include "magick/profile.h"
 #include "magick/quantize.h"
 #include "magick/random_.h"
+#include "magick/resource_.h"
 #include "magick/segment.h"
 #include "magick/semaphore.h"
 #include "magick/signature-private.h"
@@ -108,7 +109,7 @@
 %  measures of correlation 2, and maximum correlation coefficient.  You can
 %  access the red channel contrast, for example, like this:
 %
-%      channel_features=GetImageChannelFeatures(image,1,excepton);
+%      channel_features=GetImageChannelFeatures(image,1,exception);
 %      contrast=channel_features[RedChannel].contrast[0];
 %
 %  Use MagickRelinquishMemory() to free the features buffer.
@@ -116,7 +117,7 @@
 %  The format of the GetImageChannelFeatures method is:
 %
 %      ChannelFeatures *GetImageChannelFeatures(const Image *image,
-%        const unsigned long distance,ExceptionInfo *exception)
+%        const size_t distance,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -128,7 +129,7 @@
 %
 */
 
-static inline long MagickAbsoluteValue(const long x)
+static inline ssize_t MagickAbsoluteValue(const ssize_t x)
 {
   if (x < 0)
     return(-x);
@@ -136,7 +137,7 @@ static inline long MagickAbsoluteValue(const long x)
 }
 
 MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
-  const unsigned long distance,ExceptionInfo *exception)
+  const size_t distance,ExceptionInfo *exception)
 {
   typedef struct _ChannelStatistics
   {
@@ -171,20 +172,19 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     gray,
     *grays;
 
-  long
-    y,
-    z;
-
   MagickBooleanType
     status;
 
-  register long
+  register ssize_t
     i;
 
   size_t
     length;
 
-  unsigned long
+  ssize_t
+    y;
+
+  unsigned int
     number_grays;
 
   assert(image != (Image *) NULL);
@@ -193,7 +193,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   if ((image->columns < (distance+1)) || (image->rows < (distance+1)))
     return((ChannelFeatures *) NULL);
-  length=AllChannels+1UL;
+  length=CompositeChannels+1UL;
   channel_features=(ChannelFeatures *) AcquireQuantumMemory(length,
     sizeof(*channel_features));
   if (channel_features == (ChannelFeatures *) NULL)
@@ -212,20 +212,21 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         ResourceLimitError,"MemoryAllocationFailed","`%s'",image->filename);
       return(channel_features);
     }
-  for (i=0; i <= (long) MaxMap; i++)
+  for (i=0; i <= (ssize_t) MaxMap; i++)
   {
-    grays[i].red=(~0UL);
-    grays[i].green=(~0UL);
-    grays[i].blue=(~0UL);
-    grays[i].opacity=(~0UL);
-    grays[i].index=(~0UL);
+    grays[i].red=(~0U);
+    grays[i].green=(~0U);
+    grays[i].blue=(~0U);
+    grays[i].opacity=(~0U);
+    grays[i].index=(~0U);
   }
   status=MagickTrue;
-  image_view=AcquireCacheView(image);
+  image_view=AcquireVirtualCacheView(image,exception);
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,image->rows,1)
 #endif
-  for (y=0; y < (long) image->rows; y++)
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
     register const IndexPacket
       *restrict indexes;
@@ -233,7 +234,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     register const PixelPacket
       *restrict p;
 
-    register long
+    register ssize_t
       x;
 
     if (status == MagickFalse)
@@ -245,17 +246,20 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         continue;
       }
     indexes=GetCacheViewVirtualIndexQueue(image_view);
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
-      grays[ScaleQuantumToMap(p->red)].red=ScaleQuantumToMap(p->red);
-      grays[ScaleQuantumToMap(p->green)].green=ScaleQuantumToMap(p->green);
-      grays[ScaleQuantumToMap(p->blue)].blue=ScaleQuantumToMap(p->blue);
-      if (image->matte != MagickFalse)
-        grays[ScaleQuantumToMap(p->opacity)].opacity=
-          ScaleQuantumToMap(p->opacity);
+      grays[ScaleQuantumToMap(GetPixelRed(p))].red=
+        ScaleQuantumToMap(GetPixelRed(p));
+      grays[ScaleQuantumToMap(GetPixelGreen(p))].green=
+        ScaleQuantumToMap(GetPixelGreen(p));
+      grays[ScaleQuantumToMap(GetPixelBlue(p))].blue=
+        ScaleQuantumToMap(GetPixelBlue(p));
       if (image->colorspace == CMYKColorspace)
-        grays[ScaleQuantumToMap(indexes[x])].index=
-          ScaleQuantumToMap(indexes[x]);
+        grays[ScaleQuantumToMap(GetPixelIndex(indexes+x))].index=
+          ScaleQuantumToMap(GetPixelIndex(indexes+x));
+      if (image->matte != MagickFalse)
+        grays[ScaleQuantumToMap(GetPixelOpacity(p))].opacity=
+          ScaleQuantumToMap(GetPixelOpacity(p));
       p++;
     }
   }
@@ -268,20 +272,20 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       return(channel_features);
     }
   (void) ResetMagickMemory(&gray,0,sizeof(gray));
-  for (i=0; i <= (long) MaxMap; i++)
+  for (i=0; i <= (ssize_t) MaxMap; i++)
   {
-    if (grays[i].red != ~0UL)
-      grays[gray.red++].red=grays[i].red;
-    if (grays[i].green != ~0UL)
-      grays[gray.green++].green=grays[i].green;
-    if (grays[i].blue != ~0UL)
-      grays[gray.blue++].blue=grays[i].blue;
-    if (image->matte != MagickFalse)
-      if (grays[i].opacity != ~0UL)
-        grays[gray.opacity++].opacity=grays[i].opacity;
+    if (grays[i].red != ~0U)
+      grays[(ssize_t) gray.red++].red=grays[i].red;
+    if (grays[i].green != ~0U)
+      grays[(ssize_t) gray.green++].green=grays[i].green;
+    if (grays[i].blue != ~0U)
+      grays[(ssize_t) gray.blue++].blue=grays[i].blue;
     if (image->colorspace == CMYKColorspace)
-      if (grays[i].index != ~0UL)
-        grays[gray.index++].index=grays[i].index;
+      if (grays[i].index != ~0U)
+        grays[(ssize_t) gray.index++].index=grays[i].index;
+    if (image->matte != MagickFalse)
+      if (grays[i].opacity != ~0U)
+        grays[(ssize_t) gray.opacity++].opacity=grays[i].opacity;
   }
   /*
     Allocate spatial dependence matrix.
@@ -291,12 +295,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     number_grays=gray.green;
   if (gray.blue > number_grays)
     number_grays=gray.blue;
-  if (image->matte != MagickFalse)
-    if (gray.opacity > number_grays)
-      number_grays=gray.opacity;
   if (image->colorspace == CMYKColorspace)
     if (gray.index > number_grays)
       number_grays=gray.index;
+  if (image->matte != MagickFalse)
+    if (gray.opacity > number_grays)
+      number_grays=gray.opacity;
   cooccurrence=(ChannelStatistics **) AcquireQuantumMemory(number_grays,
     sizeof(*cooccurrence));
   density_x=(ChannelStatistics *) AcquireQuantumMemory(2*(number_grays+1),
@@ -316,7 +320,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     {
       if (Q != (ChannelStatistics **) NULL)
         {
-          for (i=0; i < (long) number_grays; i++)
+          for (i=0; i < (ssize_t) number_grays; i++)
             Q[i]=(ChannelStatistics *) RelinquishMagickMemory(Q[i]);
           Q=(ChannelStatistics **) RelinquishMagickMemory(Q);
         }
@@ -330,7 +334,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         density_x=(ChannelStatistics *) RelinquishMagickMemory(density_x);
       if (cooccurrence != (ChannelStatistics **) NULL)
         {
-          for (i=0; i < (long) number_grays; i++)
+          for (i=0; i < (ssize_t) number_grays; i++)
             cooccurrence[i]=(ChannelStatistics *)
               RelinquishMagickMemory(cooccurrence[i]);
           cooccurrence=(ChannelStatistics **) RelinquishMagickMemory(
@@ -357,7 +361,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
   (void) ResetMagickMemory(&entropy_xy2,0,sizeof(entropy_xy2));
   (void) ResetMagickMemory(&entropy_y,0,sizeof(entropy_y));
   (void) ResetMagickMemory(&variance,0,sizeof(variance));
-  for (i=0; i < (long) number_grays; i++)
+  for (i=0; i < (ssize_t) number_grays; i++)
   {
     cooccurrence[i]=(ChannelStatistics *) AcquireQuantumMemory(number_grays,
       sizeof(**cooccurrence));
@@ -369,7 +373,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       sizeof(**cooccurrence));
     (void) ResetMagickMemory(Q[i],0,number_grays*sizeof(**Q));
   }
-  if (i < (long) number_grays)
+  if (i < (ssize_t) number_grays)
     {
       for (i--; i >= 0; i--)
       {
@@ -396,32 +400,28 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     Initialize spatial dependence matrix.
   */
   status=MagickTrue;
-  image_view=AcquireCacheView(image);
-#if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
-#endif
-  for (y=0; y < (long) image->rows; y++)
+  image_view=AcquireVirtualCacheView(image,exception);
+  for (y=0; y < (ssize_t) image->rows; y++)
   {
-    long
-      u,
-      v;
-
     register const IndexPacket
       *restrict indexes;
 
     register const PixelPacket
       *restrict p;
 
-    register long
+    register ssize_t
       x;
 
     ssize_t
-      offset;
+      i,
+      offset,
+      u,
+      v;
 
     if (status == MagickFalse)
       continue;
-    p=GetCacheViewVirtualPixels(image_view,-(long) distance,y,image->columns+
-      2*distance,distance+1,exception);
+    p=GetCacheViewVirtualPixels(image_view,-(ssize_t) distance,y,image->columns+
+      2*distance,distance+2,exception);
     if (p == (const PixelPacket *) NULL)
       {
         status=MagickFalse;
@@ -430,7 +430,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     indexes=GetCacheViewVirtualIndexQueue(image_view);
     p+=distance;
     indexes+=distance;
-    for (x=0; x < (long) image->columns; x++)
+    for (x=0; x < (ssize_t) image->columns; x++)
     {
       for (i=0; i < 4; i++)
       {
@@ -458,7 +458,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
             /*
               Right diagonal adjacency.
             */
-            offset=(ssize_t) (image->columns+2*distance)-distance;
+            offset=(ssize_t) ((image->columns+2*distance)-distance);
             break;
           }
           case 3:
@@ -466,55 +466,55 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
             /*
               Left diagonal adjacency.
             */
-            offset=(ssize_t) (image->columns+2*distance)+distance;
+            offset=(ssize_t) ((image->columns+2*distance)+distance);
             break;
           }
         }
         u=0;
         v=0;
-        while (grays[u].red != ScaleQuantumToMap(p->red))
+        while (grays[u].red != ScaleQuantumToMap(GetPixelRed(p)))
           u++;
-        while (grays[v].red != ScaleQuantumToMap((p+offset)->red))
+        while (grays[v].red != ScaleQuantumToMap(GetPixelRed(p+offset)))
           v++;
         cooccurrence[u][v].direction[i].red++;
         cooccurrence[v][u].direction[i].red++;
         u=0;
         v=0;
-        while (grays[u].green != ScaleQuantumToMap(p->green))
+        while (grays[u].green != ScaleQuantumToMap(GetPixelGreen(p)))
           u++;
-        while (grays[v].green != ScaleQuantumToMap((p+offset)->green))
+        while (grays[v].green != ScaleQuantumToMap(GetPixelGreen(p+offset)))
           v++;
         cooccurrence[u][v].direction[i].green++;
         cooccurrence[v][u].direction[i].green++;
         u=0;
         v=0;
-        while (grays[u].blue != ScaleQuantumToMap(p->blue))
+        while (grays[u].blue != ScaleQuantumToMap(GetPixelBlue(p)))
           u++;
         while (grays[v].blue != ScaleQuantumToMap((p+offset)->blue))
           v++;
         cooccurrence[u][v].direction[i].blue++;
         cooccurrence[v][u].direction[i].blue++;
+        if (image->colorspace == CMYKColorspace)
+          {
+            u=0;
+            v=0;
+            while (grays[u].index != ScaleQuantumToMap(GetPixelIndex(indexes+x)))
+              u++;
+            while (grays[v].index != ScaleQuantumToMap(GetPixelIndex(indexes+x+offset)))
+              v++;
+            cooccurrence[u][v].direction[i].index++;
+            cooccurrence[v][u].direction[i].index++;
+          }
         if (image->matte != MagickFalse)
           {
             u=0;
             v=0;
-            while (grays[u].opacity != ScaleQuantumToMap(p->opacity))
+            while (grays[u].opacity != ScaleQuantumToMap(GetPixelOpacity(p)))
               u++;
             while (grays[v].opacity != ScaleQuantumToMap((p+offset)->opacity))
               v++;
             cooccurrence[u][v].direction[i].opacity++;
             cooccurrence[v][u].direction[i].opacity++;
-          }
-        if (image->colorspace == CMYKColorspace)
-          {
-            u=0;
-            v=0;
-            while (grays[u].index != ScaleQuantumToMap(indexes[x]))
-              u++;
-            while (grays[v].index != ScaleQuantumToMap(indexes[x+offset]))
-              v++;
-            cooccurrence[u][v].direction[i].index++;
-            cooccurrence[v][u].direction[i].index++;
           }
       }
       p++;
@@ -524,7 +524,7 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
   image_view=DestroyCacheView(image_view);
   if (status == MagickFalse)
     {
-      for (i=0; i < (long) number_grays; i++)
+      for (i=0; i < (ssize_t) number_grays; i++)
         cooccurrence[i]=(ChannelStatistics *)
           RelinquishMagickMemory(cooccurrence[i]);
       cooccurrence=(ChannelStatistics **) RelinquishMagickMemory(cooccurrence);
@@ -537,13 +537,13 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
   /*
     Normalize spatial dependence matrix.
   */
-#if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
-#endif
   for (i=0; i < 4; i++)
   {
     double
       normalize;
+
+    register ssize_t
+      y;
 
     switch (i)
     {
@@ -581,20 +581,21 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         break;
       }
     }
-    for (y=0; y < (long) number_grays; y++)
+    normalize=PerceptibleReciprocal(normalize);
+    for (y=0; y < (ssize_t) number_grays; y++)
     {
-      register long
+      register ssize_t
         x;
 
-      for (x=0; x < (long) number_grays; x++)
+      for (x=0; x < (ssize_t) number_grays; x++)
       {
-        cooccurrence[x][y].direction[i].red/=normalize;
-        cooccurrence[x][y].direction[i].green/=normalize;
-        cooccurrence[x][y].direction[i].blue/=normalize;
-        if (image->matte != MagickFalse)
-          cooccurrence[x][y].direction[i].opacity/=normalize;
+        cooccurrence[x][y].direction[i].red*=normalize;
+        cooccurrence[x][y].direction[i].green*=normalize;
+        cooccurrence[x][y].direction[i].blue*=normalize;
         if (image->colorspace == CMYKColorspace)
-          cooccurrence[x][y].direction[i].index/=normalize;
+          cooccurrence[x][y].direction[i].index*=normalize;
+        if (image->matte != MagickFalse)
+          cooccurrence[x][y].direction[i].opacity*=normalize;
       }
     }
   }
@@ -602,19 +603,20 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     Compute texture features.
   */
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,number_grays,1)
 #endif
   for (i=0; i < 4; i++)
   {
-    register long
+    register ssize_t
       y;
 
-    for (y=0; y < (long) number_grays; y++)
+    for (y=0; y < (ssize_t) number_grays; y++)
     {
-      register long
+      register ssize_t
         x;
 
-      for (x=0; x < (long) number_grays; x++)
+      for (x=0; x < (ssize_t) number_grays; x++)
       {
         /*
           Angular second moment:  measure of homogeneity of the image.
@@ -628,35 +630,35 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         channel_features[BlueChannel].angular_second_moment[i]+=
           cooccurrence[x][y].direction[i].blue*
           cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          channel_features[OpacityChannel].angular_second_moment[i]+=
-            cooccurrence[x][y].direction[i].opacity*
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           channel_features[BlackChannel].angular_second_moment[i]+=
             cooccurrence[x][y].direction[i].index*
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          channel_features[OpacityChannel].angular_second_moment[i]+=
+            cooccurrence[x][y].direction[i].opacity*
+            cooccurrence[x][y].direction[i].opacity;
         /*
           Correlation: measure of linear-dependencies in the image.
         */
         sum[y].direction[i].red+=cooccurrence[x][y].direction[i].red;
         sum[y].direction[i].green+=cooccurrence[x][y].direction[i].green;
         sum[y].direction[i].blue+=cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          sum[y].direction[i].opacity+=cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           sum[y].direction[i].index+=cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          sum[y].direction[i].opacity+=cooccurrence[x][y].direction[i].opacity;
         correlation.direction[i].red+=x*y*cooccurrence[x][y].direction[i].red;
         correlation.direction[i].green+=x*y*
           cooccurrence[x][y].direction[i].green;
         correlation.direction[i].blue+=x*y*
           cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          correlation.direction[i].opacity+=x*y*
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           correlation.direction[i].index+=x*y*
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          correlation.direction[i].opacity+=x*y*
+            cooccurrence[x][y].direction[i].opacity;
         /*
           Inverse Difference Moment.
         */
@@ -666,12 +668,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           cooccurrence[x][y].direction[i].green/((y-x)*(y-x)+1);
         channel_features[BlueChannel].inverse_difference_moment[i]+=
           cooccurrence[x][y].direction[i].blue/((y-x)*(y-x)+1);
-        if (image->matte != MagickFalse)
-          channel_features[OpacityChannel].inverse_difference_moment[i]+=
-            cooccurrence[x][y].direction[i].opacity/((y-x)*(y-x)+1);
         if (image->colorspace == CMYKColorspace)
           channel_features[IndexChannel].inverse_difference_moment[i]+=
             cooccurrence[x][y].direction[i].index/((y-x)*(y-x)+1);
+        if (image->matte != MagickFalse)
+          channel_features[OpacityChannel].inverse_difference_moment[i]+=
+            cooccurrence[x][y].direction[i].opacity/((y-x)*(y-x)+1);
         /*
           Sum average.
         */
@@ -681,12 +683,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           cooccurrence[x][y].direction[i].green;
         density_xy[y+x+2].direction[i].blue+=
           cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          density_xy[y+x+2].direction[i].opacity+=
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           density_xy[y+x+2].direction[i].index+=
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          density_xy[y+x+2].direction[i].opacity+=
+            cooccurrence[x][y].direction[i].opacity;
         /*
           Entropy.
         */
@@ -699,35 +701,35 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         channel_features[BlueChannel].entropy[i]-=
           cooccurrence[x][y].direction[i].blue*
           log10(cooccurrence[x][y].direction[i].blue+MagickEpsilon);
-        if (image->matte != MagickFalse)
-          channel_features[OpacityChannel].entropy[i]-=
-            cooccurrence[x][y].direction[i].opacity*
-            log10(cooccurrence[x][y].direction[i].opacity+MagickEpsilon);
         if (image->colorspace == CMYKColorspace)
           channel_features[IndexChannel].entropy[i]-=
             cooccurrence[x][y].direction[i].index*
             log10(cooccurrence[x][y].direction[i].index+MagickEpsilon);
+        if (image->matte != MagickFalse)
+          channel_features[OpacityChannel].entropy[i]-=
+            cooccurrence[x][y].direction[i].opacity*
+            log10(cooccurrence[x][y].direction[i].opacity+MagickEpsilon);
         /*
           Information Measures of Correlation.
         */
         density_x[x].direction[i].red+=cooccurrence[x][y].direction[i].red;
         density_x[x].direction[i].green+=cooccurrence[x][y].direction[i].green;
         density_x[x].direction[i].blue+=cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          density_x[x].direction[i].opacity+=
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           density_x[x].direction[i].index+=
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          density_x[x].direction[i].opacity+=
+            cooccurrence[x][y].direction[i].opacity;
         density_y[y].direction[i].red+=cooccurrence[x][y].direction[i].red;
         density_y[y].direction[i].green+=cooccurrence[x][y].direction[i].green;
         density_y[y].direction[i].blue+=cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          density_y[y].direction[i].opacity+=
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           density_y[y].direction[i].index+=
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          density_y[y].direction[i].opacity+=
+            cooccurrence[x][y].direction[i].opacity;
       }
       mean.direction[i].red+=y*sum[y].direction[i].red;
       sum_squares.direction[i].red+=y*y*sum[y].direction[i].red;
@@ -735,15 +737,15 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       sum_squares.direction[i].green+=y*y*sum[y].direction[i].green;
       mean.direction[i].blue+=y*sum[y].direction[i].blue;
       sum_squares.direction[i].blue+=y*y*sum[y].direction[i].blue;
-      if (image->matte != MagickFalse)
-        {
-          mean.direction[i].opacity+=y*sum[y].direction[i].opacity;
-          sum_squares.direction[i].opacity+=y*y*sum[y].direction[i].opacity;
-        }
       if (image->colorspace == CMYKColorspace)
         {
           mean.direction[i].index+=y*sum[y].direction[i].index;
           sum_squares.direction[i].index+=y*y*sum[y].direction[i].index;
+        }
+      if (image->matte != MagickFalse)
+        {
+          mean.direction[i].opacity+=y*sum[y].direction[i].opacity;
+          sum_squares.direction[i].opacity+=y*y*sum[y].direction[i].opacity;
         }
     }
     /*
@@ -767,13 +769,6 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       (mean.direction[i].blue*mean.direction[i].blue))*sqrt(
       sum_squares.direction[i].blue-(mean.direction[i].blue*
       mean.direction[i].blue)));
-    if (image->matte != MagickFalse)
-      channel_features[OpacityChannel].correlation[i]=
-        (correlation.direction[i].opacity-mean.direction[i].opacity*
-        mean.direction[i].opacity)/(sqrt(sum_squares.direction[i].opacity-
-        (mean.direction[i].opacity*mean.direction[i].opacity))*sqrt(
-        sum_squares.direction[i].opacity-(mean.direction[i].opacity*
-        mean.direction[i].opacity)));
     if (image->colorspace == CMYKColorspace)
       channel_features[IndexChannel].correlation[i]=
         (correlation.direction[i].index-mean.direction[i].index*
@@ -781,19 +776,27 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         (mean.direction[i].index*mean.direction[i].index))*sqrt(
         sum_squares.direction[i].index-(mean.direction[i].index*
         mean.direction[i].index)));
+    if (image->matte != MagickFalse)
+      channel_features[OpacityChannel].correlation[i]=
+        (correlation.direction[i].opacity-mean.direction[i].opacity*
+        mean.direction[i].opacity)/(sqrt(sum_squares.direction[i].opacity-
+        (mean.direction[i].opacity*mean.direction[i].opacity))*sqrt(
+        sum_squares.direction[i].opacity-(mean.direction[i].opacity*
+        mean.direction[i].opacity)));
   }
   /*
     Compute more texture features.
   */
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,number_grays,1)
 #endif
   for (i=0; i < 4; i++)
   {
-    register long
+    register ssize_t
       x;
 
-    for (x=2; x < (long) (2*number_grays); x++)
+    for (x=2; x < (ssize_t) (2*number_grays); x++)
     {
       /*
         Sum average.
@@ -804,12 +807,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         x*density_xy[x].direction[i].green;
       channel_features[BlueChannel].sum_average[i]+=
         x*density_xy[x].direction[i].blue;
-      if (image->matte != MagickFalse)
-        channel_features[OpacityChannel].sum_average[i]+=
-          x*density_xy[x].direction[i].opacity;
       if (image->colorspace == CMYKColorspace)
         channel_features[IndexChannel].sum_average[i]+=
           x*density_xy[x].direction[i].index;
+      if (image->matte != MagickFalse)
+        channel_features[OpacityChannel].sum_average[i]+=
+          x*density_xy[x].direction[i].opacity;
       /*
         Sum entropy.
       */
@@ -822,14 +825,14 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       channel_features[BlueChannel].sum_entropy[i]-=
         density_xy[x].direction[i].blue*
         log10(density_xy[x].direction[i].blue+MagickEpsilon);
-      if (image->matte != MagickFalse)
-        channel_features[OpacityChannel].sum_entropy[i]-=
-          density_xy[x].direction[i].opacity*
-          log10(density_xy[x].direction[i].opacity+MagickEpsilon);
       if (image->colorspace == CMYKColorspace)
         channel_features[IndexChannel].sum_entropy[i]-=
           density_xy[x].direction[i].index*
           log10(density_xy[x].direction[i].index+MagickEpsilon);
+      if (image->matte != MagickFalse)
+        channel_features[OpacityChannel].sum_entropy[i]-=
+          density_xy[x].direction[i].opacity*
+          log10(density_xy[x].direction[i].opacity+MagickEpsilon);
       /*
         Sum variance.
       */
@@ -845,35 +848,36 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         (x-channel_features[BlueChannel].sum_entropy[i])*
         (x-channel_features[BlueChannel].sum_entropy[i])*
         density_xy[x].direction[i].blue;
-      if (image->matte != MagickFalse)
-        channel_features[OpacityChannel].sum_variance[i]+=
-          (x-channel_features[OpacityChannel].sum_entropy[i])*
-          (x-channel_features[OpacityChannel].sum_entropy[i])*
-          density_xy[x].direction[i].opacity;
       if (image->colorspace == CMYKColorspace)
         channel_features[IndexChannel].sum_variance[i]+=
           (x-channel_features[IndexChannel].sum_entropy[i])*
           (x-channel_features[IndexChannel].sum_entropy[i])*
           density_xy[x].direction[i].index;
+      if (image->matte != MagickFalse)
+        channel_features[OpacityChannel].sum_variance[i]+=
+          (x-channel_features[OpacityChannel].sum_entropy[i])*
+          (x-channel_features[OpacityChannel].sum_entropy[i])*
+          density_xy[x].direction[i].opacity;
     }
   }
   /*
     Compute more texture features.
   */
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,number_grays,1)
 #endif
   for (i=0; i < 4; i++)
   {
-    register long
+    register ssize_t
       y;
 
-    for (y=0; y < (long) number_grays; y++)
+    for (y=0; y < (ssize_t) number_grays; y++)
     {
-      register long
+      register ssize_t
         x;
 
-      for (x=0; x < (long) number_grays; x++)
+      for (x=0; x < (ssize_t) number_grays; x++)
       {
         /*
           Sum of Squares: Variance
@@ -884,13 +888,13 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           (y-mean.direction[i].green+1)*cooccurrence[x][y].direction[i].green;
         variance.direction[i].blue+=(y-mean.direction[i].blue+1)*
           (y-mean.direction[i].blue+1)*cooccurrence[x][y].direction[i].blue;
+        if (image->colorspace == CMYKColorspace)
+          variance.direction[i].index+=(y-mean.direction[i].index+1)*
+            (y-mean.direction[i].index+1)*cooccurrence[x][y].direction[i].index;
         if (image->matte != MagickFalse)
           variance.direction[i].opacity+=(y-mean.direction[i].opacity+1)*
             (y-mean.direction[i].opacity+1)*
             cooccurrence[x][y].direction[i].opacity;
-        if (image->colorspace == CMYKColorspace)
-          variance.direction[i].index+=(y-mean.direction[i].index+1)*
-            (y-mean.direction[i].index+1)*cooccurrence[x][y].direction[i].index;
         /*
           Sum average / Difference Variance.
         */
@@ -900,12 +904,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           cooccurrence[x][y].direction[i].green;
         density_xy[MagickAbsoluteValue(y-x)].direction[i].blue+=
           cooccurrence[x][y].direction[i].blue;
-        if (image->matte != MagickFalse)
-          density_xy[MagickAbsoluteValue(y-x)].direction[i].opacity+=
-            cooccurrence[x][y].direction[i].opacity;
         if (image->colorspace == CMYKColorspace)
           density_xy[MagickAbsoluteValue(y-x)].direction[i].index+=
             cooccurrence[x][y].direction[i].index;
+        if (image->matte != MagickFalse)
+          density_xy[MagickAbsoluteValue(y-x)].direction[i].opacity+=
+            cooccurrence[x][y].direction[i].opacity;
         /*
           Information Measures of Correlation.
         */
@@ -915,13 +919,13 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           log10(cooccurrence[x][y].direction[i].green+MagickEpsilon);
         entropy_xy.direction[i].blue-=cooccurrence[x][y].direction[i].blue*
           log10(cooccurrence[x][y].direction[i].blue+MagickEpsilon);
+        if (image->colorspace == CMYKColorspace)
+          entropy_xy.direction[i].index-=cooccurrence[x][y].direction[i].index*
+            log10(cooccurrence[x][y].direction[i].index+MagickEpsilon);
         if (image->matte != MagickFalse)
           entropy_xy.direction[i].opacity-=
             cooccurrence[x][y].direction[i].opacity*log10(
             cooccurrence[x][y].direction[i].opacity+MagickEpsilon);
-        if (image->colorspace == CMYKColorspace)
-          entropy_xy.direction[i].index-=cooccurrence[x][y].direction[i].index*
-            log10(cooccurrence[x][y].direction[i].index+MagickEpsilon);
         entropy_xy1.direction[i].red-=(cooccurrence[x][y].direction[i].red*
           log10(density_x[x].direction[i].red*density_y[y].direction[i].red+
           MagickEpsilon));
@@ -931,15 +935,15 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         entropy_xy1.direction[i].blue-=(cooccurrence[x][y].direction[i].blue*
           log10(density_x[x].direction[i].blue*density_y[y].direction[i].blue+
           MagickEpsilon));
-        if (image->matte != MagickFalse)
-          entropy_xy1.direction[i].opacity-=(
-            cooccurrence[x][y].direction[i].opacity*log10(
-            density_x[x].direction[i].opacity*density_y[y].direction[i].opacity+
-            MagickEpsilon));
         if (image->colorspace == CMYKColorspace)
           entropy_xy1.direction[i].index-=(
             cooccurrence[x][y].direction[i].index*log10(
             density_x[x].direction[i].index*density_y[y].direction[i].index+
+            MagickEpsilon));
+        if (image->matte != MagickFalse)
+          entropy_xy1.direction[i].opacity-=(
+            cooccurrence[x][y].direction[i].opacity*log10(
+            density_x[x].direction[i].opacity*density_y[y].direction[i].opacity+
             MagickEpsilon));
         entropy_xy2.direction[i].red-=(density_x[x].direction[i].red*
           density_y[y].direction[i].red*log10(density_x[x].direction[i].red*
@@ -950,15 +954,15 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         entropy_xy2.direction[i].blue-=(density_x[x].direction[i].blue*
           density_y[y].direction[i].blue*log10(density_x[x].direction[i].blue*
           density_y[y].direction[i].blue+MagickEpsilon));
-        if (image->matte != MagickFalse)
-          entropy_xy2.direction[i].opacity-=(density_x[x].direction[i].opacity*
-            density_y[y].direction[i].opacity*log10(
-            density_x[x].direction[i].opacity*density_y[y].direction[i].opacity+
-            MagickEpsilon));
         if (image->colorspace == CMYKColorspace)
           entropy_xy2.direction[i].index-=(density_x[x].direction[i].index*
             density_y[y].direction[i].index*log10(
             density_x[x].direction[i].index*density_y[y].direction[i].index+
+            MagickEpsilon));
+        if (image->matte != MagickFalse)
+          entropy_xy2.direction[i].opacity-=(density_x[x].direction[i].opacity*
+            density_y[y].direction[i].opacity*log10(
+            density_x[x].direction[i].opacity*density_y[y].direction[i].opacity+
             MagickEpsilon));
       }
     }
@@ -968,12 +972,12 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       variance.direction[i].green;
     channel_features[BlueChannel].variance_sum_of_squares[i]=
       variance.direction[i].blue;
-    if (image->matte != MagickFalse)
-      channel_features[RedChannel].variance_sum_of_squares[i]=
-        variance.direction[i].opacity;
     if (image->colorspace == CMYKColorspace)
       channel_features[RedChannel].variance_sum_of_squares[i]=
         variance.direction[i].index;
+    if (image->matte != MagickFalse)
+      channel_features[RedChannel].variance_sum_of_squares[i]=
+        variance.direction[i].opacity;
   }
   /*
     Compute more texture features.
@@ -981,14 +985,15 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
   (void) ResetMagickMemory(&variance,0,sizeof(variance));
   (void) ResetMagickMemory(&sum_squares,0,sizeof(sum_squares));
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,number_grays,1)
 #endif
   for (i=0; i < 4; i++)
   {
-    register long
+    register ssize_t
       x;
 
-    for (x=0; x < (long) number_grays; x++)
+    for (x=0; x < (ssize_t) number_grays; x++)
     {
       /*
         Difference variance.
@@ -996,22 +1001,22 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       variance.direction[i].red+=density_xy[x].direction[i].red;
       variance.direction[i].green+=density_xy[x].direction[i].green;
       variance.direction[i].blue+=density_xy[x].direction[i].blue;
-      if (image->matte != MagickFalse)
-        variance.direction[i].opacity+=density_xy[x].direction[i].opacity;
       if (image->colorspace == CMYKColorspace)
         variance.direction[i].index+=density_xy[x].direction[i].index;
+      if (image->matte != MagickFalse)
+        variance.direction[i].opacity+=density_xy[x].direction[i].opacity;
       sum_squares.direction[i].red+=density_xy[x].direction[i].red*
         density_xy[x].direction[i].red;
       sum_squares.direction[i].green+=density_xy[x].direction[i].green*
         density_xy[x].direction[i].green;
       sum_squares.direction[i].blue+=density_xy[x].direction[i].blue*
         density_xy[x].direction[i].blue;
-      if (image->matte != MagickFalse)
-        sum_squares.direction[i].opacity+=density_xy[x].direction[i].opacity*
-          density_xy[x].direction[i].opacity;
       if (image->colorspace == CMYKColorspace)
         sum_squares.direction[i].index+=density_xy[x].direction[i].index*
           density_xy[x].direction[i].index;
+      if (image->matte != MagickFalse)
+        sum_squares.direction[i].opacity+=density_xy[x].direction[i].opacity*
+          density_xy[x].direction[i].opacity;
       /*
         Difference entropy.
       */
@@ -1024,14 +1029,14 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       channel_features[BlueChannel].difference_entropy[i]-=
         density_xy[x].direction[i].blue*
         log10(density_xy[x].direction[i].blue+MagickEpsilon);
-      if (image->matte != MagickFalse)
-        channel_features[OpacityChannel].difference_entropy[i]-=
-          density_xy[x].direction[i].opacity*
-          log10(density_xy[x].direction[i].opacity+MagickEpsilon);
       if (image->colorspace == CMYKColorspace)
         channel_features[IndexChannel].difference_entropy[i]-=
           density_xy[x].direction[i].index*
           log10(density_xy[x].direction[i].index+MagickEpsilon);
+      if (image->matte != MagickFalse)
+        channel_features[OpacityChannel].difference_entropy[i]-=
+          density_xy[x].direction[i].opacity*
+          log10(density_xy[x].direction[i].opacity+MagickEpsilon);
       /*
         Information Measures of Correlation.
       */
@@ -1041,24 +1046,24 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
         log10(density_x[x].direction[i].green+MagickEpsilon));
       entropy_x.direction[i].blue-=(density_x[x].direction[i].blue*
         log10(density_x[x].direction[i].blue+MagickEpsilon));
-      if (image->matte != MagickFalse)
-        entropy_x.direction[i].opacity-=(density_x[x].direction[i].opacity*
-          log10(density_x[x].direction[i].opacity+MagickEpsilon));
       if (image->colorspace == CMYKColorspace)
         entropy_x.direction[i].index-=(density_x[x].direction[i].index*
           log10(density_x[x].direction[i].index+MagickEpsilon));
-      entropy_y.direction[i].red-=(density_y[y].direction[i].red*
-        log10(density_y[y].direction[i].red+MagickEpsilon));
-      entropy_y.direction[i].green-=(density_y[y].direction[i].green*
-        log10(density_y[y].direction[i].green+MagickEpsilon));
-      entropy_y.direction[i].blue-=(density_y[y].direction[i].blue*
-        log10(density_y[y].direction[i].blue+MagickEpsilon));
       if (image->matte != MagickFalse)
-        entropy_y.direction[i].opacity-=(density_y[y].direction[i].opacity*
-          log10(density_y[y].direction[i].opacity+MagickEpsilon));
+        entropy_x.direction[i].opacity-=(density_x[x].direction[i].opacity*
+          log10(density_x[x].direction[i].opacity+MagickEpsilon));
+      entropy_y.direction[i].red-=(density_y[x].direction[i].red*
+        log10(density_y[x].direction[i].red+MagickEpsilon));
+      entropy_y.direction[i].green-=(density_y[x].direction[i].green*
+        log10(density_y[x].direction[i].green+MagickEpsilon));
+      entropy_y.direction[i].blue-=(density_y[x].direction[i].blue*
+        log10(density_y[x].direction[i].blue+MagickEpsilon));
       if (image->colorspace == CMYKColorspace)
-        entropy_y.direction[i].index-=(density_y[y].direction[i].index*
-          log10(density_y[y].direction[i].index+MagickEpsilon));
+        entropy_y.direction[i].index-=(density_y[x].direction[i].index*
+          log10(density_y[x].direction[i].index+MagickEpsilon));
+      if (image->matte != MagickFalse)
+        entropy_y.direction[i].opacity-=(density_y[x].direction[i].opacity*
+          log10(density_y[x].direction[i].opacity+MagickEpsilon));
     }
     /*
       Difference variance.
@@ -1100,16 +1105,16 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       (entropy_xy.direction[i].blue-entropy_xy1.direction[i].blue)/
       (entropy_x.direction[i].blue > entropy_y.direction[i].blue ?
        entropy_x.direction[i].blue : entropy_y.direction[i].blue);
-    if (image->matte != MagickFalse)
-      channel_features[OpacityChannel].measure_of_correlation_1[i]=
-        (entropy_xy.direction[i].opacity-entropy_xy1.direction[i].opacity)/
-        (entropy_x.direction[i].opacity > entropy_y.direction[i].opacity ?
-         entropy_x.direction[i].opacity : entropy_y.direction[i].opacity);
     if (image->colorspace == CMYKColorspace)
       channel_features[IndexChannel].measure_of_correlation_1[i]=
         (entropy_xy.direction[i].index-entropy_xy1.direction[i].index)/
         (entropy_x.direction[i].index > entropy_y.direction[i].index ?
          entropy_x.direction[i].index : entropy_y.direction[i].index);
+    if (image->matte != MagickFalse)
+      channel_features[OpacityChannel].measure_of_correlation_1[i]=
+        (entropy_xy.direction[i].opacity-entropy_xy1.direction[i].opacity)/
+        (entropy_x.direction[i].opacity > entropy_y.direction[i].opacity ?
+         entropy_x.direction[i].opacity : entropy_y.direction[i].opacity);
     channel_features[RedChannel].measure_of_correlation_2[i]=
       (sqrt(fabs(1.0-exp(-2.0*(entropy_xy2.direction[i].red-
       entropy_xy.direction[i].red)))));
@@ -1119,38 +1124,42 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
     channel_features[BlueChannel].measure_of_correlation_2[i]=
       (sqrt(fabs(1.0-exp(-2.0*(entropy_xy2.direction[i].blue-
       entropy_xy.direction[i].blue)))));
-    if (image->matte != MagickFalse)
-      channel_features[OpacityChannel].measure_of_correlation_2[i]=
-        (sqrt(fabs(1.0-exp(-2.0*(entropy_xy2.direction[i].opacity-
-        entropy_xy.direction[i].opacity)))));
     if (image->colorspace == CMYKColorspace)
       channel_features[IndexChannel].measure_of_correlation_2[i]=
         (sqrt(fabs(1.0-exp(-2.0*(entropy_xy2.direction[i].index-
         entropy_xy.direction[i].index)))));
+    if (image->matte != MagickFalse)
+      channel_features[OpacityChannel].measure_of_correlation_2[i]=
+        (sqrt(fabs(1.0-exp(-2.0*(entropy_xy2.direction[i].opacity-
+        entropy_xy.direction[i].opacity)))));
   }
   /*
     Compute more texture features.
   */
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(status)
+  #pragma omp parallel for schedule(static,4) shared(status) \
+    magick_threads(image,image,number_grays,1)
 #endif
   for (i=0; i < 4; i++)
   {
-    for (z=0; z < (long) number_grays; z++)
+    register ssize_t
+      z;
+
+    for (z=0; z < (ssize_t) number_grays; z++)
     {
-      register long
+      register ssize_t
         y;
 
       ChannelStatistics
         pixel;
 
       (void) ResetMagickMemory(&pixel,0,sizeof(pixel));
-      for (y=0; y < (long) number_grays; y++)
+      for (y=0; y < (ssize_t) number_grays; y++)
       {
-        register long
+        register ssize_t
           x;
 
-        for (x=0; x < (long) number_grays; x++)
+        for (x=0; x < (ssize_t) number_grays; x++)
         {
           /*
             Contrast:  amount of local variations present in an image.
@@ -1160,11 +1169,11 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
               pixel.direction[i].red+=cooccurrence[x][y].direction[i].red;
               pixel.direction[i].green+=cooccurrence[x][y].direction[i].green;
               pixel.direction[i].blue+=cooccurrence[x][y].direction[i].blue;
+              if (image->colorspace == CMYKColorspace)
+                pixel.direction[i].index+=cooccurrence[x][y].direction[i].index;
               if (image->matte != MagickFalse)
                 pixel.direction[i].opacity+=
                   cooccurrence[x][y].direction[i].opacity;
-              if (image->colorspace == CMYKColorspace)
-                pixel.direction[i].index+=cooccurrence[x][y].direction[i].index;
             }
           /*
             Maximum Correlation Coefficient.
@@ -1178,27 +1187,27 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
           Q[z][y].direction[i].blue+=cooccurrence[z][x].direction[i].blue*
             cooccurrence[y][x].direction[i].blue/density_x[z].direction[i].blue/
             density_y[x].direction[i].blue;
+          if (image->colorspace == CMYKColorspace)
+            Q[z][y].direction[i].index+=cooccurrence[z][x].direction[i].index*
+              cooccurrence[y][x].direction[i].index/
+              density_x[z].direction[i].index/density_y[x].direction[i].index;
           if (image->matte != MagickFalse)
             Q[z][y].direction[i].opacity+=
               cooccurrence[z][x].direction[i].opacity*
               cooccurrence[y][x].direction[i].opacity/
               density_x[z].direction[i].opacity/
               density_y[x].direction[i].opacity;
-          if (image->colorspace == CMYKColorspace)
-            Q[z][y].direction[i].index+=cooccurrence[z][x].direction[i].index*
-              cooccurrence[y][x].direction[i].index/
-              density_x[z].direction[i].index/density_y[x].direction[i].index;
         }
       }
       channel_features[RedChannel].contrast[i]+=z*z*pixel.direction[i].red;
       channel_features[GreenChannel].contrast[i]+=z*z*pixel.direction[i].green;
       channel_features[BlueChannel].contrast[i]+=z*z*pixel.direction[i].blue;
-      if (image->matte != MagickFalse)
-        channel_features[OpacityChannel].contrast[i]+=z*z*
-          pixel.direction[i].opacity;
       if (image->colorspace == CMYKColorspace)
         channel_features[BlackChannel].contrast[i]+=z*z*
           pixel.direction[i].index;
+      if (image->matte != MagickFalse)
+        channel_features[OpacityChannel].contrast[i]+=z*z*
+          pixel.direction[i].opacity;
     }
     /*
       Maximum Correlation Coefficient.
@@ -1210,24 +1219,24 @@ MagickExport ChannelFeatures *GetImageChannelFeatures(const Image *image,
       sqrt((double) -1.0);
     channel_features[BlueChannel].maximum_correlation_coefficient[i]=
       sqrt((double) -1.0);
-    if (image->matte != MagickFalse)
-      channel_features[OpacityChannel].maximum_correlation_coefficient[i]=
-        sqrt((double) -1.0);
     if (image->colorspace == CMYKColorspace)
       channel_features[IndexChannel].maximum_correlation_coefficient[i]=
+        sqrt((double) -1.0);
+    if (image->matte != MagickFalse)
+      channel_features[OpacityChannel].maximum_correlation_coefficient[i]=
         sqrt((double) -1.0);
   }
   /*
     Relinquish resources.
   */
   sum=(ChannelStatistics *) RelinquishMagickMemory(sum);
-  for (i=0; i < (long) number_grays; i++)
+  for (i=0; i < (ssize_t) number_grays; i++)
     Q[i]=(ChannelStatistics *) RelinquishMagickMemory(Q[i]);
   Q=(ChannelStatistics **) RelinquishMagickMemory(Q);
   density_y=(ChannelStatistics *) RelinquishMagickMemory(density_y);
   density_xy=(ChannelStatistics *) RelinquishMagickMemory(density_xy);
   density_x=(ChannelStatistics *) RelinquishMagickMemory(density_x);
-  for (i=0; i < (long) number_grays; i++)
+  for (i=0; i < (ssize_t) number_grays; i++)
     cooccurrence[i]=(ChannelStatistics *)
       RelinquishMagickMemory(cooccurrence[i]);
   cooccurrence=(ChannelStatistics **) RelinquishMagickMemory(cooccurrence);

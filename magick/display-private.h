@@ -1,5 +1,5 @@
 /*
-  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization
+  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization
   dedicated to making software imaging solutions freely available.
   
   You may not use this file except in compliance with the License.
@@ -26,8 +26,7 @@ extern "C" {
 #include "magick/xwindow-private.h"
 
 extern MagickExport Image
-  *XDisplayImage(Display *,XResourceInfo *,char **,int,Image **,
-    unsigned long *);
+  *XDisplayImage(Display *,XResourceInfo *,char **,int,Image **,size_t *);
 
 extern MagickExport MagickBooleanType XDisplayBackgroundImage(Display *,
   XResourceInfo *,Image *);

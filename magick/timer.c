@@ -17,7 +17,7 @@
 %                              January 1993                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -90,7 +90,7 @@ MagickExport TimerInfo *AcquireTimerInfo(void)
   TimerInfo
     *timer_info;
 
-  timer_info=(TimerInfo *) AcquireAlignedMemory(1,sizeof(*timer_info));
+  timer_info=(TimerInfo *) AcquireMagickMemory(sizeof(*timer_info));
   if (timer_info == (TimerInfo *) NULL)
     ThrowFatalException(ResourceLimitFatalError,"UnableToAcquireString");
   (void) ResetMagickMemory(timer_info,0,sizeof(*timer_info));
@@ -196,7 +196,7 @@ static double ElapsedTime(void)
 
   return((double) times(&timer)/CLK_TCK);
 #else
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
   return(NTElapsedTime());
 #else
   return((double) clock()/CLK_TCK);
@@ -451,7 +451,7 @@ static double UserTime(void)
   (void) times(&timer);
   return((double) (timer.tms_utime+timer.tms_stime)/CLK_TCK);
 #else
-#if defined(__WINDOWS__)
+#if defined(MAGICKCORE_WINDOWS_SUPPORT)
   return(NTUserTime());
 #else
   return((double) clock()/CLK_TCK);

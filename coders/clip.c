@@ -10,14 +10,14 @@
 %                          CCCC  LLLLL  IIIII  P                              %
 %                                                                             %
 %                                                                             %
-%                        Write Clip Mask To MIFF File.                        %
+%                              Write Clip File.                               %
 %                                                                             %
 %                              Software Design                                %
 %                                John Cristy                                  %
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,15 +40,18 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
+#include "magick/list.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -59,6 +62,67 @@
 */
 static MagickBooleanType
   WriteCLIPImage(const ImageInfo *,Image *);
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   R e a d C L I P I m a g e                                                 %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  ReadCLIPImage returns the rendered clip path associated with the image.
+%
+%  The format of the ReadCLIPImage method is:
+%
+%      Image *ReadCLIPImage(const ImageInfo *image_info,
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o image_info: the image info.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+static Image *ReadCLIPImage(const ImageInfo *image_info,
+  ExceptionInfo *exception)
+{
+  Image
+    *clip_image,
+    *image;
+
+  ImageInfo
+    *read_info;
+
+  /*
+    Initialize Image structure.
+  */
+  assert(image_info != (const ImageInfo *) NULL);
+  assert(image_info->signature == MagickSignature);
+  if (image_info->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",
+      image_info->filename);
+  assert(exception != (ExceptionInfo *) NULL);
+  assert(exception->signature == MagickSignature);
+  read_info=CloneImageInfo(image_info);
+  SetImageInfoBlob(read_info,(void *) NULL,0);
+  *read_info->magick='\0';
+  clip_image=ReadImage(read_info,exception);
+  read_info=DestroyImageInfo(read_info);
+  (void) ClipImage(clip_image);
+  image=(Image *) NULL;
+  if (clip_image->clip_mask == (Image *) NULL)
+    ThrowReaderException(CoderError,"ImageDoesNotHaveAClipMask");
+  image=CloneImage(clip_image->clip_mask,0,0,MagickTrue,exception);
+  clip_image=DestroyImage(clip_image);
+  if (image == (Image *) NULL)
+    return((Image *) NULL);
+  return(GetFirstImageInList(image));
+}
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -80,15 +144,16 @@ static MagickBooleanType
 %
 %  The format of the RegisterCLIPImage method is:
 %
-%      unsigned long RegisterCLIPImage(void)
+%      size_t RegisterCLIPImage(void)
 %
 */
-ModuleExport unsigned long RegisterCLIPImage(void)
+ModuleExport size_t RegisterCLIPImage(void)
 {
   MagickInfo
     *entry;
 
   entry=SetMagickInfo("CLIP");
+  entry->decoder=(DecodeImageHandler *) ReadCLIPImage;
   entry->encoder=(EncodeImageHandler *) WriteCLIPImage;
   entry->description=ConstantString("Image Clip Mask");
   entry->module=ConstantString("CLIP");
@@ -170,7 +235,7 @@ static MagickBooleanType WriteCLIPImage(const ImageInfo *image_info,
   write_info=CloneImageInfo(image_info);
   (void) SetImageInfo(write_info,1,&image->exception);
   if (LocaleCompare(write_info->magick,"CLIP") == 0)
-    (void) FormatMagickString(clip_image->filename,MaxTextExtent,"miff:%s",
+    (void) FormatLocaleString(clip_image->filename,MaxTextExtent,"miff:%s",
       write_info->filename);
   status=WriteImage(write_info,clip_image);
   clip_image=DestroyImage(clip_image);

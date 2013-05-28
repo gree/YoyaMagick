@@ -17,7 +17,7 @@
 %                               October 1998                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -40,12 +40,14 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/attribute.h"
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/cache.h"
 #include "magick/client.h"
+#include "magick/colorspace-private.h"
 #include "magick/constitute.h"
 #include "magick/delegate.h"
 #include "magick/geometry.h"
@@ -70,6 +72,7 @@
 #include "magick/string_.h"
 #include "magick/string-private.h"
 #include "magick/timer.h"
+#include "magick/token.h"
 #include "magick/transform.h"
 #include "magick/utility.h"
 
@@ -146,9 +149,9 @@ MagickExport void ConstituteComponentTerminus(void)
 %
 %  The format of the ConstituteImage method is:
 %
-%      Image *ConstituteImage(const unsigned long columns,
-%        const unsigned long rows,const char *map,const StorageType storage,
-%        const void *pixels,ExceptionInfo *exception)
+%      Image *ConstituteImage(const size_t columns,const size_t rows,
+%        const char *map,const StorageType storage,const void *pixels,
+%        ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -174,8 +177,8 @@ MagickExport void ConstituteComponentTerminus(void)
 %    o exception: return any errors or warnings in this structure.
 %
 */
-MagickExport Image *ConstituteImage(const unsigned long columns,
-  const unsigned long rows,const char *map,const StorageType storage,
+MagickExport Image *ConstituteImage(const size_t columns,
+  const size_t rows,const char *map,const StorageType storage,
   const void *pixels,ExceptionInfo *exception)
 {
   Image
@@ -333,7 +336,7 @@ MagickExport Image *PingImages(const ImageInfo *image_info,
       ExceptionInfo
         *sans;
 
-      long
+      ssize_t
         extent,
         scene;
 
@@ -344,10 +347,15 @@ MagickExport Image *PingImages(const ImageInfo *image_info,
       sans=AcquireExceptionInfo();
       (void) SetImageInfo(read_info,0,sans);
       sans=DestroyExceptionInfo(sans);
+      if (read_info->number_scenes == 0)
+        {
+          read_info=DestroyImageInfo(read_info);
+          return(PingImage(image_info,exception));
+        }
       (void) CopyMagickString(filename,read_info->filename,MaxTextExtent);
       images=NewImageList();
-      extent=(long) (read_info->scene+read_info->number_scenes);
-      for (scene=(long) read_info->scene; scene < (long) extent; scene++)
+      extent=(ssize_t) (read_info->scene+read_info->number_scenes);
+      for (scene=(ssize_t) read_info->scene; scene < (ssize_t) extent; scene++)
       {
         (void) InterpretImageFilename(image_info,(Image *) NULL,filename,(int)
           scene,read_info->filename);
@@ -452,6 +460,7 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
       errno=EPERM;
       (void) ThrowMagickException(exception,GetMagickModule(),PolicyError,
         "NotAuthorized","`%s'",read_info->filename);
+      read_info=DestroyImageInfo(read_info);
       return((Image *) NULL);
     }
   /*
@@ -468,7 +477,7 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
         if ((image_info->endian == UndefinedEndian) &&
             (GetMagickRawSupport(magick_info) != MagickFalse))
           {
-            unsigned long
+            size_t
               lsb_first;
 
             lsb_first=1;
@@ -514,6 +523,17 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
   image=NewImageList();
   if (constitute_semaphore == (SemaphoreInfo *) NULL)
     AcquireSemaphoreInfo(&constitute_semaphore);
+  if ((magick_info == (const MagickInfo *) NULL) ||
+      (GetImageDecoder(magick_info) == (DecodeImageHandler *) NULL))
+    {
+      delegate_info=GetDelegateInfo(read_info->magick,(char *) NULL,exception);
+      if (delegate_info == (const DelegateInfo *) NULL)
+        {
+          (void) SetImageInfo(read_info,0,exception);
+          (void) CopyMagickString(read_info->filename,filename,MaxTextExtent);
+          magick_info=GetMagickInfo(read_info->magick,exception);
+        }
+    }
   if ((magick_info != (const MagickInfo *) NULL) &&
       (GetImageDecoder(magick_info) != (DecodeImageHandler *) NULL))
     {
@@ -529,10 +549,9 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
       delegate_info=GetDelegateInfo(read_info->magick,(char *) NULL,exception);
       if (delegate_info == (const DelegateInfo *) NULL)
         {
-          if (IsPathAccessible(read_info->filename) != MagickFalse)
-            (void) ThrowMagickException(exception,GetMagickModule(),
-              MissingDelegateError,"NoDecodeDelegateForThisImageFormat","`%s'",
-              read_info->filename);
+          (void) ThrowMagickException(exception,GetMagickModule(),
+            MissingDelegateError,"NoDecodeDelegateForThisImageFormat","`%s'",
+            read_info->filename);
           if (read_info->temporary != MagickFalse)
             (void) RelinquishUniqueFileResource(read_info->filename);
           read_info=DestroyImageInfo(read_info);
@@ -625,23 +644,28 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
   for (next=image; next != (Image *) NULL; next=GetNextImageInList(next))
   {
     char
+      magick_path[MaxTextExtent],
+      *property,
       timestamp[MaxTextExtent];
+
+    const char
+      *option;
 
     const StringInfo
       *profile;
 
     next->taint=MagickFalse;
-    if (next->magick_columns == 0)
-      next->magick_columns=next->columns;
-    if (next->magick_rows == 0)
-      next->magick_rows=next->rows;
-    if ((LocaleCompare(magick,"HTTP") != 0) &&
-        (LocaleCompare(magick,"FTP") != 0))
+    GetPathComponent(magick_filename,MagickPath,magick_path);
+    if (*magick_path == '\0')
       (void) CopyMagickString(next->magick,magick,MaxTextExtent);
     (void) CopyMagickString(next->magick_filename,magick_filename,
       MaxTextExtent);
     if (IsBlobTemporary(image) != MagickFalse)
       (void) CopyMagickString(next->filename,filename,MaxTextExtent);
+    if (next->magick_columns == 0)
+      next->magick_columns=next->columns;
+    if (next->magick_rows == 0)
+      next->magick_rows=next->rows;
     value=GetImageProperty(next,"tiff:Orientation");
     if (value == (char *) NULL)
       value=GetImageProperty(next,"exif:Orientation");
@@ -651,9 +675,7 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
         (void) DeleteImageProperty(next,"tiff:Orientation");
         (void) DeleteImageProperty(next,"exif:Orientation");
       }
-    value=GetImageProperty(next,"tiff:XResolution");
-    if (value == (char *) NULL)
-      value=GetImageProperty(next,"exif:XResolution");
+    value=GetImageProperty(next,"exif:XResolution");
     if (value != (char *) NULL)
       {
         geometry_info.rho=next->x_resolution;
@@ -662,11 +684,8 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
         if (geometry_info.sigma != 0)
           next->x_resolution=geometry_info.rho/geometry_info.sigma;
         (void) DeleteImageProperty(next,"exif:XResolution");
-        (void) DeleteImageProperty(next,"tiff:XResolution");
       }
-    value=GetImageProperty(next,"tiff:YResolution");
-    if (value == (char *) NULL)
-      value=GetImageProperty(next,"exif:YResolution");
+    value=GetImageProperty(next,"exif:YResolution");
     if (value != (char *) NULL)
       {
         geometry_info.rho=next->y_resolution;
@@ -675,7 +694,6 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
         if (geometry_info.sigma != 0)
           next->y_resolution=geometry_info.rho/geometry_info.sigma;
         (void) DeleteImageProperty(next,"exif:YResolution");
-        (void) DeleteImageProperty(next,"tiff:YResolution");
       }
     value=GetImageProperty(next,"tiff:ResolutionUnit");
     if (value == (char *) NULL)
@@ -690,35 +708,26 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
       next->page.width=next->columns;
     if (next->page.height == 0)
       next->page.height=next->rows;
-    if (*read_info->filename != '\0')
+    option=GetImageOption(read_info,"caption");
+    if (option != (const char *) NULL)
       {
-        char
-          *property;
-
-        const char
-          *option;
-
-        option=GetImageOption(read_info,"caption");
-        if (option != (const char *) NULL)
-          {
-            property=InterpretImageProperties(read_info,next,option);
-            (void) SetImageProperty(next,"caption",property);
-            property=DestroyString(property);
-          }
-        option=GetImageOption(read_info,"comment");
-        if (option != (const char *) NULL)
-          {
-            property=InterpretImageProperties(read_info,next,option);
-            (void) SetImageProperty(next,"comment",property);
-            property=DestroyString(property);
-          }
-        option=GetImageOption(read_info,"label");
-        if (option != (const char *) NULL)
-          {
-            property=InterpretImageProperties(read_info,next,option);
-            (void) SetImageProperty(next,"label",property);
-            property=DestroyString(property);
-          }
+        property=InterpretImageProperties(read_info,next,option);
+        (void) SetImageProperty(next,"caption",property);
+        property=DestroyString(property);
+      }
+    option=GetImageOption(read_info,"comment");
+    if (option != (const char *) NULL)
+      {
+        property=InterpretImageProperties(read_info,next,option);
+        (void) SetImageProperty(next,"comment",property);
+        property=DestroyString(property);
+      }
+    option=GetImageOption(read_info,"label");
+    if (option != (const char *) NULL)
+      {
+        property=InterpretImageProperties(read_info,next,option);
+        (void) SetImageProperty(next,"label",property);
+        property=DestroyString(property);
       }
     if (LocaleCompare(next->magick,"TEXT") == 0)
       (void) ParseAbsoluteGeometry("0x0+0+0",&next->page);
@@ -778,8 +787,35 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
     (void) FormatMagickTime(GetBlobProperties(next)->st_ctime,MaxTextExtent,
       timestamp);
     (void) SetImageProperty(next,"date:create",timestamp);
+    option=GetImageOption(image_info,"delay");
+    if (option != (const char *) NULL)
+      {
+        GeometryInfo
+          geometry_info;
+
+        flags=ParseGeometry(option,&geometry_info);
+        if ((flags & GreaterValue) != 0)
+          {
+            if (next->delay > (size_t) floor(geometry_info.rho+0.5))
+              next->delay=(size_t) floor(geometry_info.rho+0.5);
+          }
+        else
+          if ((flags & LessValue) != 0)
+            {
+              if (next->delay < (size_t) floor(geometry_info.rho+0.5))
+                next->ticks_per_second=(ssize_t) floor(geometry_info.sigma+0.5);
+            }
+          else
+            next->delay=(size_t) floor(geometry_info.rho+0.5);
+        if ((flags & SigmaValue) != 0)
+          next->ticks_per_second=(ssize_t) floor(geometry_info.sigma+0.5);
+      }
+    option=GetImageOption(image_info,"dispose");
+    if (option != (const char *) NULL)
+      next->dispose=(DisposeType) ParseCommandOption(MagickDisposeOptions,
+        MagickFalse,option);
     if (read_info->verbose != MagickFalse)
-      (void) IdentifyImage(next,stdout,MagickFalse);
+      (void) IdentifyImage(next,stderr,MagickFalse);
     image=next;
   }
   read_info=DestroyImageInfo(read_info);
@@ -839,7 +875,7 @@ MagickExport Image *ReadImages(const ImageInfo *image_info,
       ExceptionInfo
         *sans;
 
-      long
+      ssize_t
         extent,
         scene;
 
@@ -850,10 +886,15 @@ MagickExport Image *ReadImages(const ImageInfo *image_info,
       sans=AcquireExceptionInfo();
       (void) SetImageInfo(read_info,0,sans);
       sans=DestroyExceptionInfo(sans);
+      if (read_info->number_scenes == 0)
+        {
+          read_info=DestroyImageInfo(read_info);
+          return(ReadImage(image_info,exception));
+        }
       (void) CopyMagickString(filename,read_info->filename,MaxTextExtent);
       images=NewImageList();
-      extent=(long) (read_info->scene+read_info->number_scenes);
-      for (scene=(long) read_info->scene; scene < (long) extent; scene++)
+      extent=(ssize_t) (read_info->scene+read_info->number_scenes);
+      for (scene=(ssize_t) read_info->scene; scene < (ssize_t) extent; scene++)
       {
         (void) InterpretImageFilename(image_info,(Image *) NULL,filename,(int)
           scene,read_info->filename);
@@ -916,6 +957,9 @@ MagickExport Image *ReadInlineImage(const ImageInfo *image_info,
   register const char
     *p;
 
+  /*
+    Skip over header (e.g. data:image/gif;base64,).
+  */
   image=NewImageList();
   for (p=content; (*p != ',') && (*p != '\0'); p++) ;
   if (*p == '\0')
@@ -928,6 +972,8 @@ MagickExport Image *ReadInlineImage(const ImageInfo *image_info,
   read_info=CloneImageInfo(image_info);
   (void) SetImageInfoProgressMonitor(read_info,(MagickProgressMonitor) NULL,
     (void *) NULL);
+  *read_info->filename='\0';
+  *read_info->magick='\0';
   image=BlobToImage(read_info,blob,length,exception);
   blob=(unsigned char *) RelinquishMagickMemory(blob);
   read_info=DestroyImageInfo(read_info);
@@ -945,11 +991,11 @@ MagickExport Image *ReadInlineImage(const ImageInfo *image_info,
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  WriteImage() writes an image or an image sequence to a file or filehandle.
-%  If writing to a file on disk, the name is defined by the filename member of
-%  the image structure.  Write() returns MagickFalse is these is a memory
-%  shortage or if the image cannot be written.  Check the exception member of
-%  image to determine the cause for any failure.
+%  WriteImage() writes an image or an image sequence to a file or file handle.
+%  If writing to a file is on disk, the name is defined by the filename member
+%  of the image structure.  WriteImage() returns MagickFalse is there is a
+%  memory shortage or if the image cannot be written.  Check the exception
+%  member of image to determine the cause for any failure.
 %
 %  The format of the WriteImage method is:
 %
@@ -1018,6 +1064,7 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
         {
           (void) ThrowMagickException(&image->exception,GetMagickModule(),
             OptionError,"NoClipPathDefined","`%s'",image->filename);
+          write_info=DestroyImageInfo(write_info);
           return(MagickFalse);
         }
       image=image->clip_mask;
@@ -1030,9 +1077,13 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
   if (IsRightsAuthorized(domain,rights,write_info->magick) == MagickFalse)
     {
       sans_exception=DestroyExceptionInfo(sans_exception);
+      write_info=DestroyImageInfo(write_info);
       errno=EPERM;
       ThrowBinaryException(PolicyError,"NotAuthorized",filename);
     }
+  /*
+    Call appropriate image reader based on image type.
+  */
   magick_info=GetMagickInfo(write_info->magick,sans_exception);
   sans_exception=DestroyExceptionInfo(sans_exception);
   if (magick_info != (const MagickInfo *) NULL)
@@ -1043,16 +1094,24 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
         if ((image_info->endian == UndefinedEndian) &&
             (GetMagickRawSupport(magick_info) != MagickFalse))
           {
-            unsigned long
+            size_t
               lsb_first;
 
             lsb_first=1;
             image->endian=(*(char *) &lsb_first) == 1 ? LSBEndian : MSBEndian;
          }
     }
+  if (IsGrayColorspace(image->colorspace) != MagickFalse)
+    {
+      /*
+        sRGB masquerading as a grayscale image?
+      */
+      if (IsGrayImage(image,&image->exception) == MagickFalse)
+        (void) SetImageColorspace(image,sRGBColorspace);
+    }
   (void) SyncImageProfiles(image);
   option=GetImageOption(image_info,"delegate:bimodal");
-  if ((option != (const char *) NULL) && 
+  if ((option != (const char *) NULL) &&
       (IsMagickTrue(option) != MagickFalse) &&
       (write_info->page == (char *) NULL) &&
       (GetPreviousImageInList(image) == (Image *) NULL) &&
@@ -1095,6 +1154,7 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
               /*
                 A seekable stream is required by the encoder.
               */
+              write_info->adjoin=MagickTrue;
               (void) CopyMagickString(write_info->filename,image->filename,
                 MaxTextExtent);
               (void) AcquireUniqueFilename(image->filename);
@@ -1150,10 +1210,33 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
             }
           if ((magick_info == (const MagickInfo *) NULL) ||
               (GetImageEncoder(magick_info) == (EncodeImageHandler *) NULL))
-            (void) ThrowMagickException(&image->exception,GetMagickModule(),
-              MissingDelegateError,"NoEncodeDelegateForThisImageFormat","`%s'",
-              image->filename);
-          else
+            {
+              char
+                extension[MaxTextExtent];
+
+              GetPathComponent(image->filename,ExtensionPath,extension);
+              if (*extension != '\0')
+                magick_info=GetMagickInfo(extension,&image->exception);
+              else
+                magick_info=GetMagickInfo(image->magick,&image->exception);
+              (void) CopyMagickString(image->filename,filename,MaxTextExtent);
+            }
+          if ((magick_info == (const MagickInfo *) NULL) ||
+              (GetImageEncoder(magick_info) == (EncodeImageHandler *) NULL))
+            {
+              magick_info=GetMagickInfo(image->magick,&image->exception);
+              if ((magick_info == (const MagickInfo *) NULL) ||
+                  (GetImageEncoder(magick_info) == (EncodeImageHandler *) NULL))
+                (void) ThrowMagickException(&image->exception,GetMagickModule(),
+                  MissingDelegateError,"NoEncodeDelegateForThisImageFormat",
+                  "`%s'",image->filename);
+              else
+                (void) ThrowMagickException(&image->exception,GetMagickModule(),
+                  MissingDelegateWarning,"NoEncodeDelegateForThisImageFormat",
+                  "`%s'",image->filename);
+            }
+          if ((magick_info != (const MagickInfo *) NULL) &&
+              (GetImageEncoder(magick_info) != (EncodeImageHandler *) NULL))
             {
               /*
                 Call appropriate image writer based on image type.
@@ -1177,15 +1260,18 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
       */
       status=OpenBlob(write_info,image,ReadBinaryBlobMode,&image->exception);
       if (status != MagickFalse)
-        status=ImageToFile(image,write_info->filename,&image->exception);
+        {
+          (void) RelinquishUniqueFileResource(write_info->filename);
+          status=ImageToFile(image,write_info->filename,&image->exception);
+        }
+      (void) CloseBlob(image);
       (void) RelinquishUniqueFileResource(image->filename);
       (void) CopyMagickString(image->filename,write_info->filename,
         MaxTextExtent);
-      (void) CloseBlob(image);
     }
   if ((LocaleCompare(write_info->magick,"info") != 0) &&
       (write_info->verbose != MagickFalse))
-    (void) IdentifyImage(image,stdout,MagickFalse);
+    (void) IdentifyImage(image,stderr,MagickFalse);
   write_info=DestroyImageInfo(write_info);
   return(status);
 }
@@ -1201,7 +1287,14 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
 %                                                                             %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%  WriteImages() writes an image sequence.
+%  WriteImages() writes an image sequence into one or more files.  While
+%  WriteImage() can write an image sequence, it is limited to writing
+%  the sequence into a single file using a format which supports multiple
+%  frames.   WriteImages(), however, does not have this limitation, instead it
+%  generates multiple output files if necessary (or when requested).  When
+%  ImageInfo's adjoin flag is set to MagickFalse, the file name is expected
+%  to include a printf-style formatting string for the frame number (e.g.
+%  "image%02d.png").
 %
 %  The format of the WriteImages method is:
 %
@@ -1277,15 +1370,15 @@ MagickExport MagickBooleanType WriteImages(const ImageInfo *image_info,
   for ( ; GetNextImageInList(p) != (Image *) NULL; p=GetNextImageInList(p))
     if (p->scene >= GetNextImageInList(p)->scene)
       {
-        register long
+        register ssize_t
           i;
 
         /*
           Generate consistent scene numbers.
         */
-        i=(long) images->scene;
+        i=(ssize_t) images->scene;
         for (p=images; p != (Image *) NULL; p=GetNextImageInList(p))
-          p->scene=(unsigned long) i++;
+          p->scene=(size_t) i++;
         break;
       }
   /*

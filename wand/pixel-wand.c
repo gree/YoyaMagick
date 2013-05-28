@@ -23,7 +23,7 @@
 %                                March 2003                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -62,7 +62,7 @@
 */
 struct _PixelWand
 {
-  unsigned long
+  size_t
     id;
 
   char
@@ -74,13 +74,13 @@ struct _PixelWand
   MagickPixelPacket
     pixel;
 
-  unsigned long
+  size_t
     count;
 
   MagickBooleanType
     debug;
 
-  unsigned long
+  size_t
     signature;
 };
 
@@ -113,7 +113,7 @@ WandExport void ClearPixelWand(PixelWand *wand)
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
   ClearMagickException(wand->exception);
-  wand->pixel.colorspace=RGBColorspace;
+  wand->pixel.colorspace=sRGBColorspace;
   wand->debug=IsEventLogging();
 }
 
@@ -148,14 +148,14 @@ WandExport PixelWand *ClonePixelWand(const PixelWand *wand)
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  clone_wand=(PixelWand *) AcquireAlignedMemory(1,sizeof(*clone_wand));
+  clone_wand=(PixelWand *) AcquireMagickMemory(sizeof(*clone_wand));
   if (clone_wand == (PixelWand *) NULL)
     ThrowWandFatalException(ResourceLimitFatalError,"MemoryAllocationFailed",
       wand->name);
   (void) ResetMagickMemory(clone_wand,0,sizeof(*clone_wand));
   clone_wand->id=AcquireWandId();
-  (void) FormatMagickString(clone_wand->name,MaxTextExtent,"%s-%lu",PixelWandId,
-    clone_wand->id);
+  (void) FormatLocaleString(clone_wand->name,MaxTextExtent,"%s-%.20g",
+    PixelWandId,(double) clone_wand->id);
   clone_wand->exception=AcquireExceptionInfo();
   InheritException(clone_wand->exception,wand->exception);
   clone_wand->pixel=wand->pixel;
@@ -183,7 +183,7 @@ WandExport PixelWand *ClonePixelWand(const PixelWand *wand)
 %  The format of the ClonePixelWands method is:
 %
 %      PixelWand **ClonePixelWands(const PixelWand **wands,
-%        const unsigned long number_wands)
+%        const size_t number_wands)
 %
 %  A description of each parameter follows:
 %
@@ -193,9 +193,9 @@ WandExport PixelWand *ClonePixelWand(const PixelWand *wand)
 %
 */
 WandExport PixelWand **ClonePixelWands(const PixelWand **wands,
-  const unsigned long number_wands)
+  const size_t number_wands)
 {
-  register long
+  register ssize_t
     i;
 
   PixelWand
@@ -206,7 +206,7 @@ WandExport PixelWand **ClonePixelWands(const PixelWand **wands,
   if (clone_wands == (PixelWand **) NULL)
     ThrowWandFatalException(ResourceLimitFatalError,"MemoryAllocationFailed",
       GetExceptionMessage(errno));
-  for (i=0; i < (long) number_wands; i++)
+  for (i=0; i < (ssize_t) number_wands; i++)
     clone_wands[i]=ClonePixelWand(wands[i]);
   return(clone_wands);
 }
@@ -263,7 +263,7 @@ WandExport PixelWand *DestroyPixelWand(PixelWand *wand)
 %  The format of the DestroyPixelWands method is:
 %
 %      PixelWand **DestroyPixelWands(PixelWand **wand,
-%        const unsigned long number_wands)
+%        const size_t number_wands)
 %
 %  A description of each parameter follows:
 %
@@ -273,9 +273,9 @@ WandExport PixelWand *DestroyPixelWand(PixelWand *wand)
 %
 */
 WandExport PixelWand **DestroyPixelWands(PixelWand **wand,
-  const unsigned long number_wands)
+  const size_t number_wands)
 {
-  register long
+  register ssize_t
     i;
 
   assert(wand != (PixelWand **) NULL);
@@ -283,7 +283,7 @@ WandExport PixelWand **DestroyPixelWands(PixelWand **wand,
   assert((*wand)->signature == WandSignature);
   if ((*wand)->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",(*wand)->name);
-  for (i=(long) number_wands-1; i >= 0; i--)
+  for (i=(ssize_t) number_wands-1; i >= 0; i--)
     wand[i]=DestroyPixelWand(wand[i]);
   wand=(PixelWand **) RelinquishMagickMemory(wand);
   return(wand);
@@ -393,21 +393,21 @@ WandExport PixelWand *NewPixelWand(void)
   PixelWand
     *wand;
 
-  unsigned long
+  size_t
     depth;
 
   depth=MAGICKCORE_QUANTUM_DEPTH;
   quantum=GetMagickQuantumDepth(&depth);
   if (depth != MAGICKCORE_QUANTUM_DEPTH)
     ThrowWandFatalException(WandError,"QuantumDepthMismatch",quantum);
-  wand=(PixelWand *) AcquireAlignedMemory(1,sizeof(*wand));
+  wand=(PixelWand *) AcquireMagickMemory(sizeof(*wand));
   if (wand == (PixelWand *) NULL)
     ThrowWandFatalException(ResourceLimitFatalError,"MemoryAllocationFailed",
       GetExceptionMessage(errno));
   (void) ResetMagickMemory(wand,0,sizeof(*wand));
   wand->id=AcquireWandId();
-  (void) FormatMagickString(wand->name,MaxTextExtent,"%s-%lu",PixelWandId,
-    wand->id);
+  (void) FormatLocaleString(wand->name,MaxTextExtent,"%s-%.20g",PixelWandId,
+    (double) wand->id);
   wand->exception=AcquireExceptionInfo();
   GetMagickPixelPacket((Image *) NULL,&wand->pixel);
   wand->debug=IsEventLogging();
@@ -432,16 +432,16 @@ WandExport PixelWand *NewPixelWand(void)
 %
 %  The format of the NewPixelWands method is:
 %
-%      PixelWand **NewPixelWands(const unsigned long number_wands)
+%      PixelWand **NewPixelWands(const size_t number_wands)
 %
 %  A description of each parameter follows:
 %
 %    o number_wands: the number of wands.
 %
 */
-WandExport PixelWand **NewPixelWands(const unsigned long number_wands)
+WandExport PixelWand **NewPixelWands(const size_t number_wands)
 {
-  register long
+  register ssize_t
     i;
 
   PixelWand
@@ -452,7 +452,7 @@ WandExport PixelWand **NewPixelWands(const unsigned long number_wands)
   if (wands == (PixelWand **) NULL)
     ThrowWandFatalException(ResourceLimitFatalError,"MemoryAllocationFailed",
       GetExceptionMessage(errno));
-  for (i=0; i < (long) number_wands; i++)
+  for (i=0; i < (ssize_t) number_wands; i++)
     wands[i]=NewPixelWand();
   return(wands);
 }
@@ -548,7 +548,7 @@ WandExport Quantum PixelGetAlphaQuantum(const PixelWand *wand)
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  return((Quantum) QuantumRange-ClampToQuantum(wand->pixel.opacity));
+  return(QuantumRange-ClampToQuantum(wand->pixel.opacity));
 }
 
 /*
@@ -747,15 +747,15 @@ WandExport char *PixelGetColorAsNormalizedString(const PixelWand *wand)
   assert(wand->signature == WandSignature);
   if (wand->debug != MagickFalse)
     (void) LogMagickEvent(WandEvent,GetMagickModule(),"%s",wand->name);
-  (void) FormatMagickString(color,MaxTextExtent,"%g,%g,%g",
+  (void) FormatLocaleString(color,MaxTextExtent,"%g,%g,%g",
     (double) (QuantumScale*wand->pixel.red),
     (double) (QuantumScale*wand->pixel.green),
     (double) (QuantumScale*wand->pixel.blue));
   if (wand->pixel.colorspace == CMYKColorspace)
-    (void) FormatMagickString(color+strlen(color),MaxTextExtent,",%g",
+    (void) FormatLocaleString(color+strlen(color),MaxTextExtent,",%g",
       (double) (QuantumScale*wand->pixel.index));
   if (wand->pixel.matte != MagickFalse)
-    (void) FormatMagickString(color+strlen(color),MaxTextExtent,",%g",
+    (void) FormatLocaleString(color+strlen(color),MaxTextExtent,",%g",
       (double) (QuantumScale*wand->pixel.opacity));
   return(ConstantString(color));
 }
@@ -775,14 +775,14 @@ WandExport char *PixelGetColorAsNormalizedString(const PixelWand *wand)
 %
 %  The format of the PixelGetColorCount method is:
 %
-%      unsigned long PixelGetColorCount(const PixelWand *wand)
+%      size_t PixelGetColorCount(const PixelWand *wand)
 %
 %  A description of each parameter follows:
 %
 %    o wand: the pixel wand.
 %
 */
-WandExport unsigned long PixelGetColorCount(const PixelWand *wand)
+WandExport size_t PixelGetColorCount(const PixelWand *wand)
 {
   assert(wand != (const PixelWand *) NULL);
   assert(wand->signature == WandSignature);
@@ -1170,7 +1170,7 @@ WandExport Quantum PixelGetMagentaQuantum(const PixelWand *wand)
 %                                                                             %
 %                                                                             %
 %                                                                             %
-+   P i x e l G e t M a g i c k C o l o r                                     %
+%   P i x e l G e t M a g i c k C o l o r                                     %
 %                                                                             %
 %                                                                             %
 %                                                                             %
@@ -1299,7 +1299,8 @@ WandExport void PixelGetQuantumColor(const PixelWand *wand,PixelPacket *color)
       color->red=ClampToQuantum((MagickRealType) QuantumRange-
         (wand->pixel.red*(QuantumRange-wand->pixel.index)+wand->pixel.index));
       color->green=ClampToQuantum((MagickRealType) QuantumRange-
-        (wand->pixel.green*(QuantumRange-wand->pixel.index)+wand->pixel.index));
+        (wand->pixel.green*(QuantumRange-wand->pixel.index)+
+        wand->pixel.index));
       color->blue=ClampToQuantum((MagickRealType) QuantumRange-
         (wand->pixel.blue*(QuantumRange-wand->pixel.index)+wand->pixel.index));
       return;
@@ -1694,7 +1695,7 @@ WandExport MagickBooleanType PixelSetColor(PixelWand *wand,const char *color)
 %
 %  The format of the PixelSetColorCount method is:
 %
-%      void PixelSetColorCount(PixelWand *wand,const unsigned long count)
+%      void PixelSetColorCount(PixelWand *wand,const size_t count)
 %
 %  A description of each parameter follows:
 %
@@ -1703,7 +1704,7 @@ WandExport MagickBooleanType PixelSetColor(PixelWand *wand,const char *color)
 %    o count: the number of this particular color.
 %
 */
-WandExport void PixelSetColorCount(PixelWand *wand,const unsigned long count)
+WandExport void PixelSetColorCount(PixelWand *wand,const size_t count)
 {
   assert(wand != (const PixelWand *) NULL);
   assert(wand->signature == WandSignature);
@@ -1727,7 +1728,7 @@ WandExport void PixelSetColorCount(PixelWand *wand,const unsigned long count)
 %
 %  The format of the PixelSetColorFromWand method is:
 %
-%      PixelSetColorFromWand(PixelWand *wand,const PixelWand *color)
+%      void PixelSetColorFromWand(PixelWand *wand,const PixelWand *color)
 %
 %  A description of each parameter follows:
 %
@@ -2073,7 +2074,7 @@ WandExport void PixelSetMagentaQuantum(PixelWand *wand,const Quantum magenta)
 %
 %  The format of the PixelSetMagickColor method is:
 %
-%      PixelSetMagickColor(PixelWand *wand,const MagickPixelPacket *color)
+%      void PixelSetMagickColor(PixelWand *wand,const MagickPixelPacket *color)
 %
 %  A description of each parameter follows:
 %
@@ -2177,7 +2178,7 @@ WandExport void PixelSetOpacityQuantum(PixelWand *wand,const Quantum opacity)
 %
 %  The format of the PixelSetQuantumColor method is:
 %
-%      PixelSetQuantumColor(PixelWand *wand,const PixelPacket *color)
+%      void PixelSetQuantumColor(PixelWand *wand,const PixelPacket *color)
 %
 %  A description of each parameter follows:
 %

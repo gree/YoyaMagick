@@ -67,6 +67,10 @@ David Pensak, E. I. du Pont de Nemours and Company
      For providing the computing environment that made developing ImageMagick
      possible.
 
+Chantal Racette, Laurentian University
+     Sped up Sinc and Blackman filter kernels. EWA resampling code
+     verification.
+
 William Radcliffe
      Author of the VisualMagick project configure facility for Visual C++.
      Author of FlashPix module. Author of the EMF, XTRN, and META coders.
@@ -84,6 +88,10 @@ Glenn Randers-Pehrson
 Paul Raveling, USC Information Sciences Institute
      The spatial subdivision color reduction algorithm is based on his Img
      software.
+
+Nicolas Robidoux, Laurentian University
+     New ellipse clamping method and vertical/horizontal line preserving
+     filters for EWA resampling. Sped up resampling filter kernels.
 
 Leonard Rosenthol
      Authored the 'conjure' utility and associated MSL execution environment.
@@ -116,6 +124,11 @@ Anthony Thyssen
 Milan Votava
      Contributed support for Wireless BitMap, used in WAP - Wireless Access
      Protocol.
+
+Fred Weinhaus
+     Contributed support and documentation for the discrete Fourier transform.
+     Also provides scripts that perform some out-of-the ordinary image
+     processing operations @ http://www.fmwconcepts.com/imagemagick/.
 
 Alexander Zimmermann
      Responsible for the ImageMagick Linux binary distributions for many years.

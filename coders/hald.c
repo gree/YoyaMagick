@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -54,10 +54,13 @@
 #include "magick/module.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/string-private.h"
+#include "magick/thread-private.h"
 
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -92,9 +95,6 @@ static Image *ReadHALDImage(const ImageInfo *image_info,
   Image
     *image;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
@@ -102,8 +102,8 @@ static Image *ReadHALDImage(const ImageInfo *image_info,
     cube_size,
     level;
 
-  CacheView
-    *image_view;
+  ssize_t
+    y;
 
   /*
     Create HALD color lookup table image.
@@ -123,15 +123,11 @@ static Image *ReadHALDImage(const ImageInfo *image_info,
     level=8;
   status=MagickTrue;
   cube_size=level*level;
-  image->columns=(unsigned long) (level*cube_size);
-  image->rows=(unsigned long) (level*cube_size);
-  image_view=AcquireCacheView(image);
-#if defined(MAGICKCORE_OPENMP_SUPPORT) && (_OPENMP > 200505)
-  #pragma omp parallel for shared(status)
-#endif
-  for (y=0; y < (long) image->rows; y+=(long) level)
+  image->columns=(size_t) (level*cube_size);
+  image->rows=(size_t) (level*cube_size);
+  for (y=0; y < (ssize_t) image->rows; y+=(ssize_t) level)
   {
-    long
+    ssize_t
       blue,
       green,
       red;
@@ -141,29 +137,31 @@ static Image *ReadHALDImage(const ImageInfo *image_info,
 
     if (status == MagickFalse)
       continue;
-    q=QueueCacheViewAuthenticPixels(image_view,0,y,image->columns,
-      (unsigned long) level,exception);
+    q=QueueAuthenticPixels(image,0,y,image->columns,(size_t) level,
+      exception);
     if (q == (PixelPacket *) NULL)
       {
         status=MagickFalse;
         continue;
       }
-    blue=y/(long) level;
-    for (green=0; green < (long) cube_size; green++)
+    blue=y/(ssize_t) level;
+    for (green=0; green < (ssize_t) cube_size; green++)
     {
-      for (red=0; red < (long) cube_size; red++)
+      for (red=0; red < (ssize_t) cube_size; red++)
       {
-        q->red=ClampToQuantum(QuantumRange*red/(cube_size-1.0));
-        q->green=ClampToQuantum(QuantumRange*green/(cube_size-1.0));
-        q->blue=ClampToQuantum(QuantumRange*blue/(cube_size-1.0));
-        SetOpacityPixelComponent(q,OpaqueOpacity);
+        SetPixelRed(q,ClampToQuantum((MagickRealType)
+          (QuantumRange*red/(cube_size-1.0))));
+        SetPixelGreen(q,ClampToQuantum((MagickRealType)
+          (QuantumRange*green/(cube_size-1.0))));
+        SetPixelBlue(q,ClampToQuantum((MagickRealType)
+          (QuantumRange*blue/(cube_size-1.0))));
+        SetPixelOpacity(q,OpaqueOpacity);
         q++;
       }
     }
-    if (SyncCacheViewAuthenticPixels(image_view,exception) == MagickFalse)
+    if (SyncAuthenticPixels(image,exception) == MagickFalse)
       status=MagickFalse;
   }
-  image_view=DestroyCacheView(image_view);
   return(GetFirstImageInList(image));
 }
 
@@ -187,10 +185,10 @@ static Image *ReadHALDImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterHALDImage method is:
 %
-%      unsigned long RegisterHALDImage(void)
+%      size_t RegisterHALDImage(void)
 %
 */
-ModuleExport unsigned long RegisterHALDImage(void)
+ModuleExport size_t RegisterHALDImage(void)
 {
   MagickInfo
     *entry;
@@ -198,7 +196,7 @@ ModuleExport unsigned long RegisterHALDImage(void)
   entry=SetMagickInfo("HALD");
   entry->decoder=(DecodeImageHandler *) ReadHALDImage;
   entry->adjoin=MagickFalse;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->raw=MagickTrue;
   entry->endian_support=MagickTrue;
   entry->description=ConstantString("Identity Hald color lookup table image");

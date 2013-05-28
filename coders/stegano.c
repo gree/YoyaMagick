@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -43,6 +43,7 @@
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
+#include "magick/colormap.h"
 #include "magick/constitute.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -53,6 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -86,8 +88,8 @@
 %
 */
 
-static inline unsigned long MagickMin(const unsigned long x,
-  const unsigned long y)
+static inline size_t MagickMin(const size_t x,
+  const size_t y)
 {
   if (x < y)
     return(x);
@@ -97,11 +99,11 @@ static inline unsigned long MagickMin(const unsigned long x,
 static Image *ReadSTEGANOImage(const ImageInfo *image_info,
   ExceptionInfo *exception)
 {
-#define GetBit(alpha,i) MagickMin((((unsigned long) (alpha) >> (unsigned long) \
+#define GetBit(alpha,i) MagickMin((((size_t) (alpha) >> (size_t) \
   (i)) & 0x01),16)
-#define SetBit(alpha,i,set) (alpha)=(IndexPacket) ((set) != 0 ? \
-  (unsigned long) (alpha) | (1UL << (unsigned long) (i)) : (unsigned long) \
-  (alpha) & ~(1UL << (unsigned long) (i)))
+#define SetBit(indexes,i,set) SetPixelIndex(indexes,((set) != 0 ? \
+  (size_t) GetPixelIndex(indexes) | (one << (size_t) (i)) : (size_t) \
+  GetPixelIndex(indexes) & ~(one << (size_t) (i))))
 
   Image
     *image,
@@ -110,12 +112,8 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
   ImageInfo
     *read_info;
 
-  long
-    c,
-    i,
-    j,
-    k,
-    y;
+  int
+    c;
 
   MagickBooleanType
     status;
@@ -126,14 +124,21 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
   register IndexPacket
     *indexes;
 
-  register long
-    x;
-
   register PixelPacket
     *q;
 
-  unsigned long
-    depth;
+  register ssize_t
+    x;
+
+  size_t
+    depth,
+    one;
+
+  ssize_t
+    i,
+    j,
+    k,
+    y;
 
   /*
     Initialize Image structure.
@@ -145,6 +150,7 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
       image_info->filename);
   assert(exception != (ExceptionInfo *) NULL);
   assert(exception->signature == MagickSignature);
+  one=1;
   image=AcquireImage(image_info);
   if ((image->columns == 0) || (image->rows == 0))
     ThrowReaderException(OptionError,"MustSpecifyImageSize");
@@ -169,19 +175,19 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
   c=0;
   i=0;
   j=0;
-  i=MAGICKCORE_QUANTUM_DEPTH-1;
-  depth=MAGICKCORE_QUANTUM_DEPTH;
-  for (k=image->offset; (i >= 0) && (j < (long) depth); i--)
+  i=(ssize_t) (watermark->depth-1);
+  depth=watermark->depth;
+  for (k=image->offset; (i >= 0) && (j < (ssize_t) depth); i--)
   {
-    for (y=0; (y < (long) image->rows) && (j < (long) depth); y++)
+    for (y=0; (y < (ssize_t) image->rows) && (j < (ssize_t) depth); y++)
     {
       x=0;
-      for (; (x < (long) image->columns) && (j < (long) depth); x++)
+      for ( ; (x < (ssize_t) image->columns) && (j < (ssize_t) depth); x++)
       {
-        if ((k/(long) watermark->columns) >= (long) watermark->rows)
+        if ((k/(ssize_t) watermark->columns) >= (ssize_t) watermark->rows)
           break;
-        (void) GetOneVirtualPixel(watermark,k % (long) watermark->columns,
-          k/(long) watermark->columns,&pixel,exception);
+        (void) GetOneVirtualPixel(watermark,k % (ssize_t) watermark->columns,
+          k/(ssize_t) watermark->columns,&pixel,exception);
         q=GetAuthenticPixels(image,x,y,1,1,exception);
         if (q == (PixelPacket *) NULL)
           break;
@@ -190,17 +196,17 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
         {
           case 0:
           {
-            SetBit(*indexes,i,GetBit(pixel.red,j));
+            SetBit(indexes,i,GetBit(pixel.red,j));
             break;
           }
           case 1:
           {
-            SetBit(*indexes,i,GetBit(pixel.green,j));
+            SetBit(indexes,i,GetBit(pixel.green,j));
             break;
           }
           case 2:
           {
-            SetBit(*indexes,i,GetBit(pixel.blue,j));
+            SetBit(indexes,i,GetBit(pixel.blue,j));
             break;
           }
         }
@@ -210,13 +216,13 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
         if (c == 3)
           c=0;
         k++;
-        if (k == (long) (watermark->columns*watermark->columns))
+        if (k == (ssize_t) (watermark->columns*watermark->columns))
           k=0;
         if (k == image->offset)
           j++;
       }
     }
-    status=SetImageProgress(image,LoadImagesTag,i,depth);
+    status=SetImageProgress(image,LoadImagesTag,(MagickOffsetType) i,depth);
     if (status == MagickFalse)
       break;
   }
@@ -245,17 +251,17 @@ static Image *ReadSTEGANOImage(const ImageInfo *image_info,
 %
 %  The format of the RegisterSTEGANOImage method is:
 %
-%      unsigned long RegisterSTEGANOImage(void)
+%      size_t RegisterSTEGANOImage(void)
 %
 */
-ModuleExport unsigned long RegisterSTEGANOImage(void)
+ModuleExport size_t RegisterSTEGANOImage(void)
 {
   MagickInfo
     *entry;
 
   entry=SetMagickInfo("STEGANO");
   entry->decoder=(DecodeImageHandler *) ReadSTEGANOImage;
-  entry->format_type=ExplicitFormatType;
+  entry->format_type=ImplicitFormatType;
   entry->description=ConstantString("Steganographic image");
   entry->module=ConstantString("STEGANO");
   (void) RegisterMagickInfo(entry);

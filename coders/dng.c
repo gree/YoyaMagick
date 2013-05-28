@@ -17,7 +17,7 @@
 %                                 July 1999                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -53,8 +53,9 @@
 #include "magick/log.h"
 #include "magick/magick.h"
 #include "magick/memory_.h"
-#include "magick/resource_.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
+#include "magick/resource_.h"
 #include "magick/static.h"
 #include "magick/string_.h"
 #include "magick/module.h"
@@ -75,7 +76,7 @@
 %
 %  ReadDNGImage() reads an binary file in the Digital Negative format and
 %  returns it.  It allocates the memory necessary for the new Image structure
-%  and returns a pointer to the new image. 
+%  and returns a pointer to the new image.
 %
 %  The format of the ReadDNGImage method is:
 %
@@ -127,16 +128,17 @@ static Image *ReadDNGImage(const ImageInfo *image_info,ExceptionInfo *exception)
   */
   image=AcquireImage(image_info);
   read_info=CloneImageInfo(image_info);
+  SetImageInfoBlob(read_info,(void *) NULL,0);
   (void) InvokeDelegate(read_info,image,"dng:decode",(char *) NULL,exception);
   image=DestroyImage(image);
-  (void) FormatMagickString(read_info->filename,MaxTextExtent,"%s.png",
+  (void) FormatLocaleString(read_info->filename,MaxTextExtent,"%s.png",
     read_info->unique);
   sans_exception=AcquireExceptionInfo();
   image=ReadImage(read_info,sans_exception);
   sans_exception=DestroyExceptionInfo(sans_exception);
   if (image == (Image *) NULL)
     {
-      (void) FormatMagickString(read_info->filename,MaxTextExtent,"%s.ppm",
+      (void) FormatLocaleString(read_info->filename,MaxTextExtent,"%s.ppm",
         read_info->unique);
       image=ReadImage(read_info,exception);
     }
@@ -151,7 +153,7 @@ static Image *ReadDNGImage(const ImageInfo *image_info,ExceptionInfo *exception)
         *sans;
 
       (void) CopyMagickString(image->magick,read_info->magick,MaxTextExtent);
-      (void) FormatMagickString(filename,MaxTextExtent,"%s.ufraw",
+      (void) FormatLocaleString(filename,MaxTextExtent,"%s.ufraw",
         read_info->unique);
       sans=AcquireExceptionInfo();
       xml=FileToString(filename,MaxTextExtent,sans);
@@ -159,10 +161,10 @@ static Image *ReadDNGImage(const ImageInfo *image_info,ExceptionInfo *exception)
       if (xml != (char *) NULL)
         {
           XMLTreeInfo
-           *ufraw;
+            *ufraw;
 
           /*
-            Inject 
+            Inject.
           */
           ufraw=NewXMLTree(xml,sans);
           if (ufraw != (XMLTreeInfo *) NULL)
@@ -187,8 +189,8 @@ static Image *ReadDNGImage(const ImageInfo *image_info,ExceptionInfo *exception)
                 tag=GetXMLTreeTag(next);
                 if (tag == (char *) NULL)
                   tag="unknown";
-                (void) FormatMagickString(property,MaxTextExtent,"dng:%s",tag);
-                content=ConstantString(GetXMLTreeContent(next)); 
+                (void) FormatLocaleString(property,MaxTextExtent,"dng:%s",tag);
+                content=ConstantString(GetXMLTreeContent(next));
                 StripString(content);
                 if ((LocaleCompare(tag,"log") != 0) &&
                     (LocaleCompare(tag,"InputFilename") != 0) &&
@@ -230,10 +232,10 @@ static Image *ReadDNGImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterDNGImage method is:
 %
-%      unsigned long RegisterDNGImage(void)
+%      size_t RegisterDNGImage(void)
 %
 */
-ModuleExport unsigned long RegisterDNGImage(void)
+ModuleExport size_t RegisterDNGImage(void)
 {
   MagickInfo
     *entry;
@@ -310,6 +312,14 @@ ModuleExport unsigned long RegisterDNGImage(void)
   entry->description=ConstantString("Kodak Digital Camera Raw Image Format");
   entry->module=ConstantString("DNG");
   (void) RegisterMagickInfo(entry);
+  entry=SetMagickInfo("MEF");
+  entry->decoder=(DecodeImageHandler *) ReadDNGImage;
+  entry->blob_support=MagickFalse;
+  entry->seekable_stream=MagickTrue;
+  entry->format_type=ExplicitFormatType;
+  entry->description=ConstantString("Mamiya Raw Image File");
+  entry->module=ConstantString("DNG");
+  (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("MRW");
   entry->decoder=(DecodeImageHandler *) ReadDNGImage;
   entry->blob_support=MagickFalse;
@@ -319,6 +329,14 @@ ModuleExport unsigned long RegisterDNGImage(void)
   entry->module=ConstantString("DNG");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("NEF");
+  entry->decoder=(DecodeImageHandler *) ReadDNGImage;
+  entry->blob_support=MagickFalse;
+  entry->seekable_stream=MagickTrue;
+  entry->format_type=ExplicitFormatType;
+  entry->description=ConstantString("Nikon Digital SLR Camera Raw Image File");
+  entry->module=ConstantString("DNG");
+  (void) RegisterMagickInfo(entry);
+  entry=SetMagickInfo("NRW");
   entry->decoder=(DecodeImageHandler *) ReadDNGImage;
   entry->blob_support=MagickFalse;
   entry->seekable_stream=MagickTrue;
@@ -348,6 +366,14 @@ ModuleExport unsigned long RegisterDNGImage(void)
   entry->seekable_stream=MagickTrue;
   entry->format_type=ExplicitFormatType;
   entry->description=ConstantString("Fuji CCD-RAW Graphic File");
+  entry->module=ConstantString("DNG");
+  (void) RegisterMagickInfo(entry);
+  entry=SetMagickInfo("RW2");
+  entry->decoder=(DecodeImageHandler *) ReadDNGImage;
+  entry->blob_support=MagickFalse;
+  entry->seekable_stream=MagickTrue;
+  entry->format_type=ExplicitFormatType;
+  entry->description=ConstantString("Panasonic Lumix Raw Image");
   entry->module=ConstantString("DNG");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("SRF");
@@ -401,11 +427,14 @@ ModuleExport void UnregisterDNGImage(void)
   (void) UnregisterMagickInfo("X3F");
   (void) UnregisterMagickInfo("SR2");
   (void) UnregisterMagickInfo("SRF");
+  (void) UnregisterMagickInfo("RW2");
   (void) UnregisterMagickInfo("RAF");
   (void) UnregisterMagickInfo("PEF");
   (void) UnregisterMagickInfo("ORF");
+  (void) UnregisterMagickInfo("NRW");
   (void) UnregisterMagickInfo("NEF");
   (void) UnregisterMagickInfo("MRW");
+  (void) UnregisterMagickInfo("MEF");
   (void) UnregisterMagickInfo("K25");
   (void) UnregisterMagickInfo("KDC");
   (void) UnregisterMagickInfo("DCR");

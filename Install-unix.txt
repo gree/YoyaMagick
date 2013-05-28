@@ -23,8 +23,8 @@ Configure
   default options, and build from within the source directory, you can simply
   type:
   
-    $magick> cd ImageMagick-6.5.9
-     $magick> ./configure
+    $magick> cd ImageMagick-6.7.5
+    $magick> ./configure
   
   Watch the configure script output to verify that it finds everything that
   you think it should. Pay particular attention to the last lines of the script
@@ -64,7 +64,8 @@ Configure
     JBIG              --with-jbig=		no
     JPEG v1           --with-jpeg=yes		yes
     JPEG-2000         --with-jp2=yes		yes
-    LCMS              --with-lcms=yes		yes
+    LCMS v1           --with-lcms=yes		yes
+    LCMS v2           --with-lcms2=yes		yes
     LQR               --with-lqr=yes		no
     Magick++          --with-magick-plus-plus=yes	yes
     OpenEXR           --with-openexr=yes		yes
@@ -341,6 +342,10 @@ Configure
       optimization and debug flags (default -g -O2). Antique C++ compilers
       will normally be rejected by configure tests so specifying this option
       should only be necessary if Magick++ fails to compile.
+
+    --with-package-release-name
+      encode this name into the shared library name (see libtools -release
+      option).
   
     --without-perl
       disable build/install of PerlMagick, or
@@ -399,8 +404,14 @@ Configure
       disable JPEG v2 support.
   
     --without-lcms
-      disable LCMS support.
+      disable lcms (v1.1X) support
+
+    --without-lcms2
+      disable lcms (v2.X) support
   
+    --without-lzma
+      disable LZMA support.
+
     --without-png
       disable PNG support.
   
@@ -569,7 +580,7 @@ Linux-specific Build instructions
   After the build you, locate the RPMS folder and install the ImageMagick
   binary RPM distribution:
   
-    $magick> rpm -ivh ImageMagick-6.5.9-?.*.rpm
+    $magick> rpm -ivh ImageMagick-6.8.2-?.*.rpm
   
 MinGW-specific Build instructions
   
@@ -579,8 +590,8 @@ MinGW-specific Build instructions
   sure you specify the development headers when you install a package. Next
   type,
   
-    $magick> tar jxvf ImageMagick-6.5.9-?.tar.bz2
-    $magick> cd ImageMagick-6.5.9
+    $magick> tar jxvf ImageMagick-6.8.2-?.tar.bz2
+    $magick> cd ImageMagick-6.8.2
     $magick> export CPPFLAGS="-Ic:/Progra~1/GnuWin32/include"
     $magick> export LDFLAGS="-Lc:/Progra~1/GnuWin32/lib"
     $magick> ./configure --without-perl

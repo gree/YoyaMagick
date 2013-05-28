@@ -3,7 +3,7 @@
 convert \- convert between image formats as well as resize an image, blur, crop, despeckle, dither, draw on, flip, join, re-sample, and much more.
 .SH SYNOPSIS
 .TP
-\fBconvert\fP [\fIinput-options\fP] \fIinput-file\fP [\fIoutput-options\fP] \fIoutput-file\fP
+\fBconvert\fP [\fIinput-option\fP] \fIinput-file\fP [\fIoutput-option\fP] \fIoutput-file\fP
 .SH OVERVIEW
 The \fBconvert\fP program is a member of the ImageMagick(1) suite of tools.  Use it to convert between image formats as well as resize an image, blur, crop, despeckle, dither, draw on, flip, join, re-sample, and much more.  
 
@@ -23,6 +23,9 @@ Image Settings:
   \-caption string      assign a caption to an image
   \-cdl filename        color correct with a color decision list
   \-channel type        apply option to select image channels
+  \-clip                clip along the first path from the 8BIM profile
+  \-clip-mask filename  associate a clip mask with the image
+  \-clip-path id        clip along a named path from the 8BIM profile
   \-colors value        preferred number of colors in the image
   \-colorspace type     alternate image colorspace
   \-comment string      annotate image with comment
@@ -34,6 +37,7 @@ Image Settings:
   \-delay value         display the next image after pausing
   \-density geometry    horizontal and vertical density of the image
   \-depth value         image depth
+  \-direction type      render text right-to-left or left-to-right
   \-display server      get image or font from this X server
   \-dispose method      layer disposal method
   \-dither method       apply error diffusion to image
@@ -41,6 +45,7 @@ Image Settings:
   \-encoding type       text encoding type
   \-endian type         endianness (MSB or LSB) of the image
   \-family name         render text with this font family
+  \-features distance   analyze image features (e.g. contrast, correlation)
   \-fill color          color to use when filling a graphic primitive
   \-filter type         use this filter when resizing an image
   \-flatten             flatten a sequence of images
@@ -52,6 +57,7 @@ Image Settings:
   \-intent type         type of rendering intent when managing the image color
   \-interlace type      type of image interlacing scheme
   \-interpolate method  pixel color interpolation method
+  \-kerning value       set the space between two letters
   \-label string        assign a label to an image
   \-limit type value    pixel cache resource limit
   \-loop iterations     add Netscape loop extension to your GIF animation
@@ -74,11 +80,15 @@ Image Settings:
   \-scene value         image scene number
   \-seed value          seed a new sequence of pseudo-random numbers
   \-size geometry       width and height of image
+  \-statistic type geometry
+                       replace each pixel with corresponding statistic from the neighborhood
   \-stretch type        render text with this font stretch
   \-stroke color        graphic primitive stroke color
   \-strokewidth value   graphic primitive stroke width
   \-style type          render text with this font style
   \-support factor      resize support: > 1.0 is blurry, < 1.0 is sharp
+  \-synchronize         synchronize image to storage device
+  \-taint               declare the image as modified
   \-texture filename    name of texture to tile onto the image background
   \-tile-offset geometry
                        tile offset
@@ -110,10 +120,9 @@ Image Operators:
   \-border geometry     surround image with a border of color
   \-charcoal radius     simulate a charcoal drawing
   \-chop geometry       remove pixels from the image interior
-  \-clip                clip along the first path from the 8BIM profile
-  \-clip-mask filename  associate a clip mask with the image
-  \-clip-path id        clip along a named path from the 8BIM profile
+  \-clamp               keep pixel values in range (0-QuantumRange)
   \-colorize value      colorize the image with the fill color
+  \-color-matrix matrix apply color correction to the image
   \-contrast            enhance or reduce the image contrast
   \-contrast-stretch geometry
                        improve contrast by `stretching' the intensity range
@@ -141,6 +150,7 @@ Image Operators:
   \-gaussian-blur geometry
                        reduce image noise and reduce detail levels
   \-geometry geometry   preferred size or location of the image
+  \-grayscale method    convert image to grayscale
   \-identify            identify the format and characteristics of the image
   \-ift                 implements the inverse discrete Fourier transform (DFT)
   \-implode amount      implode image pixels about the center
@@ -149,7 +159,9 @@ Image Operators:
   \-level value         adjust the level of image contrast
   \-linear-stretch geometry
                        improve contrast by `stretching with saturation' the intensity range
-  \-median radius       apply a median filter to the image
+  \-magnify             double the size of the image with pixel art scaling
+  \-median geometry     apply a median filter to the image
+  \-mode geometry       make each pixel the 'predominant color' of the neighborhood
   \-modulate value      vary the brightness, saturation, and hue
   \-monochrome          transform image to black and white
   \-morphology method kernel
@@ -157,12 +169,14 @@ Image Operators:
   \-motion-blur geometry
                        simulate motion blur
   \-negate              replace each pixel with its complementary color 
-  \-noise radius        add or reduce noise in an image
+  \-noise geometry      add or reduce noise in an image
   \-normalize           transform image to span the full range of colors
   \-opaque color        change this color to the fill color
   \-ordered-dither NxN
                        add a noise pattern to the image with specific amplitudes
   \-paint radius        simulate an oil painting
+  \-perceptible epsilon
+                       pixel value less than |epsilon| become epsilon or -epsilon
   \-polaroid angle      simulate a Polaroid picture
   \-posterize levels    reduce the image to a limited number of color levels
   \-print string        interpret string and print to console
@@ -172,7 +186,6 @@ Image Operators:
   \-raise value         lighten/darken image edges to create a 3-D effect
   \-random-threshold low,high
                        random threshold the image
-  \-recolor matrix      translate, scale, shear, or rotate image colors
   \-region geometry     apply options to a portion of the image
   \-render              render vector graphics
   \-repage geometry     size and location of an image canvas
@@ -220,7 +233,7 @@ Image Operators:
 
 Image Sequence Operators:
   \-affinity filename   transform image colors to match this set of colors
-  \-append              append an image sequence
+  \-append              append an image sequence top to bottom (use +append for left to right)
   \-clut                apply a color lookup table to the image
   \-coalesce            merge a sequence of images
   \-combine             combine a sequence of images
@@ -234,13 +247,17 @@ Image Sequence Operators:
   \-hald-clut           apply a Hald color lookup table to the image
   \-morph value         morph an image sequence
   \-mosaic              create a mosaic from an image sequence
+  \-poly terms          build a polynomial from the image sequence and the corresponding terms (coefficients and degree pairs)
   \-process arguments   process the image with a custom image filter
   \-separate            separate an image channel into a grayscale image
+  \-smush geometry      smush an image sequence together
   \-write filename      write images to this file
 
 Image Stack Operators:
-  \-clone index         clone an image
-  \-delete index        delete the image from the image sequence
+  \-clone indexes       clone an image
+  \-delete indexes      delete the image from the image sequence
+  \-duplicate count,indexes
+                       duplicate an image one or more times
   \-insert index        insert last image into the image sequence
   \-swap indexes        swap two images in the image sequence
 
@@ -251,9 +268,11 @@ Miscellaneous Options:
   \-list type           print a list of supported option arguments
   \-version             print version information
 
+Use any setting or operator as an \fIoutput-option\fP.  Only a limited number of setting are  \fIinput-option\fP. They include: \-antialias, \-caption, \-density, \-define, \-encoding, \-font, \-pointsize, \-size, and \-texture as well as any of the miscellaneous options.
+
 By default, the image format of `file' is determined by its magic number.  To specify a particular image format, precede the filename with an image format name and a colon (i.e. ps:image) or specify the image type as the filename suffix (i.e. image.ps).  Specify 'file' as '-' for standard input or output.
 .SH SEE ALSO
 ImageMagick(1)
 
 .SH COPYRIGHT
-\fBCopyright (C) 1999-2010 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file://@DOCUMENTATION_PATH@/www/license.html or http://www.imagemagick.org/script/license.php\fP
+\fBCopyright (C) 1999-2013 ImageMagick Studio LLC. Additional copyrights and licenses apply to this software, see file://@DOCUMENTATION_PATH@/www/license.html or http://www.imagemagick.org/script/license.php\fP

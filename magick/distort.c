@@ -18,7 +18,7 @@
 %                                 June 2007                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -44,6 +44,9 @@
 #include "magick/artifact.h"
 #include "magick/cache.h"
 #include "magick/cache-view.h"
+#include "magick/channel.h"
+#include "magick/color-private.h"
+#include "magick/colorspace.h"
 #include "magick/colorspace-private.h"
 #include "magick/composite-private.h"
 #include "magick/distort.h"
@@ -56,16 +59,21 @@
 #include "magick/matrix.h"
 #include "magick/memory_.h"
 #include "magick/monitor-private.h"
+#include "magick/option.h"
 #include "magick/pixel.h"
+#include "magick/pixel-accessor.h"
 #include "magick/pixel-private.h"
 #include "magick/resample.h"
 #include "magick/resample-private.h"
 #include "magick/registry.h"
+#include "magick/resource_.h"
 #include "magick/semaphore.h"
+#include "magick/shear.h"
 #include "magick/string_.h"
 #include "magick/string-private.h"
 #include "magick/thread-private.h"
 #include "magick/token.h"
+#include "magick/transform.h"
 
 /*
   Numerous internal routines for image distortions.
@@ -99,7 +107,7 @@ static void InvertAffineCoefficients(const double *coeff,double *inverse)
   /* From "Digital Image Warping" by George Wolberg, page 50 */
   double determinant;
 
-  determinant=1.0/(coeff[0]*coeff[4]-coeff[1]*coeff[3]);
+  determinant=PerceptibleReciprocal(coeff[0]*coeff[4]-coeff[1]*coeff[3]);
   inverse[0]=determinant*coeff[4];
   inverse[1]=determinant*(-coeff[1]);
   inverse[2]=determinant*(coeff[1]*coeff[5]-coeff[2]*coeff[4]);
@@ -114,7 +122,7 @@ static void InvertPerspectiveCoefficients(const double *coeff,
   /* From "Digital Image Warping" by George Wolberg, page 53 */
   double determinant;
 
-  determinant=1.0/(coeff[0]*coeff[4]-coeff[3]*coeff[1]);
+  determinant=PerceptibleReciprocal(coeff[0]*coeff[4]-coeff[3]*coeff[1]);
   inverse[0]=determinant*(coeff[4]-coeff[7]*coeff[5]);
   inverse[1]=determinant*(coeff[7]*coeff[2]-coeff[1]);
   inverse[2]=determinant*(coeff[1]*coeff[5]-coeff[4]*coeff[2]);
@@ -125,56 +133,48 @@ static void InvertPerspectiveCoefficients(const double *coeff,
   inverse[7]=determinant*(coeff[6]*coeff[1]-coeff[0]*coeff[7]);
 }
 
-static inline double MagickRound(double x)
-{
-  /* round the fraction to nearest integer */
-  if (x >= 0.0)
-    return((double) ((long) (x+0.5)));
-  return((double) ((long) (x-0.5)));
-}
-
 /*
  * Polynomial Term Defining Functions
  *
  * Order must either be an integer, or 1.5 to produce
- * the 2 number_valuesal polyminal function...
- *    affine     1 (3)      u = c0 + c1*x + c2*y
- *    bilinear  1.5 (4)     u = '' + c3*x*y
- *    quadratic  2 (6)      u = '' + c4*x*x + c5*y*y
- *    cubic      3 (10)     u = '' + c6*x^3 + c7*x*x*y + c8*x*y*y + c9*y^3
- *    quartic    4 (15)     u = '' + c10*x^4 + ... + c14*y^4
- *    quintic    5 (21)     u = '' + c15*x^5 + ... + c20*y^5
+ * the 2 number_valuesal polynomial function...
+ *    affine     1   (3)      u = c0 + c1*x + c2*y
+ *    bilinear   1.5 (4)      u = '' + c3*x*y
+ *    quadratic  2   (6)      u = '' + c4*x*x + c5*y*y
+ *    cubic      3   (10)     u = '' + c6*x^3 + c7*x*x*y + c8*x*y*y + c9*y^3
+ *    quartic    4   (15)     u = '' + c10*x^4 + ... + c14*y^4
+ *    quintic    5   (21)     u = '' + c15*x^5 + ... + c20*y^5
  * number in parenthesis minimum number of points needed.
  * Anything beyond quintic, has not been implemented until
- * a more automated way of determined terms is found.
+ * a more automated way of determining terms is found.
 
  * Note the slight re-ordering of the terms for a quadratic polynomial
  * which is to allow the use of a bi-linear (order=1.5) polynomial.
  * All the later polynomials are ordered simply from x^N to y^N
  */
-static unsigned long poly_number_terms(double order)
+static size_t poly_number_terms(double order)
 {
  /* Return the number of terms for a 2d polynomial */
   if ( order < 1 || order > 5 ||
        ( order != floor(order) && (order-1.5) > MagickEpsilon) )
     return 0; /* invalid polynomial order */
-  return((unsigned long) floor((order+1)*(order+2)/2));
+  return((size_t) floor((order+1)*(order+2)/2));
 }
 
-static double poly_basis_fn(long n, double x, double y)
+static double poly_basis_fn(ssize_t n, double x, double y)
 {
   /* Return the result for this polynomial term */
   switch(n) {
     case  0:  return( 1.0 ); /* constant */
     case  1:  return(  x  );
-    case  2:  return(  y  ); /* affine      order = 1   terms = 3 */
-    case  3:  return( x*y ); /* bilinear    order = 1.5 terms = 4 */
+    case  2:  return(  y  ); /* affine          order = 1   terms = 3 */
+    case  3:  return( x*y ); /* bilinear        order = 1.5 terms = 4 */
     case  4:  return( x*x );
-    case  5:  return( y*y ); /* quadratic   order = 2   terms = 6 */
+    case  5:  return( y*y ); /* quadratic       order = 2   terms = 6 */
     case  6:  return( x*x*x );
     case  7:  return( x*x*y );
     case  8:  return( x*y*y );
-    case  9:  return( y*y*y ); /* cubic       order = 3   terms = 10 */
+    case  9:  return( y*y*y ); /* cubic         order = 3   terms = 10 */
     case 10:  return( x*x*x*x );
     case 11:  return( x*x*x*y );
     case 12:  return( x*x*y*y );
@@ -185,39 +185,39 @@ static double poly_basis_fn(long n, double x, double y)
     case 17:  return( x*x*x*y*y );
     case 18:  return( x*x*y*y*y );
     case 19:  return( x*y*y*y*y );
-    case 20:  return( y*y*y*y*y ); /* quintic     order = 5   terms = 21 */
+    case 20:  return( y*y*y*y*y ); /* quintic   order = 5   terms = 21 */
   }
   return( 0 ); /* should never happen */
 }
-static const char *poly_basis_str(long n)
+static const char *poly_basis_str(ssize_t n)
 {
   /* return the result for this polynomial term */
   switch(n) {
     case  0:  return(""); /* constant */
     case  1:  return("*ii");
-    case  2:  return("*jj"); /* affiine      order = 1   terms = 3 */
-    case  3:  return("*ii*jj"); /* biiliinear    order = 1.5 terms = 4 */
+    case  2:  return("*jj"); /* affine                order = 1   terms = 3 */
+    case  3:  return("*ii*jj"); /* bilinear           order = 1.5 terms = 4 */
     case  4:  return("*ii*ii");
-    case  5:  return("*jj*jj"); /* quadratiic   order = 2   terms = 6 */
+    case  5:  return("*jj*jj"); /* quadratic          order = 2   terms = 6 */
     case  6:  return("*ii*ii*ii");
     case  7:  return("*ii*ii*jj");
     case  8:  return("*ii*jj*jj");
-    case  9:  return("*jj*jj*jj"); /* cubiic       order = 3   terms = 10 */
+    case  9:  return("*jj*jj*jj"); /* cubic           order = 3   terms = 10 */
     case 10:  return("*ii*ii*ii*ii");
     case 11:  return("*ii*ii*ii*jj");
     case 12:  return("*ii*ii*jj*jj");
     case 13:  return("*ii*jj*jj*jj");
-    case 14:  return("*jj*jj*jj*jj"); /* quartiic     order = 4   terms = 15 */
+    case 14:  return("*jj*jj*jj*jj"); /* quartic      order = 4   terms = 15 */
     case 15:  return("*ii*ii*ii*ii*ii");
     case 16:  return("*ii*ii*ii*ii*jj");
     case 17:  return("*ii*ii*ii*jj*jj");
     case 18:  return("*ii*ii*jj*jj*jj");
     case 19:  return("*ii*jj*jj*jj*jj");
-    case 20:  return("*jj*jj*jj*jj*jj"); /* quiintiic     order = 5   terms = 21 */
+    case 20:  return("*jj*jj*jj*jj*jj"); /* quintic   order = 5   terms = 21 */
   }
   return( "UNKNOWN" ); /* should never happen */
 }
-static double poly_basis_dx(long n, double x, double y)
+static double poly_basis_dx(ssize_t n, double x, double y)
 {
   /* polynomial term for x derivative */
   switch(n) {
@@ -245,7 +245,7 @@ static double poly_basis_dx(long n, double x, double y)
   }
   return( 0.0 ); /* should never happen */
 }
-static double poly_basis_dy(long n, double x, double y)
+static double poly_basis_dy(ssize_t n, double x, double y)
 {
   /* polynomial term for y derivative */
   switch(n) {
@@ -257,9 +257,67 @@ static double poly_basis_dy(long n, double x, double y)
     case  5:  return(  y  ); /* quadratic   order = 2   terms = 6 */
     default:  return( poly_basis_dx(n-1,x,y) ); /* weird but true */
   }
-  /* NOTE: the only reason that last is not true for 'quadtratic'
+  /* NOTE: the only reason that last is not true for 'quadratic'
      is due to the re-arrangement of terms to allow for 'bilinear'
   */
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%     A f f i n e T r a n s f o r m I m a g e                                 %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  AffineTransformImage() transforms an image as dictated by the affine matrix.
+%  It allocates the memory necessary for the new Image structure and returns
+%  a pointer to the new image.
+%
+%  The format of the AffineTransformImage method is:
+%
+%      Image *AffineTransformImage(const Image *image,
+%        AffineMatrix *affine_matrix,ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o image: the image.
+%
+%    o affine_matrix: the affine matrix.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickExport Image *AffineTransformImage(const Image *image,
+  const AffineMatrix *affine_matrix,ExceptionInfo *exception)
+{
+  double
+    distort[6];
+
+  Image
+    *deskew_image;
+
+  /*
+    Affine transform image.
+  */
+  assert(image->signature == MagickSignature);
+  if (image->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
+  assert(affine_matrix != (AffineMatrix *) NULL);
+  assert(exception != (ExceptionInfo *) NULL);
+  assert(exception->signature == MagickSignature);
+  distort[0]=affine_matrix->sx;
+  distort[1]=affine_matrix->rx;
+  distort[2]=affine_matrix->ry;
+  distort[3]=affine_matrix->sy;
+  distort[4]=affine_matrix->tx;
+  distort[5]=affine_matrix->ty;
+  deskew_image=DistortImage(image,AffineProjectionDistortion,6,distort,
+    MagickTrue,exception);
+  return(deskew_image);
 }
 
 /*
@@ -281,8 +339,8 @@ static double poly_basis_dy(long n, double x, double y)
 %  The format of the GenerateCoefficients() method is:
 %
 %    Image *GenerateCoefficients(const Image *image,DistortImageMethod method,
-%        const unsigned long number_arguments,const double *arguments,
-%        unsigned long number_values, ExceptionInfo *exception)
+%        const size_t number_arguments,const double *arguments,
+%        size_t number_values, ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -300,7 +358,7 @@ static double poly_basis_dy(long n, double x, double y)
 %            the color to be plotted, for DistortImage()
 %         N: Interpolation of control points with N values (usally r,g,b)
 %            Format: x,y,r,g,b    mapping x,y to color values r,g,b
-%            IN future, varible number of values may be given (1 to N)
+%            IN future, variable number of values may be given (1 to N)
 %
 %    o exception: return any errors or warnings in this structure
 %
@@ -312,17 +370,27 @@ static double poly_basis_dy(long n, double x, double y)
 %  outside other MagickCore library methods.
 */
 
+static inline double MagickRound(double x)
+{
+  /*
+    Round the fraction to nearest integer.
+  */
+  if ((x-floor(x)) < (ceil(x)-x))
+    return(floor(x));
+  return(ceil(x));
+}
+
 static double *GenerateCoefficients(const Image *image,
-  DistortImageMethod *method,const unsigned long number_arguments,
-  const double *arguments,unsigned long number_values,ExceptionInfo *exception)
+  DistortImageMethod *method,const size_t number_arguments,
+  const double *arguments,size_t number_values,ExceptionInfo *exception)
 {
   double
     *coeff;
 
-  register unsigned long
+  register size_t
     i;
 
-  unsigned long
+  size_t
     number_coeff, /* number of coefficients to return (array size) */
     cp_size,      /* number floating point numbers per control point */
     cp_x,cp_y,    /* the x,y indexes for control point */
@@ -348,9 +416,9 @@ static double *GenerateCoefficients(const Image *image,
   cp_size = number_values+2; /* each CP defintion involves this many numbers */
 
   /* If not enough control point pairs are found for specific distortions
-    fall back to Affine distortion (allowing 0 to 3 point pairs)
+     fall back to Affine distortion (allowing 0 to 3 point pairs)
   */
-  if ( number_arguments < 4*cp_size && 
+  if ( number_arguments < 4*cp_size &&
        (  *method == BilinearForwardDistortion
        || *method == BilinearReverseDistortion
        || *method == PerspectiveDistortion
@@ -382,8 +450,8 @@ static double *GenerateCoefficients(const Image *image,
       }
       if ( number_arguments < 1+i*cp_size ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : 'require at least %ld CPs'",
-               "Polynomial", i);
+               "InvalidArgument", "%s : 'require at least %.20g CPs'",
+               "Polynomial", (double) i);
         return((double *) NULL);
       }
       break;
@@ -405,14 +473,15 @@ static double *GenerateCoefficients(const Image *image,
 #endif
       break;
     case ShepardsDistortion:
-    case VoronoiColorInterpolate:
-      number_coeff=1;  /* not used, but provide some type of return */
+      number_coeff=1;  /* The power factor to use */
       break;
     case ArcDistortion:
       number_coeff=5;
       break;
     case ScaleRotateTranslateDistortion:
     case AffineProjectionDistortion:
+    case Plane2CylinderDistortion:
+    case Cylinder2PlaneDistortion:
       number_coeff=6;
       break;
     case PolarDistortion:
@@ -427,9 +496,8 @@ static double *GenerateCoefficients(const Image *image,
     case BarrelInverseDistortion:
       number_coeff=10;
       break;
-    case UndefinedDistortion:
     default:
-      assert(! "Unknown Method Given"); /* just fail assertion */
+      perror("unknown method given"); /* just fail assertion */
   }
 
   /* allocate the array of coefficients needed */
@@ -441,7 +509,7 @@ static double *GenerateCoefficients(const Image *image,
     return((double *) NULL);
   }
 
-  /* zero out coeffiecents array */
+  /* zero out coefficients array */
   for (i=0; i < number_coeff; i++)
     coeff[i] = 0.0;
 
@@ -460,8 +528,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( number_arguments%cp_size != 0 ||
            number_arguments < cp_size ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : 'require at least %ld CPs'",
-               "Affine", 1L);
+               "InvalidArgument", "%s : 'require at least %.20g CPs'",
+               "Affine", 1.0);
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
       }
@@ -483,7 +551,7 @@ static double *GenerateCoefficients(const Image *image,
       }
       else {
         /* 2 or more points (usally 3) given.
-           Solve a least squares simultanious equation for coefficients.
+           Solve a least squares simultaneous equation for coefficients.
         */
         double
           **matrix,
@@ -548,8 +616,8 @@ static double *GenerateCoefficients(const Image *image,
         if ( status == MagickFalse ) {
           coeff = (double *) RelinquishMagickMemory(coeff);
           (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                      "InvalidArgument","%s : '%s'","Affine",
-                      "Unsolvable Matrix");
+              "InvalidArgument","%s : 'Unsolvable Matrix'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method) );
           return((double *) NULL);
         }
       }
@@ -574,11 +642,11 @@ static double *GenerateCoefficients(const Image *image,
       if (number_arguments != 6) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'","AffineProjection",
-                     "Needs 6 coeff values");
+              "InvalidArgument","%s : 'Needs 6 coeff values'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
-      /* FUTURE: trap test for sx*sy-rx*ry == 0 (determinate = 0, no inverse) */
+      /* FUTURE: trap test for sx*sy-rx*ry == 0 (determinant = 0, no inverse) */
       for(i=0; i<6UL; i++ )
         inverse[i] = arguments[i];
       AffineArgsToCoefficients(inverse); /* map into coefficents */
@@ -590,7 +658,7 @@ static double *GenerateCoefficients(const Image *image,
     case ScaleRotateTranslateDistortion:
     {
       /* Scale, Rotate and Translate Distortion
-         An alturnative Affine Distortion
+         An alternative Affine Distortion
          Argument options, by number of arguments given:
            7: x,y, sx,sy, a, nx,ny
            6: x,y,   s,   a, nx,ny
@@ -609,7 +677,7 @@ static double *GenerateCoefficients(const Image *image,
          ScaleRotateTranslate Distortion Notes...
            + Does not use a set of CPs in any normal way
            + Will only work with a 2 number_valuesal Image Distortion
-           + Can not be used for generating a sparse gradient (interpolation)
+           + Cannot be used for generating a sparse gradient (interpolation)
       */
       double
         cosine, sine,
@@ -623,8 +691,8 @@ static double *GenerateCoefficients(const Image *image,
       case 0:
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'", "ScaleTranslateRotate",
-                     "Needs at least 1 argument");
+              "InvalidArgument","%s : 'Needs at least 1 argument'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       case 1:
         a = arguments[0];
@@ -665,8 +733,8 @@ static double *GenerateCoefficients(const Image *image,
         default:
           coeff = (double *) RelinquishMagickMemory(coeff);
           (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'", "ScaleTranslateRotate",
-                     "Too Many Arguments (7 or less)");
+              "InvalidArgument","%s : 'Too Many Arguments (7 or less)'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method) );
           return((double *) NULL);
         }
         break;
@@ -675,8 +743,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( fabs(sx) < MagickEpsilon || fabs(sy) < MagickEpsilon ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'", "ScaleTranslateRotate",
-                     "Zero Scale Given");
+              "InvalidArgument","%s : 'Zero Scale Given'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       /* Save the given arguments as an affine distortion */
@@ -727,7 +795,7 @@ static double *GenerateCoefficients(const Image *image,
         *vectors[1],
         terms[8];
 
-      unsigned long
+      size_t
         cp_u = cp_values,
         cp_v = cp_values+1;
 
@@ -737,8 +805,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( number_arguments%cp_size != 0 ||
            number_arguments < cp_size*4 ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : 'require at least %ld CPs'",
-               "Perspective", 4L);
+              "InvalidArgument", "%s : 'require at least %.20g CPs'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method), 4.0);
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
       }
@@ -782,8 +850,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( status == MagickFalse ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                    "InvalidArgument","%s : '%s'","Perspective",
-                    "Unsolvable Matrix");
+            "InvalidArgument","%s : 'Unsolvable Matrix'",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       /*
@@ -805,8 +873,8 @@ static double *GenerateCoefficients(const Image *image,
       */
       if (number_arguments != 8) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'","PerspectiveProjection",
-                     "Needs 8 coefficient values");
+              "InvalidArgument", "%s : 'Needs 8 coefficient values'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method));
         return((double *) NULL);
       }
       /* FUTURE: trap test  c0*c4-c3*c1 == 0  (determinate = 0, no inverse) */
@@ -853,9 +921,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( number_arguments%cp_size != 0 ||
            number_arguments < cp_size*4 ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : 'require at least %ld CPs'",
-               *method == BilinearForwardDistortion ? "BilinearForward" :
-               "BilinearReverse", 4L);
+              "InvalidArgument", "%s : 'require at least %.20g CPs'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method), 4.0);
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
       }
@@ -891,10 +958,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( status == MagickFalse ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'",
-                     *method == BilinearForwardDistortion ?
-                                "BilinearForward" : "BilinearReverse",
-                     "Unsolvable Matrix");
+            "InvalidArgument","%s : 'Unsolvable Matrix'",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       if ( *method == BilinearForwardDistortion ) {
@@ -906,7 +971,7 @@ static double *GenerateCoefficients(const Image *image,
             i = c0*x + c1*y + c2*x*y + c3;
             j = c4*x + c5*y + c6*x*y + c7;
 
-         where u,v are in the destination image, NOT the source.
+         where i,j are in the destination image, NOT the source.
 
          Reverse Pixel mapping however needs to use reverse of these
          functions.  It required a full page of algbra to work out the
@@ -987,10 +1052,10 @@ static double *GenerateCoefficients(const Image *image,
         **vectors,
         *terms;
 
-      unsigned long
+      size_t
         nterms;   /* number of polynomial terms per number_values */
 
-      register long
+      register ssize_t
         j;
 
       MagickBooleanType
@@ -999,7 +1064,7 @@ static double *GenerateCoefficients(const Image *image,
       /* first two coefficients hold polynomial order information */
       coeff[0] = arguments[0];
       coeff[1] = (double) poly_number_terms(arguments[0]);
-      nterms = (unsigned long) coeff[1];
+      nterms = (size_t) coeff[1];
 
       /* create matrix, a fake vectors matrix, and least sqs terms */
       matrix = AcquireMagickMatrix(nterms,nterms);
@@ -1023,7 +1088,7 @@ static double *GenerateCoefficients(const Image *image,
         vectors[i] = &(coeff[2+i*nterms]);
       /* Add given control point pairs for least squares solving */
       for (i=1; i < number_arguments; i+=cp_size) { /* NB: start = 1 not 0 */
-        for (j=0; j < (long) nterms; j++)
+        for (j=0; j < (ssize_t) nterms; j++)
           terms[j] = poly_basis_fn(j,arguments[i+cp_x],arguments[i+cp_y]);
         LeastSquaresAddTerms(matrix,vectors,terms,
              &(arguments[i+cp_values]),nterms,number_values);
@@ -1036,8 +1101,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( status == MagickFalse ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'","Polynomial",
-                     "Unsolvable Matrix");
+            "InvalidArgument","%s : 'Unsolvable Matrix'",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       return(coeff);
@@ -1081,15 +1146,15 @@ static double *GenerateCoefficients(const Image *image,
       if ( number_arguments >= 1 && arguments[0] < MagickEpsilon ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'", "Arc",
-                     "Arc Angle Too Small");
+            "InvalidArgument","%s : 'Arc Angle Too Small'",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       if ( number_arguments >= 3 && arguments[2] < MagickEpsilon ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                     "InvalidArgument","%s : '%s'", "Arc",
-                     "Outer Radius Too Small");
+            "InvalidArgument","%s : 'Outer Radius Too Small'",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         return((double *) NULL);
       }
       coeff[0] = -MagickPI2;   /* -90, place at top! */
@@ -1126,14 +1191,14 @@ static double *GenerateCoefficients(const Image *image,
          Coefficient 6  is the angle to coord ratio  and visa-versa
          Coefficient 7  is the radius to coord ratio and visa-versa
 
-         WARNING: It is posible for  Radius max<min  and/or  Angle from>to
+         WARNING: It is possible for  Radius max<min  and/or  Angle from>to
       */
       if ( number_arguments == 3
           || ( number_arguments > 6 && *method == PolarDistortion )
           || number_arguments > 8 ) {
-        (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : number of arguments",
-               *method == PolarDistortion ? "Polar" : "DePolar");
+          (void) ThrowMagickException(exception,GetMagickModule(),
+            OptionError,"InvalidArgument", "%s : number of arguments",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
       }
@@ -1192,8 +1257,8 @@ static double *GenerateCoefficients(const Image *image,
       if ( coeff[0] < MagickEpsilon || coeff[1] < -MagickEpsilon
            || (coeff[0]-coeff[1]) < MagickEpsilon ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : Invalid Radius",
-               *method == PolarDistortion ? "Polar" : "DePolar");
+            "InvalidArgument", "%s : Invalid Radius",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
       }
@@ -1208,6 +1273,54 @@ static double *GenerateCoefficients(const Image *image,
       }
       return(coeff);
     }
+    case Cylinder2PlaneDistortion:
+    case Plane2CylinderDistortion:
+    {
+      /* 3D Cylinder to/from a Tangential Plane
+
+         Projection between a clinder and flat plain from a point on the
+         center line of the cylinder.
+
+         The two surfaces coincide in 3D space at the given centers of
+         distortion (perpendicular to projection point) on both images.
+
+         Args:  FOV_arc_width
+         Coefficents: FOV(radians), Radius, center_x,y, dest_center_x,y
+
+         FOV (Field Of View) the angular field of view of the distortion,
+         across the width of the image, in degrees.  The centers are the
+         points of least distortion in the input and resulting images.
+
+         These centers are however determined later.
+
+         Coeff 0 is the FOV angle of view of image width in radians
+         Coeff 1 is calculated radius of cylinder.
+         Coeff 2,3  center of distortion of input image
+         Coefficents 4,5 Center of Distortion of dest (determined later)
+      */
+      if ( arguments[0] < MagickEpsilon || arguments[0] > 160.0 ) {
+        (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
+            "InvalidArgument", "%s : Invalid FOV Angle",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
+        coeff=(double *) RelinquishMagickMemory(coeff);
+        return((double *) NULL);
+      }
+      coeff[0] = DegreesToRadians(arguments[0]);
+      if ( *method == Cylinder2PlaneDistortion )
+        /* image is curved around cylinder, so FOV angle (in radians)
+         * scales directly to image X coordinate, according to its radius.
+         */
+        coeff[1] = (double) image->columns/coeff[0];
+      else
+        /* radius is distance away from an image with this angular FOV */
+        coeff[1] = (double) image->columns / ( 2 * tan(coeff[0]/2) );
+
+      coeff[2] = (double)(image->columns)/2.0+image->page.x;
+      coeff[3] = (double)(image->rows)/2.0+image->page.y;
+      coeff[4] = coeff[2];
+      coeff[5] = coeff[3]; /* assuming image size is the same */
+      return(coeff);
+    }
     case BarrelDistortion:
     case BarrelInverseDistortion:
     {
@@ -1217,13 +1330,13 @@ static double *GenerateCoefficients(const Image *image,
            Rs=Rd/(A*Rd^3 + B*Rd^2 + C*Rd + D)
 
         Where Rd is the normalized radius from corner to middle of image
-        Input Arguments are one of the following forms...
-             A,B,C
-             A,B,C,D
-             A,B,C    X,Y
-             A,B,C,D  X,Y
-             Ax,Bx,Cx,Dx  Ay,By,Cy,Dy
-             Ax,Bx,Cx,Dx  Ay,By,Cy,Dy   X,Y
+        Input Arguments are one of the following forms (number of arguments)...
+            3:  A,B,C
+            4:  A,B,C,D
+            5:  A,B,C    X,Y
+            6:  A,B,C,D  X,Y
+            8:  Ax,Bx,Cx,Dx  Ay,By,Cy,Dy
+           10:  Ax,Bx,Cx,Dx  Ay,By,Cy,Dy   X,Y
 
         Returns 10 coefficent values, which are de-normalized (pixel scale)
           Ax, Bx, Cx, Dx,   Ay, By, Cy, Dy,    Xc, Yc
@@ -1232,27 +1345,29 @@ static double *GenerateCoefficients(const Image *image,
       double
         rscale = 2.0/MagickMin((double) image->columns,(double) image->rows);
 
-      if ( number_arguments != 4 && number_arguments != 6 &&
-           number_arguments != 8 && number_arguments != 10 ) {
-        coeff=(double *) RelinquishMagickMemory(coeff);
-        (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : '%s'", "Barrel(Inv)",
-               "number of arguments" );
-        return((double *) NULL);
-      }
+      /* sanity check  number of args must = 3,4,5,6,8,10 or error */
+      if ( (number_arguments  < 3) || (number_arguments == 7) ||
+           (number_arguments == 9) || (number_arguments > 10) )
+        {
+          coeff=(double *) RelinquishMagickMemory(coeff);
+          (void) ThrowMagickException(exception,GetMagickModule(),
+            OptionError,"InvalidArgument", "%s : number of arguments",
+            CommandOptionToMnemonic(MagickDistortOptions, *method) );
+          return((double *) NULL);
+        }
       /* A,B,C,D coefficients */
       coeff[0] = arguments[0];
       coeff[1] = arguments[1];
       coeff[2] = arguments[2];
-      if ( number_arguments == 3 || number_arguments == 5 )
-        coeff[3] = 1 - arguments[0] - arguments[1] - arguments[2];
+      if ((number_arguments == 3) || (number_arguments == 5) )
+        coeff[3] = 1.0 - coeff[0] - coeff[1] - coeff[2];
       else
-         coeff[3] = arguments[3];
-      /* de-normalize the X coefficients */
+        coeff[3] = arguments[3];
+      /* de-normalize the coefficients */
       coeff[0] *= pow(rscale,3.0);
       coeff[1] *= rscale*rscale;
       coeff[2] *= rscale;
-      /* Y coefficients: as given OR as X coefficients */
+      /* Y coefficients: as given OR same as X coefficients */
       if ( number_arguments >= 8 ) {
         coeff[4] = arguments[4] * pow(rscale,3.0);
         coeff[5] = arguments[5] * rscale*rscale;
@@ -1265,25 +1380,27 @@ static double *GenerateCoefficients(const Image *image,
         coeff[6] = coeff[2];
         coeff[7] = coeff[3];
       }
-      /* X,Y Center of Distortion */
-      coeff[8] = ((double)image->columns-1)/2.0 + image->page.x;
-      coeff[9] = ((double)image->rows-1)/2.0    + image->page.y;
+      /* X,Y Center of Distortion (image coodinates) */
       if ( number_arguments == 5 )  {
         coeff[8] = arguments[3];
         coeff[9] = arguments[4];
       }
-      if ( number_arguments == 6 ) {
+      else if ( number_arguments == 6 ) {
         coeff[8] = arguments[4];
         coeff[9] = arguments[5];
       }
-      if ( number_arguments == 10 ) {
+      else if ( number_arguments == 10 ) {
         coeff[8] = arguments[8];
         coeff[9] = arguments[9];
+      }
+      else {
+        /* center of the image provided (image coodinates) */
+        coeff[8] = (double)image->columns/2.0 + image->page.x;
+        coeff[9] = (double)image->rows/2.0    + image->page.y;
       }
       return(coeff);
     }
     case ShepardsDistortion:
-    case VoronoiColorInterpolate:
     {
       /* Shepards Distortion  input arguments are the coefficents!
          Just check the number of arguments is valid!
@@ -1293,10 +1410,24 @@ static double *GenerateCoefficients(const Image *image,
       if ( number_arguments%cp_size != 0 ||
            number_arguments < cp_size ) {
         (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-               "InvalidArgument", "%s : 'require at least %ld CPs'",
-               "Shepards", 1UL);
+              "InvalidArgument", "%s : 'requires CP's (4 numbers each)'",
+              CommandOptionToMnemonic(MagickDistortOptions, *method));
         coeff=(double *) RelinquishMagickMemory(coeff);
         return((double *) NULL);
+      }
+      /* User defined weighting power for Shepard's Method */
+      { const char *artifact=GetImageArtifact(image,"shepards:power");
+        if ( artifact != (const char *) NULL ) {
+          coeff[0]=StringToDouble(artifact,(char **) NULL) / 2.0;
+          if ( coeff[0] < MagickEpsilon ) {
+            (void) ThrowMagickException(exception,GetMagickModule(),
+                OptionError,"InvalidArgument","%s", "-define shepards:power" );
+            coeff=(double *) RelinquishMagickMemory(coeff);
+            return((double *) NULL);
+          }
+        }
+        else
+          coeff[0]=1.0;  /* Default power of 2 (Inverse Squared) */
       }
       return(coeff);
     }
@@ -1304,8 +1435,163 @@ static double *GenerateCoefficients(const Image *image,
       break;
   }
   /* you should never reach this point */
-  assert(! "No Method Handler"); /* just fail assertion */
+  perror("no method handler"); /* just fail assertion */
   return((double *) NULL);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   D i s t o r t R e s i z e I m a g e                                       %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  DistortResizeImage() resize image using the equivalent but slower image
+%  distortion operator.  The filter is applied using a EWA cylindrical
+%  resampling. But like resize the final image size is limited to whole pixels
+%  with no effects by virtual-pixels on the result.
+%
+%  Note that images containing a transparency channel will be twice as slow to
+%  resize as images one without transparency.
+%
+%  The format of the DistortResizeImage method is:
+%
+%      Image *AdaptiveResizeImage(const Image *image,const size_t columns,
+%        const size_t rows,ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o image: the image.
+%
+%    o columns: the number of columns in the resized image.
+%
+%    o rows: the number of rows in the resized image.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickExport Image *DistortResizeImage(const Image *image,
+  const size_t columns,const size_t rows,ExceptionInfo *exception)
+{
+#define DistortResizeImageTag  "Distort/Image"
+
+  Image
+    *resize_image,
+    *tmp_image;
+
+  RectangleInfo
+    crop_area;
+
+  double
+    distort_args[12];
+
+  VirtualPixelMethod
+    vp_save;
+
+  /*
+    Distort resize image.
+  */
+  assert(image != (const Image *) NULL);
+  assert(image->signature == MagickSignature);
+  if (image->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
+  assert(exception != (ExceptionInfo *) NULL);
+  assert(exception->signature == MagickSignature);
+  if ((columns == 0) || (rows == 0))
+    return((Image *) NULL);
+  /* Do not short-circuit this resize if final image size is unchanged */
+
+  (void) ResetMagickMemory(distort_args,0,12*sizeof(double));
+  distort_args[4]=(double) image->columns;
+  distort_args[6]=(double) columns;
+  distort_args[9]=(double) image->rows;
+  distort_args[11]=(double) rows;
+
+  vp_save=GetImageVirtualPixelMethod(image);
+
+  tmp_image=CloneImage(image,0,0,MagickTrue,exception);
+  if ( tmp_image == (Image *) NULL )
+    return((Image *) NULL);
+  (void) SetImageVirtualPixelMethod(tmp_image,TransparentVirtualPixelMethod);
+
+  if (image->matte == MagickFalse)
+    {
+      /*
+        Image has not transparency channel, so we free to use it
+      */
+      (void) SetImageAlphaChannel(tmp_image,SetAlphaChannel);
+      resize_image=DistortImage(tmp_image,AffineDistortion,12,distort_args,
+            MagickTrue,exception),
+
+      tmp_image=DestroyImage(tmp_image);
+      if ( resize_image == (Image *) NULL )
+        return((Image *) NULL);
+
+      (void) SetImageAlphaChannel(resize_image,DeactivateAlphaChannel);
+      InheritException(exception,&image->exception);
+    }
+  else
+    {
+      /*
+        Image has transparency so handle colors and alpha separatly.
+        Basically we need to separate Virtual-Pixel alpha in the resized
+        image, so only the actual original images alpha channel is used.
+      */
+      Image
+        *resize_alpha;
+
+      /* distort alpha channel separately */
+      (void) SeparateImageChannel(tmp_image,TrueAlphaChannel);
+      (void) SetImageAlphaChannel(tmp_image,OpaqueAlphaChannel);
+      resize_alpha=DistortImage(tmp_image,AffineDistortion,12,distort_args,
+        MagickTrue,exception),
+      tmp_image=DestroyImage(tmp_image);
+      if ( resize_alpha == (Image *) NULL )
+        return((Image *) NULL);
+
+      /* distort the actual image containing alpha + VP alpha */
+      tmp_image=CloneImage(image,0,0,MagickTrue,exception);
+      if ( tmp_image == (Image *) NULL )
+        return((Image *) NULL);
+      (void) SetImageVirtualPixelMethod(tmp_image,
+        TransparentVirtualPixelMethod);
+      (void) SetImageVirtualPixelMethod(tmp_image,
+        TransparentVirtualPixelMethod);
+      resize_image=DistortImage(tmp_image,AffineDistortion,12,distort_args,
+        MagickTrue,exception),
+      tmp_image=DestroyImage(tmp_image);
+      if ( resize_image == (Image *) NULL)
+        {
+          resize_alpha=DestroyImage(resize_alpha);
+          return((Image *) NULL);
+        }
+
+      /* replace resize images alpha with the separally distorted alpha */
+      (void) SetImageAlphaChannel(resize_image,DeactivateAlphaChannel);
+      (void) SetImageAlphaChannel(resize_alpha,DeactivateAlphaChannel);
+      (void) CompositeImage(resize_image,CopyOpacityCompositeOp,resize_alpha,
+        0,0);
+      InheritException(exception,&resize_image->exception);
+      resize_alpha=DestroyImage(resize_alpha);
+    }
+  (void) SetImageVirtualPixelMethod(resize_image,vp_save);
+
+  /*
+    Clean up the results of the Distortion
+  */
+  crop_area.width=columns;
+  crop_area.height=rows;
+  crop_area.x=0;
+  crop_area.y=0;
+
+  tmp_image=resize_image;
+  resize_image=CropImage(tmp_image,&crop_area,exception);
+  tmp_image=DestroyImage(tmp_image);
+  return(resize_image);
 }
 
 /*
@@ -1336,7 +1622,7 @@ static double *GenerateCoefficients(const Image *image,
 %  The format of the DistortImage() method is:
 %
 %      Image *DistortImage(const Image *image,const DistortImageMethod method,
-%        const unsigned long number_arguments,const double *arguments,
+%        const size_t number_arguments,const double *arguments,
 %        MagickBooleanType bestfit, ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -1374,7 +1660,7 @@ static double *GenerateCoefficients(const Image *image,
 %
 %    o "verbose"
 %        Output to stderr alternatives, internal coefficents, and FX
-%        equivelents for the distortion operation (if feasible).
+%        equivalents for the distortion operation (if feasible).
 %        This forms an extra check of the distortion method, and allows users
 %        access to the internal constants IM calculates for the distortion.
 %
@@ -1396,8 +1682,9 @@ static double *GenerateCoefficients(const Image *image,
 %                    instead
 %
 */
+
 MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
-  const unsigned long number_arguments,const double *arguments,
+  const size_t number_arguments,const double *arguments,
   MagickBooleanType bestfit,ExceptionInfo *exception)
 {
 #define DistortImageTag  "Distort/Image"
@@ -1423,7 +1710,24 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
   assert(exception->signature == MagickSignature);
 
   /*
-    Convert input arguments (usally as control points for reverse mapping)
+    Handle Special Compound Distortions
+  */
+  if ( method == ResizeDistortion )
+    {
+      if ( number_arguments != 2 )
+        {
+          (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
+                    "InvalidArgument","%s : '%s'","Resize",
+                    "Invalid number of args: 2 only");
+          return((Image *) NULL);
+        }
+      distort_image=DistortResizeImage(image,(size_t)arguments[0],
+         (size_t)arguments[1], exception);
+      return(distort_image);
+    }
+
+  /*
+    Convert input arguments (usually as control points for reverse mapping)
     into mapping coefficients to apply the distortion.
 
     Note that some distortions are mapped to other distortions,
@@ -1446,14 +1750,16 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
   geometry.y=0;
 
   if ( method == ArcDistortion ) {
-    /* always use the 'best fit' viewport */
-    bestfit = MagickTrue;
+    bestfit = MagickTrue;  /* always calculate a 'best fit' viewport */
   }
 
   /* Work out the 'best fit', (required for ArcDistortion) */
   if ( bestfit ) {
     PointInfo
-      s,d,min,max;
+      s,d,min,max;  /* source, dest coords --mapping--> min, max coords */
+
+    MagickBooleanType
+      fix_bounds = MagickTrue;   /* enlarge bounds for VP handling */
 
     s.x=s.y=min.x=max.x=min.y=max.y=0.0;   /* keep compiler happy */
 
@@ -1506,28 +1812,28 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
         s.x = (double) image->page.x;
         s.y = (double) image->page.y;
         scale=inverse[6]*s.x+inverse[7]*s.y+1.0;
-        scale=1.0/(  (fabs(scale) <= MagickEpsilon) ? 1.0 : scale );
+        scale=PerceptibleReciprocal(scale);
         d.x = scale*(inverse[0]*s.x+inverse[1]*s.y+inverse[2]);
         d.y = scale*(inverse[3]*s.x+inverse[4]*s.y+inverse[5]);
         InitalBounds(d);
         s.x = (double) image->page.x+image->columns;
         s.y = (double) image->page.y;
         scale=inverse[6]*s.x+inverse[7]*s.y+1.0;
-        scale=1.0/(  (fabs(scale) <= MagickEpsilon) ? 1.0 : scale );
+        scale=PerceptibleReciprocal(scale);
         d.x = scale*(inverse[0]*s.x+inverse[1]*s.y+inverse[2]);
         d.y = scale*(inverse[3]*s.x+inverse[4]*s.y+inverse[5]);
         ExpandBounds(d);
         s.x = (double) image->page.x;
         s.y = (double) image->page.y+image->rows;
         scale=inverse[6]*s.x+inverse[7]*s.y+1.0;
-        scale=1.0/(  (fabs(scale) <= MagickEpsilon) ? 1.0 : scale );
+        scale=PerceptibleReciprocal(scale);
         d.x = scale*(inverse[0]*s.x+inverse[1]*s.y+inverse[2]);
         d.y = scale*(inverse[3]*s.x+inverse[4]*s.y+inverse[5]);
         ExpandBounds(d);
         s.x = (double) image->page.x+image->columns;
         s.y = (double) image->page.y+image->rows;
         scale=inverse[6]*s.x+inverse[7]*s.y+1.0;
-        scale=1.0/(  (fabs(scale) <= MagickEpsilon) ? 1.0 : scale );
+        scale=PerceptibleReciprocal(scale);
         d.x = scale*(inverse[0]*s.x+inverse[1]*s.y+inverse[2]);
         d.y = scale*(inverse[3]*s.x+inverse[4]*s.y+inverse[5]);
         ExpandBounds(d);
@@ -1551,7 +1857,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
         d.y = (coeff[2]-coeff[3])*sa;
         ExpandBounds(d);
         /* Orthogonal points along top of arc */
-        for( a=ceil((coeff[0]-coeff[1]/2.0)/MagickPI2)*MagickPI2;
+        for( a=(double) (ceil((double) ((coeff[0]-coeff[1]/2.0)/MagickPI2))*MagickPI2);
                a<(coeff[0]+coeff[1]/2.0); a+=MagickPI2 ) {
           ca = cos(a); sa = sin(a);
           d.x = coeff[2]*ca;
@@ -1563,7 +1869,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
           to appropriate scaling factors, to allow faster processing
           in the mapping function.
         */
-        coeff[1] = Magick2PI*image->columns/coeff[1];
+        coeff[1] = (double) (Magick2PI*image->columns/coeff[1]);
         coeff[3] = (double)image->rows/coeff[3];
         break;
       }
@@ -1583,12 +1889,44 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
       {
         /* direct calculation as it needs to tile correctly
          * for reversibility in a DePolar-Polar cycle */
+        fix_bounds = MagickFalse;
         geometry.x = geometry.y = 0;
-        geometry.height = (unsigned long) ceil(coeff[0]-coeff[1]);
-        geometry.width = (unsigned long)
+        geometry.height = (size_t) ceil(coeff[0]-coeff[1]);
+        geometry.width = (size_t)
                   ceil((coeff[0]-coeff[1])*(coeff[5]-coeff[4])*0.5);
+        /* correct scaling factors relative to new size */
+        coeff[6]=(coeff[5]-coeff[4])/geometry.width; /* changed width */
+        coeff[7]=(coeff[0]-coeff[1])/geometry.height; /* should be about 1.0 */
         break;
       }
+      case Cylinder2PlaneDistortion:
+      {
+        /* direct calculation so center of distortion is either a pixel
+         * center, or pixel edge. This allows for reversibility of the
+         * distortion */
+        geometry.x = geometry.y = 0;
+        geometry.width = (size_t) ceil( 2.0*coeff[1]*tan(coeff[0]/2.0) );
+        geometry.height = (size_t) ceil( 2.0*coeff[3]/cos(coeff[0]/2.0) );
+        /* correct center of distortion relative to new size */
+        coeff[4] = (double) geometry.width/2.0;
+        coeff[5] = (double) geometry.height/2.0;
+        fix_bounds = MagickFalse;
+        break;
+      }
+      case Plane2CylinderDistortion:
+      {
+        /* direct calculation center is either pixel center, or pixel edge
+         * so as to allow reversibility of the image distortion */
+        geometry.x = geometry.y = 0;
+        geometry.width = (size_t) ceil(coeff[0]*coeff[1]);  /* FOV * radius */
+        geometry.height = (size_t) (2*coeff[3]);  /* input image height */
+        /* correct center of distortion relative to new size */
+        coeff[4] = (double) geometry.width/2.0;
+        coeff[5] = (double) geometry.height/2.0;
+        fix_bounds = MagickFalse;
+        break;
+      }
+
       case ShepardsDistortion:
       case BilinearForwardDistortion:
       case BilinearReverseDistortion:
@@ -1599,55 +1937,59 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
       case BarrelDistortion:
       case BarrelInverseDistortion:
       default:
-        /* no bestfit available for this distortion */
+        /* no calculated bestfit available for these distortions */
         bestfit = MagickFalse;
+        fix_bounds = MagickFalse;
         break;
     }
-    /* Set the output image geometry to calculated 'bestfit'
-       Do not do this for DePolar which needs to be exact for tiling
+
+    /* Set the output image geometry to calculated 'bestfit'.
+       Yes this tends to 'over do' the file image size, ON PURPOSE!
+       Do not do this for DePolar which needs to be exact for virtual tiling.
     */
-    if ( bestfit && method != DePolarDistortion ) {
-      geometry.x = (long) floor(min.x-0.5);
-      geometry.y = (long) floor(min.y-0.5);
-      geometry.width=(unsigned long) ceil(max.x-geometry.x+0.5);
-      geometry.height=(unsigned long) ceil(max.y-geometry.y+0.5);
+    if ( fix_bounds ) {
+      geometry.x = (ssize_t) floor(min.x-0.5);
+      geometry.y = (ssize_t) floor(min.y-0.5);
+      geometry.width=(size_t) ceil(max.x-geometry.x+0.5);
+      geometry.height=(size_t) ceil(max.y-geometry.y+0.5);
     }
-    /* now that we have a new size lets fit distortion to it exactly */
-    if ( method == DePolarDistortion ) {
-      coeff[6]=(coeff[5]-coeff[4])/geometry.width; /* changed width */
-      coeff[7]=(coeff[0]-coeff[1])/geometry.height; /* should be about 1.0 */
-    }
-  }
+
+  } /* end bestfit destination image calculations */
 
   /* The user provided a 'viewport' expert option which may
      overrides some parts of the current output image geometry.
-     For ArcDistortion, this also overrides its default 'bestfit' setting.
+     This also overrides its default 'bestfit' setting.
   */
   { const char *artifact=GetImageArtifact(image,"distort:viewport");
     viewport_given = MagickFalse;
     if ( artifact != (const char *) NULL ) {
-      (void) ParseAbsoluteGeometry(artifact,&geometry);
-      viewport_given = MagickTrue;
+      MagickStatusType flags=ParseAbsoluteGeometry(artifact,&geometry);
+      if (flags==NoValue)
+        (void) ThrowMagickException(exception,GetMagickModule(),
+             OptionWarning,"InvalidGeometry","`%s' `%s'",
+             "distort:viewport",artifact);
+      else
+        viewport_given = MagickTrue;
     }
   }
 
   /* Verbose output */
   if ( GetImageArtifact(image,"verbose") != (const char *) NULL ) {
-    register long
+    register ssize_t
        i;
     char image_gen[MaxTextExtent];
     const char *lookup;
 
     /* Set destination image size and virtual offset */
     if ( bestfit || viewport_given ) {
-      (void) FormatMagickString(image_gen, MaxTextExtent,"  -size %lux%lu "
-        "-page %+ld%+ld xc: +insert \\\n",geometry.width,geometry.height,
-        geometry.x,geometry.y);
-      lookup="v.p{ xx-v.page.x-.5, yy-v.page.x-.5 }";
+      (void) FormatLocaleString(image_gen, MaxTextExtent,"  -size %.20gx%.20g "
+        "-page %+.20g%+.20g xc: +insert \\\n",(double) geometry.width,
+        (double) geometry.height,(double) geometry.x,(double) geometry.y);
+      lookup="v.p{ xx-v.page.x-.5, yy-v.page.y-.5 }";
     }
     else {
       image_gen[0] = '\0';             /* no destination to generate */
-      lookup = "p{ xx-page.x-.5, yy-page.x-.5 }"; /* simplify lookup */
+      lookup = "p{ xx-page.x-.5, yy-page.y-.5 }"; /* simplify lookup */
     }
 
     switch (method) {
@@ -1665,21 +2007,21 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
         }
         InvertAffineCoefficients(coeff, inverse);
         CoefficientsToAffineArgs(inverse);
-        fprintf(stderr, "Affine Projection:\n");
-        fprintf(stderr, "  -distort AffineProjection \\\n      '");
-        for (i=0; i<5; i++)
-          fprintf(stderr, "%lf,", inverse[i]);
-        fprintf(stderr, "%lf'\n", inverse[5]);
+        (void) FormatLocaleFile(stderr, "Affine Projection:\n");
+        (void) FormatLocaleFile(stderr, "  -distort AffineProjection \\\n      '");
+        for (i=0; i < 5; i++)
+          (void) FormatLocaleFile(stderr, "%lf,", inverse[i]);
+        (void) FormatLocaleFile(stderr, "%lf'\n", inverse[5]);
         inverse = (double *) RelinquishMagickMemory(inverse);
 
-        fprintf(stderr, "Affine Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
-        fprintf(stderr, "       xx=%+lf*ii %+lf*jj %+lf;\n",
+        (void) FormatLocaleFile(stderr, "Affine Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
+        (void) FormatLocaleFile(stderr, "       xx=%+lf*ii %+lf*jj %+lf;\n",
             coeff[0], coeff[1], coeff[2]);
-        fprintf(stderr, "       yy=%+lf*ii %+lf*jj %+lf;\n",
+        (void) FormatLocaleFile(stderr, "       yy=%+lf*ii %+lf*jj %+lf;\n",
             coeff[3], coeff[4], coeff[5]);
-        fprintf(stderr, "       %s'\n", lookup);
+        (void) FormatLocaleFile(stderr, "       %s' \\\n", lookup);
 
         break;
       }
@@ -1697,179 +2039,215 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
           return((Image *) NULL);
         }
         InvertPerspectiveCoefficients(coeff, inverse);
-        fprintf(stderr, "Perspective Projection:\n");
-        fprintf(stderr, "  -distort PerspectiveProjection \\\n      '");
+        (void) FormatLocaleFile(stderr, "Perspective Projection:\n");
+        (void) FormatLocaleFile(stderr, "  -distort PerspectiveProjection \\\n      '");
         for (i=0; i<4; i++)
-          fprintf(stderr, "%lf, ", inverse[i]);
-        fprintf(stderr, "\n       ");
+          (void) FormatLocaleFile(stderr, "%lf, ", inverse[i]);
+        (void) FormatLocaleFile(stderr, "\n       ");
         for (; i<7; i++)
-          fprintf(stderr, "%lf, ", inverse[i]);
-        fprintf(stderr, "%lf'\n", inverse[7]);
+          (void) FormatLocaleFile(stderr, "%lf, ", inverse[i]);
+        (void) FormatLocaleFile(stderr, "%lf'\n", inverse[7]);
         inverse = (double *) RelinquishMagickMemory(inverse);
 
-        fprintf(stderr, "Perspective Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
-        fprintf(stderr, "       rr=%+lf*ii %+lf*jj + 1;\n",
+        (void) FormatLocaleFile(stderr, "Perspective Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
+        (void) FormatLocaleFile(stderr, "       rr=%+lf*ii %+lf*jj + 1;\n",
             coeff[6], coeff[7]);
-        fprintf(stderr, "       xx=(%+lf*ii %+lf*jj %+lf)/rr;\n",
+        (void) FormatLocaleFile(stderr, "       xx=(%+lf*ii %+lf*jj %+lf)/rr;\n",
             coeff[0], coeff[1], coeff[2]);
-        fprintf(stderr, "       yy=(%+lf*ii %+lf*jj %+lf)/rr;\n",
+        (void) FormatLocaleFile(stderr, "       yy=(%+lf*ii %+lf*jj %+lf)/rr;\n",
             coeff[3], coeff[4], coeff[5]);
-        fprintf(stderr, "       rr%s0 ? %s : blue'\n",
+        (void) FormatLocaleFile(stderr, "       rr%s0 ? %s : blue' \\\n",
             coeff[8] < 0 ? "<" : ">", lookup);
         break;
       }
 
       case BilinearForwardDistortion:
-        fprintf(stderr, "BilinearForward Mapping Equations:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "    i = %+lf*x %+lf*y %+lf*x*y %+lf;\n",
+        (void) FormatLocaleFile(stderr, "BilinearForward Mapping Equations:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "    i = %+lf*x %+lf*y %+lf*x*y %+lf;\n",
             coeff[0], coeff[1], coeff[2], coeff[3]);
-        fprintf(stderr, "    j = %+lf*x %+lf*y %+lf*x*y %+lf;\n",
+        (void) FormatLocaleFile(stderr, "    j = %+lf*x %+lf*y %+lf*x*y %+lf;\n",
             coeff[4], coeff[5], coeff[6], coeff[7]);
 #if 0
         /* for debugging */
-        fprintf(stderr, "   c8 = %+lf  c9 = 2*a = %+lf;\n",
+        (void) FormatLocaleFile(stderr, "   c8 = %+lf  c9 = 2*a = %+lf;\n",
             coeff[8], coeff[9]);
 #endif
-        fprintf(stderr, "BilinearForward Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x%+lf; jj=j+page.y%+lf;\n",
+        (void) FormatLocaleFile(stderr, "BilinearForward Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x%+lf; jj=j+page.y%+lf;\n",
             0.5-coeff[3], 0.5-coeff[7]);
-        fprintf(stderr, "       bb=%lf*ii %+lf*jj %+lf;\n",
+        (void) FormatLocaleFile(stderr, "       bb=%lf*ii %+lf*jj %+lf;\n",
             coeff[6], -coeff[2], coeff[8]);
         /* Handle Special degenerate (non-quadratic) or trapezoidal case */
         if ( coeff[9] != 0 ) {
-          fprintf(stderr, "       rt=bb*bb %+lf*(%lf*ii%+lf*jj);\n",
+          (void) FormatLocaleFile(stderr, "       rt=bb*bb %+lf*(%lf*ii%+lf*jj);\n",
               -2*coeff[9],  coeff[4], -coeff[0]);
-          fprintf(stderr, "       yy=( -bb + sqrt(rt) ) / %lf;\n",
+          (void) FormatLocaleFile(stderr, "       yy=( -bb + sqrt(rt) ) / %lf;\n",
                coeff[9]);
         } else
-          fprintf(stderr, "       yy=(%lf*ii%+lf*jj)/bb;\n",
+          (void) FormatLocaleFile(stderr, "       yy=(%lf*ii%+lf*jj)/bb;\n",
                 -coeff[4], coeff[0]);
-        fprintf(stderr, "       xx=(ii %+lf*yy)/(%lf %+lf*yy);\n",
+        (void) FormatLocaleFile(stderr, "       xx=(ii %+lf*yy)/(%lf %+lf*yy);\n",
              -coeff[1], coeff[0], coeff[2]);
         if ( coeff[9] != 0 )
-          fprintf(stderr, "       (rt < 0 ) ? red : %s'\n", lookup);
+          (void) FormatLocaleFile(stderr, "       (rt < 0 ) ? red : %s'\n", lookup);
         else
-          fprintf(stderr, "       %s'\n", lookup);
+          (void) FormatLocaleFile(stderr, "       %s' \\\n", lookup);
         break;
 
       case BilinearReverseDistortion:
 #if 0
-        fprintf(stderr, "Polynomial Projection Distort:\n");
-        fprintf(stderr, "  -distort PolynomialProjection \\\n");
-        fprintf(stderr, "      '1.5, %lf, %lf, %lf, %lf,\n",
+        (void) FormatLocaleFile(stderr, "Polynomial Projection Distort:\n");
+        (void) FormatLocaleFile(stderr, "  -distort PolynomialProjection \\\n");
+        (void) FormatLocaleFile(stderr, "      '1.5, %lf, %lf, %lf, %lf,\n",
             coeff[3], coeff[0], coeff[1], coeff[2]);
-        fprintf(stderr, "            %lf, %lf, %lf, %lf'\n",
+        (void) FormatLocaleFile(stderr, "            %lf, %lf, %lf, %lf'\n",
             coeff[7], coeff[4], coeff[5], coeff[6]);
 #endif
-        fprintf(stderr, "BilinearReverse Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
-        fprintf(stderr, "       xx=%+lf*ii %+lf*jj %+lf*ii*jj %+lf;\n",
+        (void) FormatLocaleFile(stderr, "BilinearReverse Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
+        (void) FormatLocaleFile(stderr, "       xx=%+lf*ii %+lf*jj %+lf*ii*jj %+lf;\n",
             coeff[0], coeff[1], coeff[2], coeff[3]);
-        fprintf(stderr, "       yy=%+lf*ii %+lf*jj %+lf*ii*jj %+lf;\n",
+        (void) FormatLocaleFile(stderr, "       yy=%+lf*ii %+lf*jj %+lf*ii*jj %+lf;\n",
             coeff[4], coeff[5], coeff[6], coeff[7]);
-        fprintf(stderr, "       %s'\n", lookup);
+        (void) FormatLocaleFile(stderr, "       %s' \\\n", lookup);
         break;
 
       case PolynomialDistortion:
       {
-        unsigned long nterms = (unsigned long) coeff[1];
-        fprintf(stderr, "Polynomial (order %lg, terms %lu), FX Equivelent\n",
-                       coeff[0], nterms);
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
-        fprintf(stderr, "       xx =");
-        for (i=0; i<(long) nterms; i++) {
-          if ( i != 0 && i%4 == 0 ) fprintf(stderr, "\n         ");
-          fprintf(stderr, " %+lf%s", coeff[2+i],
+        size_t nterms = (size_t) coeff[1];
+        (void) FormatLocaleFile(stderr, "Polynomial (order %lg, terms %lu), FX Equivelent\n",
+          coeff[0],(unsigned long) nterms);
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x+0.5; jj=j+page.y+0.5;\n");
+        (void) FormatLocaleFile(stderr, "       xx =");
+        for (i=0; i<(ssize_t) nterms; i++) {
+          if ( i != 0 && i%4 == 0 ) (void) FormatLocaleFile(stderr, "\n         ");
+          (void) FormatLocaleFile(stderr, " %+lf%s", coeff[2+i],
                poly_basis_str(i));
         }
-        fprintf(stderr, ";\n       yy =");
-        for (i=0; i<(long) nterms; i++) {
-          if ( i != 0 && i%4 == 0 ) fprintf(stderr, "\n         ");
-          fprintf(stderr, " %+lf%s", coeff[2+i+nterms],
+        (void) FormatLocaleFile(stderr, ";\n       yy =");
+        for (i=0; i<(ssize_t) nterms; i++) {
+          if ( i != 0 && i%4 == 0 ) (void) FormatLocaleFile(stderr, "\n         ");
+          (void) FormatLocaleFile(stderr, " %+lf%s", coeff[2+i+nterms],
                poly_basis_str(i));
         }
-        fprintf(stderr, ";\n       %s'\n", lookup);
+        (void) FormatLocaleFile(stderr, ";\n       %s' \\\n", lookup);
         break;
       }
       case ArcDistortion:
       {
-        fprintf(stderr, "Arc Distort, Internal Coefficients:\n");
+        (void) FormatLocaleFile(stderr, "Arc Distort, Internal Coefficients:\n");
         for ( i=0; i<5; i++ )
-          fprintf(stderr, "  c%ld = %+lf\n", i, coeff[i]);
-        fprintf(stderr, "Arc Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x; jj=j+page.y;\n");
-        fprintf(stderr, "       xx=(atan2(jj,ii)%+lf)/(2*pi);\n",
+          (void) FormatLocaleFile(stderr, "  c%.20g = %+lf\n", (double) i, coeff[i]);
+        (void) FormatLocaleFile(stderr, "Arc Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x; jj=j+page.y;\n");
+        (void) FormatLocaleFile(stderr, "       xx=(atan2(jj,ii)%+lf)/(2*pi);\n",
                                   -coeff[0]);
-        fprintf(stderr, "       xx=xx-round(xx);\n");
-        fprintf(stderr, "       xx=xx*%lf %+lf;\n",
+        (void) FormatLocaleFile(stderr, "       xx=xx-round(xx);\n");
+        (void) FormatLocaleFile(stderr, "       xx=xx*%lf %+lf;\n",
                             coeff[1], coeff[4]);
-        fprintf(stderr, "       yy=(%lf - hypot(ii,jj)) * %lf;\n",
+        (void) FormatLocaleFile(stderr, "       yy=(%lf - hypot(ii,jj)) * %lf;\n",
                             coeff[2], coeff[3]);
-        fprintf(stderr, "       v.p{xx-.5,yy-.5}'\n");
+        (void) FormatLocaleFile(stderr, "       v.p{xx-.5,yy-.5}' \\\n");
         break;
       }
       case PolarDistortion:
       {
-        fprintf(stderr, "Polar Distort, Internal Coefficents\n");
+        (void) FormatLocaleFile(stderr, "Polar Distort, Internal Coefficents\n");
         for ( i=0; i<8; i++ )
-          fprintf(stderr, "  c%ld = %+lf\n", i, coeff[i]);
-        fprintf(stderr, "Polar Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'ii=i+page.x%+lf; jj=j+page.y%+lf;\n",
+          (void) FormatLocaleFile(stderr, "  c%.20g = %+lf\n", (double) i, coeff[i]);
+        (void) FormatLocaleFile(stderr, "Polar Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x%+lf; jj=j+page.y%+lf;\n",
                          -coeff[2], -coeff[3]);
-        fprintf(stderr, "       xx=(atan2(ii,jj)%+lf)/(2*pi);\n",
+        (void) FormatLocaleFile(stderr, "       xx=(atan2(ii,jj)%+lf)/(2*pi);\n",
                          -(coeff[4]+coeff[5])/2 );
-        fprintf(stderr, "       xx=xx-round(xx);\n");
-        fprintf(stderr, "       xx=xx*2*pi*%lf + v.w/2;\n",
+        (void) FormatLocaleFile(stderr, "       xx=xx-round(xx);\n");
+        (void) FormatLocaleFile(stderr, "       xx=xx*2*pi*%lf + v.w/2;\n",
                          coeff[6] );
-        fprintf(stderr, "       yy=(hypot(ii,jj)%+lf)*%lf;\n",
+        (void) FormatLocaleFile(stderr, "       yy=(hypot(ii,jj)%+lf)*%lf;\n",
                          -coeff[1], coeff[7] );
-        fprintf(stderr, "       v.p{xx-.5,yy-.5}'\n");
+        (void) FormatLocaleFile(stderr, "       v.p{xx-.5,yy-.5}' \\\n");
         break;
       }
       case DePolarDistortion:
       {
-        fprintf(stderr, "DePolar Distort, Internal Coefficents\n");
+        (void) FormatLocaleFile(stderr, "DePolar Distort, Internal Coefficents\n");
         for ( i=0; i<8; i++ )
-          fprintf(stderr, "  c%ld = %+lf\n", i, coeff[i]);
-        fprintf(stderr, "DePolar Distort, FX Equivelent:\n");
-        fprintf(stderr, "%s", image_gen);
-        fprintf(stderr, "  -fx 'aa=(i+.5)*%lf %+lf;\n", coeff[6], -coeff[4] );
-        fprintf(stderr, "       rr=(j+.5)*%lf %+lf;\n", coeff[7], +coeff[1] );
-        fprintf(stderr, "       xx=rr*sin(aa) %+lf;\n", coeff[2] );
-        fprintf(stderr, "       yy=rr*cos(aa) %+lf;\n", coeff[3] );
-        fprintf(stderr, "       v.p{xx-.5,yy-.5}'\n");
+          (void) FormatLocaleFile(stderr, "  c%.20g = %+lf\n", (double) i, coeff[i]);
+        (void) FormatLocaleFile(stderr, "DePolar Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'aa=(i+.5)*%lf %+lf;\n", coeff[6], -coeff[4] );
+        (void) FormatLocaleFile(stderr, "       rr=(j+.5)*%lf %+lf;\n", coeff[7], +coeff[1] );
+        (void) FormatLocaleFile(stderr, "       xx=rr*sin(aa) %+lf;\n", coeff[2] );
+        (void) FormatLocaleFile(stderr, "       yy=rr*cos(aa) %+lf;\n", coeff[3] );
+        (void) FormatLocaleFile(stderr, "       v.p{xx-.5,yy-.5}' \\\n");
+        break;
+      }
+      case Cylinder2PlaneDistortion:
+      {
+        (void) FormatLocaleFile(stderr, "Cylinder to Plane Distort, Internal Coefficents\n");
+        (void) FormatLocaleFile(stderr, "  cylinder_radius = %+lf\n", coeff[1]);
+        (void) FormatLocaleFile(stderr, "Cylinder to Plane Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x%+lf+0.5; jj=j+page.y%+lf+0.5;\n",
+                         -coeff[4], -coeff[5]);
+        (void) FormatLocaleFile(stderr, "       aa=atan(ii/%+lf);\n", coeff[1] );
+        (void) FormatLocaleFile(stderr, "       xx=%lf*aa%+lf;\n",
+                         coeff[1], coeff[2] );
+        (void) FormatLocaleFile(stderr, "       yy=jj*cos(aa)%+lf;\n", coeff[3] );
+        (void) FormatLocaleFile(stderr, "       %s' \\\n", lookup);
+        break;
+      }
+      case Plane2CylinderDistortion:
+      {
+        (void) FormatLocaleFile(stderr, "Plane to Cylinder Distort, Internal Coefficents\n");
+        (void) FormatLocaleFile(stderr, "  cylinder_radius = %+lf\n", coeff[1]);
+        (void) FormatLocaleFile(stderr, "Plane to Cylinder Distort, FX Equivelent:\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        (void) FormatLocaleFile(stderr, "  -fx 'ii=i+page.x%+lf+0.5; jj=j+page.y%+lf+0.5;\n",
+                         -coeff[4], -coeff[5]);
+        (void) FormatLocaleFile(stderr, "       ii=ii/%+lf;\n", coeff[1] );
+        (void) FormatLocaleFile(stderr, "       xx=%lf*tan(ii)%+lf;\n",
+                         coeff[1], coeff[2] );
+        (void) FormatLocaleFile(stderr, "       yy=jj/cos(ii)%+lf;\n",
+                         coeff[3] );
+        (void) FormatLocaleFile(stderr, "       %s' \\\n", lookup);
+        break;
         break;
       }
       case BarrelDistortion:
       case BarrelInverseDistortion:
       { double xc,yc;
+        /* NOTE: This does the barrel roll in pixel coords not image coords
+        ** The internal distortion must do it in image coordinates,
+        ** so that is what the center coeff (8,9) is given in.
+        */
         xc = ((double)image->columns-1.0)/2.0 + image->page.x;
         yc = ((double)image->rows-1.0)/2.0    + image->page.y;
-        fprintf(stderr, "Barrel%s Distort, FX Equivelent:\n",
+        (void) FormatLocaleFile(stderr, "Barrel%s Distort, FX Equivelent:\n",
              method == BarrelDistortion ? "" : "Inv");
-        fprintf(stderr, "%s", image_gen);
-        if ( fabs(coeff[8]-xc) < 0.1 && fabs(coeff[9]-yc) < 0.1 )
-          fprintf(stderr, "  -fx 'xc=(w-1)/2;  yc=(h-1)/2;\n");
+        (void) FormatLocaleFile(stderr, "%s", image_gen);
+        if ( fabs(coeff[8]-xc-0.5) < 0.1 && fabs(coeff[9]-yc-0.5) < 0.1 )
+          (void) FormatLocaleFile(stderr, "  -fx 'xc=(w-1)/2;  yc=(h-1)/2;\n");
         else
-          fprintf(stderr, "  -fx 'xc=%lf;  yc=%lf;\n",
-               coeff[8], coeff[9]);
-        fprintf(stderr,
+          (void) FormatLocaleFile(stderr, "  -fx 'xc=%lf;  yc=%lf;\n",
+               coeff[8]-0.5, coeff[9]-0.5);
+        (void) FormatLocaleFile(stderr,
              "       ii=i-xc;  jj=j-yc;  rr=hypot(ii,jj);\n");
-        fprintf(stderr, "       ii=ii%s(%lf*rr*rr*rr %+lf*rr*rr %+lf*rr %+lf);\n",
+        (void) FormatLocaleFile(stderr, "       ii=ii%s(%lf*rr*rr*rr %+lf*rr*rr %+lf*rr %+lf);\n",
              method == BarrelDistortion ? "*" : "/",
              coeff[0],coeff[1],coeff[2],coeff[3]);
-        fprintf(stderr, "       jj=jj%s(%lf*rr*rr*rr %+lf*rr*rr %+lf*rr %+lf);\n",
+        (void) FormatLocaleFile(stderr, "       jj=jj%s(%lf*rr*rr*rr %+lf*rr*rr %+lf*rr %+lf);\n",
              method == BarrelDistortion ? "*" : "/",
              coeff[4],coeff[5],coeff[6],coeff[7]);
-        fprintf(stderr, "       v.p{fx*ii+xc,fy*jj+yc}'\n");
+        (void) FormatLocaleFile(stderr, "       v.p{fx*ii+xc,fy*jj+yc}' \\\n");
       }
       default:
         break;
@@ -1885,15 +2263,15 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
     artifact=GetImageArtifact(image,"distort:scale");
     output_scaling = 1.0;
     if (artifact != (const char *) NULL) {
-      output_scaling = fabs(StringToDouble(artifact));
-      geometry.width  *= output_scaling;
-      geometry.height *= output_scaling;
-      geometry.x      *= output_scaling;
-      geometry.y      *= output_scaling;
+      output_scaling = fabs(StringToDouble(artifact,(char **) NULL));
+      geometry.width=(size_t) (output_scaling*geometry.width+0.5);
+      geometry.height=(size_t) (output_scaling*geometry.height+0.5);
+      geometry.x=(ssize_t) (output_scaling*geometry.x+0.5);
+      geometry.y=(ssize_t) (output_scaling*geometry.y+0.5);
       if ( output_scaling < 0.1 ) {
         coeff = (double *) RelinquishMagickMemory(coeff);
-        (void) ThrowMagickException(exception,GetMagickModule(),OptionError,
-                "InvalidArgument","%s", "-set option:distort:scale" );
+        (void) ThrowMagickException(exception,GetMagickModule(),
+                OptionError,"InvalidArgument","%s","-define distort:scale" );
         return((Image *) NULL);
       }
       output_scaling = 1/output_scaling;
@@ -1911,24 +2289,32 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
     exception);
   if (distort_image == (Image *) NULL)
     return((Image *) NULL);
+  /* if image is ColorMapped - change it to DirectClass */
   if (SetImageStorageClass(distort_image,DirectClass) == MagickFalse)
-    { /* if image is ColorMapped - change it to DirectClass */
+    {
       InheritException(exception,&distort_image->exception);
       distort_image=DestroyImage(distort_image);
       return((Image *) NULL);
     }
-  distort_image->page.x=geometry.x;
-  distort_image->page.y=geometry.y;
+  if ((IsPixelGray(&distort_image->background_color) == MagickFalse) &&
+      (IsGrayColorspace(distort_image->colorspace) != MagickFalse))
+    (void) SetImageColorspace(distort_image,sRGBColorspace);
   if (distort_image->background_color.opacity != OpaqueOpacity)
     distort_image->matte=MagickTrue;
+  distort_image->page.x=geometry.x;
+  distort_image->page.y=geometry.y;
 
   { /* ----- MAIN CODE -----
        Sample the source image to each pixel in the distort image.
      */
-    long
-      j,
-      progress,
+    CacheView
+      *distort_view;
+
+    MagickBooleanType
       status;
+
+    MagickOffsetType
+      progress;
 
     MagickPixelPacket
       zero;
@@ -1936,20 +2322,24 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
     ResampleFilter
       **restrict resample_filter;
 
-    CacheView
-      *distort_view;
+    ssize_t
+      j;
 
     status=MagickTrue;
     progress=0;
     GetMagickPixelPacket(distort_image,&zero);
     resample_filter=AcquireResampleFilterThreadSet(image,
       UndefinedVirtualPixelMethod,MagickFalse,exception);
-    distort_view=AcquireCacheView(distort_image);
+    distort_view=AcquireAuthenticCacheView(distort_image,exception);
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(progress,status)
+    #pragma omp parallel for schedule(static,4) shared(progress,status) \
+      magick_threads(image,distort_image,distort_image->rows,1)
 #endif
-    for (j=0; j < (long) distort_image->rows; j++)
+    for (j=0; j < (ssize_t) distort_image->rows; j++)
     {
+      const int
+        id = GetOpenMPThreadId();
+
       double
         validity;  /* how mathematically valid is this the mapping */
 
@@ -1967,9 +2357,8 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
       register IndexPacket
         *restrict indexes;
 
-      register long
-        i,
-        id;
+      register ssize_t
+        i;
 
       register PixelPacket
         *restrict q;
@@ -1987,7 +2376,6 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
       /* Define constant scaling vectors for Affine Distortions
         Other methods are either variable, or use interpolated lookup
       */
-      id=GetOpenMPThreadId();
       switch (method)
       {
         case AffineDistortion:
@@ -2012,7 +2400,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
       if (distort_image->colorspace == CMYKColorspace)
         ConvertRGBToCMYK(&invalid);   /* what about other color spaces? */
 
-      for (i=0; i < (long) distort_image->columns; i++)
+      for (i=0; i < (ssize_t) distort_image->columns; i++)
       {
         /* map pixel coordinate to distortion space coordinate */
         d.x = (double) (geometry.x+i+0.5)*output_scaling;
@@ -2042,11 +2430,11 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             abs_c6 = fabs(coeff[6]);
             abs_c7 = fabs(coeff[7]);
             if ( abs_c6 > abs_c7 ) {
-              if ( abs_r < abs_c6 )
-                validity = 0.5 - coeff[8]*r/coeff[6];
+              if ( abs_r < abs_c6*output_scaling )
+                validity = 0.5 - coeff[8]*r/(coeff[6]*output_scaling);
             }
-            else if ( abs_r < abs_c7 )
-              validity = 0.5 - coeff[8]*r/coeff[7];
+            else if ( abs_r < abs_c7*output_scaling )
+              validity = 0.5 - coeff[8]*r/(coeff[7]*output_scaling);
             /* Perspective Sampling Point (if valid) */
             if ( validity > 0.0 ) {
               /* divide by r affine, for perspective scaling */
@@ -2087,7 +2475,8 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             c = coeff[4]*d.x - coeff[0]*d.y;
 
             validity = 1.0;
-            /* Handle Special degenerate (non-quadratic) case */
+            /* Handle Special degenerate (non-quadratic) case
+             * Currently without horizon anti-alising */
             if ( fabs(coeff[9]) < MagickEpsilon )
               s.y =  -c/b;
             else {
@@ -2108,7 +2497,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             break;
           }
 #if 0
-          case QuadrilateralDistortion:
+          case BilinearDistortion:
             /* Bilinear mapping of any Quadrilateral to any Quadrilateral */
             /* UNDER DEVELOPMENT */
             break;
@@ -2116,10 +2505,11 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
           case PolynomialDistortion:
           {
             /* multi-ordered polynomial */
-            register long
+            register ssize_t
               k;
-            long
-              nterms=(long)coeff[1];
+
+            ssize_t
+              nterms=(ssize_t)coeff[1];
 
             PointInfo
               du,dv; /* the du,dv vectors from unit dx,dy -- derivatives */
@@ -2139,7 +2529,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
           case ArcDistortion:
           {
             /* what is the angle and radius in the destination image */
-            s.x  = (atan2(d.y,d.x) - coeff[0])/Magick2PI;
+            s.x  = (double) ((atan2(d.y,d.x) - coeff[0])/Magick2PI);
             s.x -= MagickRound(s.x);     /* angle */
             s.y  = hypot(d.x,d.y);       /* radius */
 
@@ -2150,7 +2540,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             */
             if ( s.y > MagickEpsilon )
               ScaleFilter( resample_filter[id],
-                  coeff[1]/(Magick2PI*s.y), 0, 0, coeff[3] );
+                  (double) (coeff[1]/(Magick2PI*s.y)), 0, 0, coeff[3] );
             else
               ScaleFilter( resample_filter[id],
                   distort_image->columns*2, 0, 0, coeff[3] );
@@ -2161,7 +2551,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             break;
           }
           case PolarDistortion:
-          { /* Rect/Cartesain/Cylinder to Polar View */
+          { /* 2D Cartesain to Polar View */
             d.x -= coeff[2];
             d.y -= coeff[3];
             s.x  = atan2(d.x,d.y) - (coeff[4]+coeff[5])/2;
@@ -2175,7 +2565,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             */
             if ( s.y > MagickEpsilon )
               ScaleFilter( resample_filter[id],
-                  coeff[6]/(Magick2PI*s.y), 0, 0, coeff[7] );
+                (double) (coeff[6]/(Magick2PI*s.y)), 0, 0, coeff[7] );
             else
               ScaleFilter( resample_filter[id],
                   distort_image->columns*2, 0, 0, coeff[7] );
@@ -2186,7 +2576,7 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             break;
           }
           case DePolarDistortion:
-          { /* Polar to Cylindical  */
+          { /* @D Polar to Carteasain  */
             /* ignore all destination virtual offsets */
             d.x = ((double)i+0.5)*output_scaling*coeff[6]-coeff[4];
             d.y = ((double)j+0.5)*output_scaling*coeff[7]+coeff[1];
@@ -2195,9 +2585,68 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             /* derivatives are usless - better to use SuperSampling */
             break;
           }
+          case Cylinder2PlaneDistortion:
+          { /* 3D Cylinder to Tangential Plane */
+            double ax, cx;
+            /* relative to center of distortion */
+            d.x -= coeff[4]; d.y -= coeff[5];
+            d.x /= coeff[1];        /* x' = x/r */
+            ax=atan(d.x);           /* aa = atan(x/r) = u/r  */
+            cx=cos(ax);             /* cx = cos(atan(x/r)) = 1/sqrt(x^2+u^2) */
+            s.x = coeff[1]*ax;      /* u  = r*atan(x/r) */
+            s.y = d.y*cx;           /* v  = y*cos(u/r) */
+            /* derivatives... (see personnal notes) */
+            ScaleFilter( resample_filter[id],
+                  1.0/(1.0+d.x*d.x), 0.0, -d.x*s.y*cx*cx/coeff[1], s.y/d.y );
+#if 0
+if ( i == 0 && j == 0 ) {
+  fprintf(stderr, "x=%lf  y=%lf  u=%lf  v=%lf\n", d.x*coeff[1], d.y, s.x, s.y);
+  fprintf(stderr, "phi = %lf\n", (double)(ax * 180.0/MagickPI) );
+  fprintf(stderr, "du/dx=%lf  du/dx=%lf  dv/dx=%lf  dv/dy=%lf\n",
+                1.0/(1.0+d.x*d.x), 0.0, -d.x*s.y*cx*cx/coeff[1], s.y/d.y );
+  fflush(stderr); }
+#endif
+            /* add center of distortion in source */
+            s.x += coeff[2]; s.y += coeff[3];
+            break;
+          }
+          case Plane2CylinderDistortion:
+          { /* 3D Cylinder to Tangential Plane */
+            /* relative to center of distortion */
+            d.x -= coeff[4]; d.y -= coeff[5];
+
+            /* is pixel valid - horizon of a infinite Virtual-Pixel Plane
+             * (see Anthony Thyssen's personal note) */
+            validity = (double) ((coeff[1]*MagickPI2 - fabs(d.x))/output_scaling + 0.5);
+
+            if ( validity > 0.0 ) {
+              double cx,tx;
+              d.x /= coeff[1];           /* x'= x/r */
+              cx = 1/cos(d.x);           /* cx = 1/cos(x/r) */
+              tx = tan(d.x);             /* tx = tan(x/r) */
+              s.x = coeff[1]*tx;         /* u = r * tan(x/r) */
+              s.y = d.y*cx;              /* v = y / cos(x/r) */
+              /* derivatives...  (see Anthony Thyssen's personal notes) */
+              ScaleFilter( resample_filter[id],
+                    cx*cx, 0.0, s.y*cx/coeff[1], cx );
+#if 1
+/*if ( i == 0 && j == 0 ) {*/
+if ( d.x == 0.5 && d.y == 0.5 ) {
+  fprintf(stderr, "x=%lf  y=%lf  u=%lf  v=%lf\n", d.x*coeff[1], d.y, s.x, s.y);
+  fprintf(stderr, "radius = %lf  phi = %lf  validity = %lf\n",
+      coeff[1],  (double)(d.x * 180.0/MagickPI), validity );
+  fprintf(stderr, "du/dx=%lf  du/dx=%lf  dv/dx=%lf  dv/dy=%lf\n",
+      cx*cx, 0.0, s.y*cx/coeff[1], cx);
+  fflush(stderr); }
+#endif
+            }
+            /* add center of distortion in source */
+            s.x += coeff[2]; s.y += coeff[3];
+            break;
+          }
           case BarrelDistortion:
           case BarrelInverseDistortion:
-          {
+          { /* Lens Barrel Distionion Correction */
             double r,fx,fy,gx,gy;
             /* Radial Polynomial Distortion (de-normalized) */
             d.x -= coeff[8];
@@ -2213,15 +2662,20 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
                 fx = 1/fx;  fy = 1/fy;
                 gx *= -fx*fx;  gy *= -fy*fy;
               }
-              /* Set source pixel and EWA derivative vectors */
+              /* Set the source pixel to lookup and EWA derivative vectors */
               s.x = d.x*fx + coeff[8];
               s.y = d.y*fy + coeff[9];
               ScaleFilter( resample_filter[id],
                   gx*d.x*d.x + fx, gx*d.x*d.y,
                   gy*d.x*d.y,      gy*d.y*d.y + fy );
             }
-            else { /* Special handling to avoid divide by zero when r=0 */
-              s.x=s.y=0.0;
+            else {
+              /* Special handling to avoid divide by zero when r==0
+              **
+              ** The source and destination pixels match in this case
+              ** which was set at the top of the loop using  s = d;
+              ** otherwise...   s.x=coeff[8]; s.y=coeff[9];
+              */
               if ( method == BarrelDistortion )
                 ScaleFilter( resample_filter[id],
                      coeff[3], 0, 0, coeff[7] );
@@ -2234,12 +2688,15 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
           }
           case ShepardsDistortion:
           { /* Shepards Method, or Inverse Weighted Distance for
-              displacement around the destination image control points
-              The input arguments are the coefficents to the function.
-              This is more of a 'displacement' function rather than an
-              absolute distortion function.
+               displacement around the destination image control points
+               The input arguments are the coefficents to the function.
+               This is more of a 'displacement' function rather than an
+               absolute distortion function.
+
+               Note: We can not determine derivatives using shepards method
+               so only a point sample interpolatation can be used.
             */
-            unsigned long
+            size_t
               i;
             double
               denominator;
@@ -2249,10 +2706,8 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
               double weight =
                   ((double)d.x-arguments[i+2])*((double)d.x-arguments[i+2])
                 + ((double)d.y-arguments[i+3])*((double)d.y-arguments[i+3]);
-              if ( weight != 0 )
-                weight = 1/weight;
-              else
-                weight = 1;
+              weight = pow(weight,coeff[0]); /* shepards power factor */
+              weight = ( weight < 1.0 ) ? 1.0 : 1.0/weight;
 
               s.x += (arguments[ i ]-arguments[i+2])*weight;
               s.y += (arguments[i+1]-arguments[i+3])*weight;
@@ -2260,11 +2715,8 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             }
             s.x /= denominator;
             s.y /= denominator;
-            s.x += d.x;
+            s.x += d.x;   /* make it as relative displacement */
             s.y += d.y;
-
-            /* We can not determine derivatives using shepards method
-               only color interpolatation, not area-resampling */
             break;
           }
           default:
@@ -2306,16 +2758,13 @@ MagickExport Image *DistortImage(const Image *image,DistortImageMethod method,
             proceed;
 
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp critical (MagickCore_DistortImage)
+          #pragma omp critical (MagickCore_DistortImage)
 #endif
           proceed=SetImageProgress(image,DistortImageTag,progress++,
             image->rows);
           if (proceed == MagickFalse)
             status=MagickFalse;
         }
-#if 0
-fprintf(stderr, "\n");
-#endif
     }
     distort_view=DestroyCacheView(distort_view);
     resample_filter=DestroyResampleFilterThreadSet(resample_filter);
@@ -2340,6 +2789,85 @@ fprintf(stderr, "\n");
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%   R o t a t e I m a g e                                                     %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  RotateImage() creates a new image that is a rotated copy of an existing
+%  one.  Positive angles rotate counter-clockwise (right-hand rule), while
+%  negative angles rotate clockwise.  Rotated images are usually larger than
+%  the originals and have 'empty' triangular corners.  X axis.  Empty
+%  triangles left over from shearing the image are filled with the background
+%  color defined by member 'background_color' of the image.  RotateImage
+%  allocates the memory necessary for the new Image structure and returns a
+%  pointer to the new image.
+%
+%  The format of the RotateImage method is:
+%
+%      Image *RotateImage(const Image *image,const double degrees,
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows.
+%
+%    o image: the image.
+%
+%    o degrees: Specifies the number of degrees to rotate the image.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickExport Image *RotateImage(const Image *image,const double degrees,
+  ExceptionInfo *exception)
+{
+  Image
+    *distort_image,
+    *rotate_image;
+
+  MagickRealType
+    angle;
+
+  PointInfo
+    shear;
+
+  size_t
+    rotations;
+
+  /*
+    Adjust rotation angle.
+  */
+  assert(image != (Image *) NULL);
+  assert(image->signature == MagickSignature);
+  if (image->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
+  assert(exception != (ExceptionInfo *) NULL);
+  assert(exception->signature == MagickSignature);
+  angle=degrees;
+  while (angle < -45.0)
+    angle+=360.0;
+  for (rotations=0; angle > 45.0; rotations++)
+    angle-=90.0;
+  rotations%=4;
+  shear.x=(-tan((double) DegreesToRadians(angle)/2.0));
+  shear.y=sin((double) DegreesToRadians(angle));
+  if ((fabs(shear.x) < MagickEpsilon) && (fabs(shear.y) < MagickEpsilon))
+    return(IntegralRotateImage(image,rotations,exception));
+  distort_image=CloneImage(image,0,0,MagickTrue,exception);
+  if (distort_image == (Image *) NULL)
+    return((Image *) NULL);
+  (void) SetImageVirtualPixelMethod(distort_image,BackgroundVirtualPixelMethod);
+  rotate_image=DistortImage(distort_image,ScaleRotateTranslateDistortion,1,
+    &degrees,MagickTrue,exception);
+  distort_image=DestroyImage(distort_image);
+  return(rotate_image);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
 %   S p a r s e C o l o r I m a g e                                           %
 %                                                                             %
 %                                                                             %
@@ -2352,7 +2880,7 @@ fprintf(stderr, "\n");
 %  The format of the SparseColorImage() method is:
 %
 %      Image *SparseColorImage(const Image *image,const ChannelType channel,
-%        const SparseColorMethod method,const unsigned long number_arguments,
+%        const SparseColorMethod method,const size_t number_arguments,
 %        const double *arguments,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -2379,13 +2907,13 @@ fprintf(stderr, "\n");
 */
 MagickExport Image *SparseColorImage(const Image *image,
   const ChannelType channel,const SparseColorMethod method,
-  const unsigned long number_arguments,const double *arguments,
+  const size_t number_arguments,const double *arguments,
   ExceptionInfo *exception)
 {
 #define SparseColorTag  "Distort/SparseColor"
 
-  DistortImageMethod
-    distort_method;
+  SparseColorMethod
+    sparse_method;
 
   double
     *coeff;
@@ -2393,10 +2921,7 @@ MagickExport Image *SparseColorImage(const Image *image,
   Image
     *sparse_image;
 
-  MagickPixelPacket
-    zero;
-
-  unsigned long
+  size_t
     number_colors;
 
   assert(image != (Image *) NULL);
@@ -2415,80 +2940,96 @@ MagickExport Image *SparseColorImage(const Image *image,
   if ( channel & OpacityChannel ) number_colors++;
 
   /*
-    Convert input arguments into mapping coefficients to apply the distortion.
-    Note some Methods may fall back to other simpler methods.
+    Convert input arguments into mapping coefficients, this this case
+    we are mapping (distorting) colors, rather than coordinates.
   */
-  distort_method=(DistortImageMethod) method;
-  coeff = GenerateCoefficients(image, &distort_method, number_arguments,
-    arguments, number_colors, exception);
-  if ( coeff == (double *) NULL )
-    return((Image *) NULL);
+  { DistortImageMethod
+      distort_method;
+
+    distort_method=(DistortImageMethod) method;
+    if ( distort_method >= SentinelDistortion )
+      distort_method = ShepardsDistortion; /* Pretend to be Shepards */
+    coeff = GenerateCoefficients(image, &distort_method, number_arguments,
+                arguments, number_colors, exception);
+    if ( coeff == (double *) NULL )
+      return((Image *) NULL);
+    /*
+      Note some Distort Methods may fall back to other simpler methods,
+      Currently the only fallback of concern is Bilinear to Affine
+      (Barycentric), which is alaso sparse_colr method.  This also ensures
+      correct two and one color Barycentric handling.
+    */
+    sparse_method = (SparseColorMethod) distort_method;
+    if ( distort_method == ShepardsDistortion )
+      sparse_method = method;   /* return non-distort methods to normal */
+    if ( sparse_method == InverseColorInterpolate )
+      coeff[0]=0.5;            /* sqrt() the squared distance for inverse */
+  }
 
   /* Verbose output */
   if ( GetImageArtifact(image,"verbose") != (const char *) NULL ) {
 
-    switch (method) {
+    switch (sparse_method) {
       case BarycentricColorInterpolate:
       {
-        register long x=0;
-        fprintf(stderr, "Barycentric Sparse Color:\n");
+        register ssize_t x=0;
+        (void) FormatLocaleFile(stderr, "Barycentric Sparse Color:\n");
         if ( channel & RedChannel )
-          fprintf(stderr, "  -channel R -fx '%+lf*i %+lf*j %+lf' \\\n",
+          (void) FormatLocaleFile(stderr, "  -channel R -fx '%+lf*i %+lf*j %+lf' \\\n",
               coeff[x], coeff[x+1], coeff[x+2]),x+=3;
         if ( channel & GreenChannel )
-          fprintf(stderr, "  -channel G -fx '%+lf*i %+lf*j %+lf' \\\n",
+          (void) FormatLocaleFile(stderr, "  -channel G -fx '%+lf*i %+lf*j %+lf' \\\n",
               coeff[x], coeff[x+1], coeff[x+2]),x+=3;
         if ( channel & BlueChannel )
-          fprintf(stderr, "  -channel B -fx '%+lf*i %+lf*j %+lf' \\\n",
+          (void) FormatLocaleFile(stderr, "  -channel B -fx '%+lf*i %+lf*j %+lf' \\\n",
               coeff[x], coeff[x+1], coeff[x+2]),x+=3;
         if ( channel & IndexChannel )
-          fprintf(stderr, "  -channel K -fx '%+lf*i %+lf*j %+lf' \\\n",
+          (void) FormatLocaleFile(stderr, "  -channel K -fx '%+lf*i %+lf*j %+lf' \\\n",
               coeff[x], coeff[x+1], coeff[x+2]),x+=3;
         if ( channel & OpacityChannel )
-          fprintf(stderr, "  -channel A -fx '%+lf*i %+lf*j %+lf' \\\n",
+          (void) FormatLocaleFile(stderr, "  -channel A -fx '%+lf*i %+lf*j %+lf' \\\n",
               coeff[x], coeff[x+1], coeff[x+2]),x+=3;
         break;
       }
       case BilinearColorInterpolate:
       {
-        register long x=0;
-        fprintf(stderr, "Bilinear Sparse Color\n");
+        register ssize_t x=0;
+        (void) FormatLocaleFile(stderr, "Bilinear Sparse Color\n");
         if ( channel & RedChannel )
-          fprintf(stderr, "   -channel R -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
+          (void) FormatLocaleFile(stderr, "   -channel R -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
               coeff[ x ], coeff[x+1],
               coeff[x+2], coeff[x+3]),x+=4;
         if ( channel & GreenChannel )
-          fprintf(stderr, "   -channel G -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
+          (void) FormatLocaleFile(stderr, "   -channel G -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
               coeff[ x ], coeff[x+1],
               coeff[x+2], coeff[x+3]),x+=4;
         if ( channel & BlueChannel )
-          fprintf(stderr, "   -channel B -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
+          (void) FormatLocaleFile(stderr, "   -channel B -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
               coeff[ x ], coeff[x+1],
               coeff[x+2], coeff[x+3]),x+=4;
         if ( channel & IndexChannel )
-          fprintf(stderr, "   -channel K -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
+          (void) FormatLocaleFile(stderr, "   -channel K -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
               coeff[ x ], coeff[x+1],
               coeff[x+2], coeff[x+3]),x+=4;
         if ( channel & OpacityChannel )
-          fprintf(stderr, "   -channel A -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
+          (void) FormatLocaleFile(stderr, "   -channel A -fx '%+lf*i %+lf*j %+lf*i*j %+lf;\n",
               coeff[ x ], coeff[x+1],
               coeff[x+2], coeff[x+3]),x+=4;
         break;
       }
       default:
-        /* unknown, or which are too complex for FX alturnatives */
+        /* sparse color method is too complex for FX emulation */
         break;
     }
   }
 
   /* Generate new image for generated interpolated gradient.
    * ASIDE: Actually we could have just replaced the colors of the original
-   * image, but IM core policy, is if storage class could change then clone
+   * image, but IM Core policy, is if storage class could change then clone
    * the image.
    */
 
-  sparse_image=CloneImage(image,image->columns,image->rows,MagickTrue,
-    exception);
+  sparse_image=CloneImage(image,0,0,MagickTrue,exception);
   if (sparse_image == (Image *) NULL)
     return((Image *) NULL);
   if (SetImageStorageClass(sparse_image,DirectClass) == MagickFalse)
@@ -2498,24 +3039,26 @@ MagickExport Image *SparseColorImage(const Image *image,
       return((Image *) NULL);
     }
   { /* ----- MAIN CODE ----- */
-    long
-      j,
-      progress;
+    CacheView
+      *sparse_view;
 
     MagickBooleanType
       status;
 
-    CacheView
-      *sparse_view;
+    MagickOffsetType
+      progress;
+
+    ssize_t
+      j;
 
     status=MagickTrue;
     progress=0;
-    GetMagickPixelPacket(sparse_image,&zero);
-    sparse_view=AcquireCacheView(sparse_image);
+    sparse_view=AcquireAuthenticCacheView(sparse_image,exception);
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp parallel for schedule(dynamic,4) shared(progress,status)
+    #pragma omp parallel for schedule(static,4) shared(progress,status) \
+      magick_threads(image,sparse_image,sparse_image->rows,1)
 #endif
-    for (j=0; j < (long) sparse_image->rows; j++)
+    for (j=0; j < (ssize_t) sparse_image->rows; j++)
     {
       MagickBooleanType
         sync;
@@ -2526,29 +3069,29 @@ MagickExport Image *SparseColorImage(const Image *image,
       register IndexPacket
         *restrict indexes;
 
-      register long
+      register ssize_t
         i;
 
       register PixelPacket
         *restrict q;
 
-      q=QueueCacheViewAuthenticPixels(sparse_view,0,j,sparse_image->columns,
+      q=GetCacheViewAuthenticPixels(sparse_view,0,j,sparse_image->columns,
         1,exception);
       if (q == (PixelPacket *) NULL)
         {
           status=MagickFalse;
           continue;
         }
-/* FUTURE: get pixel from source image - so channel can replace parts */
       indexes=GetCacheViewAuthenticIndexQueue(sparse_view);
-      pixel=zero;
-      for (i=0; i < (long) sparse_image->columns; i++)
+      GetMagickPixelPacket(sparse_image,&pixel);
+      for (i=0; i < (ssize_t) image->columns; i++)
       {
-        switch (method)
+        SetMagickPixelPacket(image,q,indexes,&pixel);
+        switch (sparse_method)
         {
           case BarycentricColorInterpolate:
           {
-            register long x=0;
+            register ssize_t x=0;
             if ( channel & RedChannel )
               pixel.red     = coeff[x]*i +coeff[x+1]*j
                               +coeff[x+2], x+=3;
@@ -2568,7 +3111,7 @@ MagickExport Image *SparseColorImage(const Image *image,
           }
           case BilinearColorInterpolate:
           {
-            register long x=0;
+            register ssize_t x=0;
             if ( channel & RedChannel )
               pixel.red     = coeff[x]*i     + coeff[x+1]*j +
                               coeff[x+2]*i*j + coeff[x+3], x+=4;
@@ -2586,10 +3129,10 @@ MagickExport Image *SparseColorImage(const Image *image,
                               coeff[x+2]*i*j + coeff[x+3], x+=4;
             break;
           }
+          case InverseColorInterpolate:
           case ShepardsColorInterpolate:
-          { /* Shepards Method,uses its own input arguments as coefficients.
-            */
-            unsigned long
+          { /* Inverse (Squared) Distance weights average (IDW) */
+            size_t
               k;
             double
               denominator;
@@ -2601,14 +3144,12 @@ MagickExport Image *SparseColorImage(const Image *image,
             if ( channel & OpacityChannel ) pixel.opacity = 0.0;
             denominator = 0.0;
             for(k=0; k<number_arguments; k+=2+number_colors) {
-              register long x=(long) k+2;
+              register ssize_t x=(ssize_t) k+2;
               double weight =
                   ((double)i-arguments[ k ])*((double)i-arguments[ k ])
                 + ((double)j-arguments[k+1])*((double)j-arguments[k+1]);
-              if ( weight != 0 )
-                weight = 1/weight;
-              else
-                weight = 1;
+              weight = pow(weight,coeff[0]); /* inverse of power factor */
+              weight = ( weight < 1.0 ) ? 1.0 : 1.0/weight;
               if ( channel & RedChannel )
                 pixel.red     += arguments[x++]*weight;
               if ( channel & GreenChannel )
@@ -2631,7 +3172,7 @@ MagickExport Image *SparseColorImage(const Image *image,
           case VoronoiColorInterpolate:
           default:
           { /* Just use the closest control point you can find! */
-            unsigned long
+            size_t
               k;
             double
               minimum = MagickHuge;
@@ -2641,7 +3182,7 @@ MagickExport Image *SparseColorImage(const Image *image,
                   ((double)i-arguments[ k ])*((double)i-arguments[ k ])
                 + ((double)j-arguments[k+1])*((double)j-arguments[k+1]);
               if ( distance < minimum ) {
-                register long x=(long) k+2;
+                register ssize_t x=(ssize_t) k+2;
                 if ( channel & RedChannel     ) pixel.red     = arguments[x++];
                 if ( channel & GreenChannel   ) pixel.green   = arguments[x++];
                 if ( channel & BlueChannel    ) pixel.blue    = arguments[x++];
@@ -2672,7 +3213,7 @@ MagickExport Image *SparseColorImage(const Image *image,
             proceed;
 
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
-  #pragma omp critical (MagickCore_SparseColorImage)
+          #pragma omp critical (MagickCore_SparseColorImage)
 #endif
           proceed=SetImageProgress(image,SparseColorTag,progress++,image->rows);
           if (proceed == MagickFalse)

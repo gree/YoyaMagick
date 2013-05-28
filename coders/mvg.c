@@ -17,7 +17,7 @@
 %                                 April 2000                                  %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -52,6 +52,7 @@
 #include "magick/magick.h"
 #include "magick/memory_.h"
 #include "magick/module.h"
+#include "magick/pixel-accessor.h"
 #include "magick/property.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
@@ -175,8 +176,8 @@ static Image *ReadMVGImage(const ImageInfo *image_info,ExceptionInfo *exception)
           continue;
         (void) sscanf(p,"viewbox %lf %lf %lf %lf",&bounds.x1,&bounds.y1,
           &bounds.x2,&bounds.y2);
-        image->columns=(unsigned long) ((bounds.x2-bounds.x1)+0.5);
-        image->rows=(unsigned long) ((bounds.y2-bounds.y1)+0.5);
+        image->columns=(size_t) floor((bounds.x2-bounds.x1)+0.5);
+        image->rows=(size_t) floor((bounds.y2-bounds.y1)+0.5);
         break;
       }
     }
@@ -187,8 +188,8 @@ static Image *ReadMVGImage(const ImageInfo *image_info,ExceptionInfo *exception)
     DefaultResolution;
   draw_info->affine.sy=image->y_resolution == 0.0 ? 1.0 : image->y_resolution/
     DefaultResolution;
-  image->columns=(unsigned long) (draw_info->affine.sx*image->columns);
-  image->rows=(unsigned long) (draw_info->affine.sy*image->rows);
+  image->columns=(size_t) (draw_info->affine.sx*image->columns);
+  image->rows=(size_t) (draw_info->affine.sy*image->rows);
   if (SetImageBackgroundColor(image) == MagickFalse)
     {
       InheritException(exception,&image->exception);
@@ -236,10 +237,10 @@ static Image *ReadMVGImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterMVGImage method is:
 %
-%      unsigned long RegisterMVGImage(void)
+%      size_t RegisterMVGImage(void)
 %
 */
-ModuleExport unsigned long RegisterMVGImage(void)
+ModuleExport size_t RegisterMVGImage(void)
 {
   MagickInfo
     *entry;

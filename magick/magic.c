@@ -2,6 +2,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
 %                                                                             %
+%                                                                             %
 %                    M   M   AAA    GGGG  IIIII   CCCC                        %
 %                    MM MM  A   A  G        I    C                            %
 %                    M M M  AAAAA  G GGG    I    C                            %
@@ -16,7 +17,7 @@
 %                                 July 2000                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -84,7 +85,6 @@ typedef struct _MagicMapInfo
 static const MagicMapInfo
   MagicMap[] =
   {
-    { "AVI", 0, MagickString("RIFF") },
     { "8BIMWTEXT", 0, MagickString("8\000B\000I\000M\000#") },
     { "8BIMTEXT", 0, MagickString("8BIM#") },
     { "8BIM", 0, MagickString("8BIM") },
@@ -93,6 +93,7 @@ static const MagicMapInfo
     { "BMP", 0, MagickString("CI") },
     { "BMP", 0, MagickString("CP") },
     { "BMP", 0, MagickString("IC") },
+    { "PICT", 0, MagickString("PICT") },
     { "BMP", 0, MagickString("PI") },
     { "CALS", 21, MagickString("version: MIL-STD-1840") },
     { "CALS", 0, MagickString("srcdocid:") },
@@ -120,8 +121,9 @@ static const MagicMapInfo
     { "GIF", 0, MagickString("GIF8") },
     { "GPLT", 0, MagickString("#!/usr/local/bin/gnuplot") },
     { "HDF", 1, MagickString("HDF") },
+    { "HDR", 0, MagickString("#?RADIANCE") },
+    { "HDR", 0, MagickString("#?RGBE") },
     { "HPGL", 0, MagickString("IN;") },
-    { "HPGL", 0, MagickString("\033E\033") },
     { "HTML", 1, MagickString("HTML") },
     { "HTML", 1, MagickString("html") },
     { "ILBM", 8, MagickString("ILBM") },
@@ -132,6 +134,7 @@ static const MagicMapInfo
     { "JPEG", 0, MagickString("\377\330\377") },
     { "JPC", 0, MagickString("\377\117") },
     { "JP2", 4, MagickString("\152\120\040\040\015") },
+    { "MAT", 0, MagickString("MATLAB 5.0 MAT-file,") },
     { "MIFF", 0, MagickString("Id=ImageMagick") },
     { "MIFF", 0, MagickString("id=ImageMagick") },
     { "MNG", 0, MagickString("\212MNG\r\n\032\n") },
@@ -152,15 +155,15 @@ static const MagicMapInfo
     { "PGX", 0, MagickString("\050\107\020\115\046") },
     { "PICT", 522, MagickString("\000\021\002\377\014\000") },
     { "PNG", 0, MagickString("\211PNG\r\n\032\n") },
-    { "PNM", 0, MagickString("P1") },
-    { "PNM", 0, MagickString("P2") },
-    { "PNM", 0, MagickString("P3") },
-    { "PNM", 0, MagickString("P4") },
-    { "PNM", 0, MagickString("P5") },
-    { "PNM", 0, MagickString("P6") },
-    { "PNM", 0, MagickString("P7") },
-    { "PNM", 0, MagickString("PF") },
-    { "PNM", 0, MagickString("Pf") },
+    { "PBM", 0, MagickString("P1") },
+    { "PGM", 0, MagickString("P2") },
+    { "PPM", 0, MagickString("P3") },
+    { "PBM", 0, MagickString("P4") },
+    { "PGM", 0, MagickString("P5") },
+    { "PPM", 0, MagickString("P6") },
+    { "PAM", 0, MagickString("P7") },
+    { "PFM", 0, MagickString("PF") },
+    { "PFM", 0, MagickString("Pf") },
     { "PS", 0, MagickString("%!") },
     { "PS", 0, MagickString("\004%!") },
     { "PS", 0, MagickString("\305\320\323\306") },
@@ -168,8 +171,6 @@ static const MagicMapInfo
     { "PSD", 0, MagickString("8BPS") },
     { "PWP", 0, MagickString("SFW95") },
     { "RAF", 0, MagickString("FUJIFILMCCD-RAW ") },
-    { "RAD", 0, MagickString("#?RADIANCE") },
-    { "RAD", 0, MagickString("VIEW= ") },
     { "RLE", 0, MagickString("\122\314") },
     { "SCT", 0, MagickString("CT") },
     { "SFW", 0, MagickString("SFW94") },
@@ -181,10 +182,12 @@ static const MagicMapInfo
     { "TIFF", 0, MagickString("\111\111\052\000") },
     { "TIFF64", 0, MagickString("\115\115\000\053\000\010\000\000") },
     { "TIFF64", 0, MagickString("\111\111\053\000\010\000\000\000") },
+    { "TTF", 0, MagickString("\000\001\000\000\000") },
     { "TXT", 0, MagickString("# ImageMagick pixel enumeration:") },
     { "VICAR", 0, MagickString("LBLSIZE") },
     { "VICAR", 0, MagickString("NJPL1I") },
     { "VIFF", 0, MagickString("\253\001") },
+    { "WEBP", 8, MagickString("WEBP") },
     { "WMF", 0, MagickString("\327\315\306\232") },
     { "WMF", 0, MagickString("\001\000\011\000") },
     { "WPG", 0, MagickString("\377WPC") },
@@ -297,7 +300,7 @@ MagickExport const MagicInfo *GetMagicInfo(const unsigned char *magic,
 %  The magic of the GetMagicInfoList function is:
 %
 %      const MagicInfo **GetMagicInfoList(const char *pattern,
-%        unsigned long *number_aliases,ExceptionInfo *exception)
+%        size_t *number_aliases,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -331,7 +334,7 @@ static int MagicInfoCompare(const void *x,const void *y)
 #endif
 
 MagickExport const MagicInfo **GetMagicInfoList(const char *pattern,
-  unsigned long *number_aliases,ExceptionInfo *exception)
+  size_t *number_aliases,ExceptionInfo *exception)
 {
   const MagicInfo
     **aliases;
@@ -339,7 +342,7 @@ MagickExport const MagicInfo **GetMagicInfoList(const char *pattern,
   register const MagicInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -347,7 +350,7 @@ MagickExport const MagicInfo **GetMagicInfoList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_aliases != (unsigned long *) NULL);
+  assert(number_aliases != (size_t *) NULL);
   *number_aliases=0;
   p=GetMagicInfo((const unsigned char *) NULL,0,exception);
   if (p == (const MagicInfo *) NULL)
@@ -372,7 +375,7 @@ MagickExport const MagicInfo **GetMagicInfoList(const char *pattern,
   UnlockSemaphoreInfo(magic_semaphore);
   qsort((void *) aliases,(size_t) i,sizeof(*aliases),MagicInfoCompare);
   aliases[i]=(MagicInfo *) NULL;
-  *number_aliases=(unsigned long) i;
+  *number_aliases=(size_t) i;
   return(aliases);
 }
 
@@ -392,7 +395,7 @@ MagickExport const MagicInfo **GetMagicInfoList(const char *pattern,
 %
 %  The format of the GetMagicList function is:
 %
-%      char **GetMagicList(const char *pattern,unsigned long *number_aliases,
+%      char **GetMagicList(const char *pattern,size_t *number_aliases,
 %        ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
@@ -426,7 +429,7 @@ static int MagicCompare(const void *x,const void *y)
 #endif
 
 MagickExport char **GetMagicList(const char *pattern,
-  unsigned long *number_aliases,ExceptionInfo *exception)
+  size_t *number_aliases,ExceptionInfo *exception)
 {
   char
     **aliases;
@@ -434,7 +437,7 @@ MagickExport char **GetMagicList(const char *pattern,
   register const MagicInfo
     *p;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -442,7 +445,7 @@ MagickExport char **GetMagicList(const char *pattern,
   */
   assert(pattern != (char *) NULL);
   (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",pattern);
-  assert(number_aliases != (unsigned long *) NULL);
+  assert(number_aliases != (size_t *) NULL);
   *number_aliases=0;
   p=GetMagicInfo((const unsigned char *) NULL,0,exception);
   if (p == (const MagicInfo *) NULL)
@@ -464,7 +467,7 @@ MagickExport char **GetMagicList(const char *pattern,
   UnlockSemaphoreInfo(magic_semaphore);
   qsort((void *) aliases,(size_t) i,sizeof(*aliases),MagicCompare);
   aliases[i]=(char *) NULL;
-  *number_aliases=(unsigned long) i;
+  *number_aliases=(size_t) i;
   return(aliases);
 }
 
@@ -572,14 +575,14 @@ MagickExport MagickBooleanType ListMagicInfo(FILE *file,
   const MagicInfo
     **magic_info;
 
-  long
-    j;
-
-  register long
+  register ssize_t
     i;
 
-  unsigned long
+  size_t
     number_aliases;
+
+  ssize_t
+    j;
 
   if (file == (const FILE *) NULL)
     file=stdout;
@@ -588,7 +591,7 @@ MagickExport MagickBooleanType ListMagicInfo(FILE *file,
     return(MagickFalse);
   j=0;
   path=(const char *) NULL;
-  for (i=0; i < (long) number_aliases; i++)
+  for (i=0; i < (ssize_t) number_aliases; i++)
   {
     if (magic_info[i]->stealth != MagickFalse)
       continue;
@@ -596,29 +599,30 @@ MagickExport MagickBooleanType ListMagicInfo(FILE *file,
         (LocaleCompare(path,magic_info[i]->path) != 0))
       {
         if (magic_info[i]->path != (char *) NULL)
-          (void) fprintf(file,"\nPath: %s\n\n",magic_info[i]->path);
-        (void) fprintf(file,"Name      Offset Target\n");
-        (void) fprintf(file,"-------------------------------------------------"
+          (void) FormatLocaleFile(file,"\nPath: %s\n\n",magic_info[i]->path);
+        (void) FormatLocaleFile(file,"Name      Offset Target\n");
+        (void) FormatLocaleFile(file,
+          "-------------------------------------------------"
           "------------------------------\n");
       }
     path=magic_info[i]->path;
-    (void) fprintf(file,"%s",magic_info[i]->name);
-    for (j=(long) strlen(magic_info[i]->name); j <= 9; j++)
-      (void) fprintf(file," ");
-    (void) fprintf(file,"%6ld ",(long) magic_info[i]->offset);
+    (void) FormatLocaleFile(file,"%s",magic_info[i]->name);
+    for (j=(ssize_t) strlen(magic_info[i]->name); j <= 9; j++)
+      (void) FormatLocaleFile(file," ");
+    (void) FormatLocaleFile(file,"%6ld ",(long) magic_info[i]->offset);
     if (magic_info[i]->target != (char *) NULL)
       {
-        register long
+        register ssize_t
           j;
 
         for (j=0; magic_info[i]->target[j] != '\0'; j++)
           if (isprint((int) ((unsigned char) magic_info[i]->target[j])) != 0)
-            (void) fprintf(file,"%c",magic_info[i]->target[j]);
+            (void) FormatLocaleFile(file,"%c",magic_info[i]->target[j]);
           else
-            (void) fprintf(file,"\\%03o",(unsigned int)
+            (void) FormatLocaleFile(file,"\\%03o",(unsigned int)
               ((unsigned char) magic_info[i]->target[j]));
       }
-    (void) fprintf(file,"\n");
+    (void) FormatLocaleFile(file,"\n");
   }
   (void) fflush(file);
   magic_info=(const MagicInfo **) RelinquishMagickMemory((void *) magic_info);
@@ -642,7 +646,7 @@ MagickExport MagickBooleanType ListMagicInfo(FILE *file,
 %  The format of the LoadMagicList method is:
 %
 %      MagickBooleanType LoadMagicList(const char *xml,const char *filename,
-%        const unsigned long depth,ExceptionInfo *exception)
+%        const size_t depth,ExceptionInfo *exception)
 %
 %  A description of each parameter follows:
 %
@@ -656,7 +660,7 @@ MagickExport MagickBooleanType ListMagicInfo(FILE *file,
 %
 */
 static MagickBooleanType LoadMagicList(const char *xml,const char *filename,
-  const unsigned long depth,ExceptionInfo *exception)
+  const size_t depth,ExceptionInfo *exception)
 {
   char
     keyword[MaxTextExtent],
@@ -765,7 +769,7 @@ static MagickBooleanType LoadMagicList(const char *xml,const char *filename,
         /*
           Magic element.
         */
-        magic_info=(MagicInfo *) AcquireAlignedMemory(1,sizeof(*magic_info));
+        magic_info=(MagicInfo *) AcquireMagickMemory(sizeof(*magic_info));
         if (magic_info == (MagicInfo *) NULL)
           ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
         (void) ResetMagickMemory(magic_info,0,sizeof(*magic_info));
@@ -931,7 +935,7 @@ static MagickBooleanType LoadMagicLists(const char *filename,
   MagickStatusType
     status;
 
-  register long
+  register ssize_t
     i;
 
   /*
@@ -948,7 +952,7 @@ static MagickBooleanType LoadMagicLists(const char *filename,
           return(MagickFalse);
         }
     }
-  for (i=0; i < (long) (sizeof(MagicMap)/sizeof(*MagicMap)); i++)
+  for (i=0; i < (ssize_t) (sizeof(MagicMap)/sizeof(*MagicMap)); i++)
   {
     MagicInfo
       *magic_info;
@@ -957,7 +961,7 @@ static MagickBooleanType LoadMagicLists(const char *filename,
       *p;
 
     p=MagicMap+i;
-    magic_info=(MagicInfo *) AcquireAlignedMemory(1,sizeof(*magic_info));
+    magic_info=(MagicInfo *) AcquireMagickMemory(sizeof(*magic_info));
     if (magic_info == (MagicInfo *) NULL)
       {
         (void) ThrowMagickException(exception,GetMagickModule(),

@@ -17,7 +17,7 @@
 %                                 July 1992                                   %
 %                                                                             %
 %                                                                             %
-%  Copyright 1999-2010 ImageMagick Studio LLC, a non-profit organization      %
+%  Copyright 1999-2013 ImageMagick Studio LLC, a non-profit organization      %
 %  dedicated to making software imaging solutions freely available.           %
 %                                                                             %
 %  You may not use this file except in compliance with the License.  You may  %
@@ -43,6 +43,7 @@
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/cache.h"
+#include "magick/colormap.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
 #include "magick/image.h"
@@ -52,6 +53,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/monitor-private.h"
+#include "magick/pixel-accessor.h"
 #include "magick/quantum-private.h"
 #include "magick/static.h"
 #include "magick/string_.h"
@@ -92,9 +94,6 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   IndexPacket
     index;
 
-  long
-    y;
-
   MagickBooleanType
     status;
 
@@ -106,19 +105,20 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
   register IndexPacket
     *indexes;
 
-  register long
+  register ssize_t
     x;
 
   register PixelPacket
     *q;
 
   size_t
-    length;
-
-  unsigned long
     bits_per_pixel,
     height,
+    length,
     width;
+
+  ssize_t
+    y;
 
   /*
     Open image file.
@@ -169,13 +169,13 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
     blue=(Quantum) 0;
     index=(IndexPacket) 0;
     length=0;
-    for (y=0; y < (long) image->rows; y++)
+    for (y=0; y < (ssize_t) image->rows; y++)
     {
       q=QueueAuthenticPixels(image,0,y,image->columns,1,exception);
       if (q == (PixelPacket *) NULL)
         break;
       indexes=GetAuthenticIndexQueue(image);
-      for (x=0; x < (long) image->columns; x++)
+      for (x=0; x < (ssize_t) image->columns; x++)
       {
         if (length == 0)
           {
@@ -190,10 +190,10 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
               }
           }
         if (image->storage_class == PseudoClass)
-          indexes[x]=index;
-        q->blue=blue;
-        q->green=green;
-        q->red=red;
+          SetPixelIndex(indexes+x,index);
+        SetPixelBlue(q,blue);
+        SetPixelGreen(q,green);
+        SetPixelRed(q,red);
         length--;
         q++;
       }
@@ -201,7 +201,8 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
         break;
       if (image->previous == (Image *) NULL)
         {
-          status=SetImageProgress(image,LoadImageTag,y,image->rows);
+          status=SetImageProgress(image,LoadImageTag,(MagickOffsetType) y,
+            image->rows);
           if (status == MagickFalse)
             break;
         }
@@ -269,10 +270,10 @@ static Image *ReadPIXImage(const ImageInfo *image_info,ExceptionInfo *exception)
 %
 %  The format of the RegisterPIXImage method is:
 %
-%      unsigned long RegisterPIXImage(void)
+%      size_t RegisterPIXImage(void)
 %
 */
-ModuleExport unsigned long RegisterPIXImage(void)
+ModuleExport size_t RegisterPIXImage(void)
 {
   MagickInfo
     *entry;
