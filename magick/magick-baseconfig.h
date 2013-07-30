@@ -47,7 +47,9 @@
 #endif
 
 /* Define if you have DJVU library */
-/* #undef DJVU_DELEGATE */
+#ifndef MAGICKCORE_DJVU_DELEGATE
+#define MAGICKCORE_DJVU_DELEGATE 1
+#endif
 
 /* Directory where ImageMagick documents live. */
 #ifndef MAGICKCORE_DOCUMENTATION_PATH
@@ -66,7 +68,9 @@
 #endif
 
 /* Define if you have FFTW library */
-/* #undef FFTW_DELEGATE */
+#ifndef MAGICKCORE_FFTW_DELEGATE
+#define MAGICKCORE_FFTW_DELEGATE 1
+#endif
 
 /* filter subdirectory. */
 #ifndef MAGICKCORE_FILTER_DIRNAME
@@ -1112,13 +1116,13 @@
 
 /* Directory where architecture-dependent files live. */
 #ifndef MAGICKCORE_LIBRARY_PATH
-#define MAGICKCORE_LIBRARY_PATH "/usr/lib/ImageMagick-6.8.5/"
+#define MAGICKCORE_LIBRARY_PATH "/usr/lib/ImageMagick-6.8.6/"
 #endif
 
 /* Subdirectory of lib where ImageMagick architecture dependent files are
    installed */
 #ifndef MAGICKCORE_LIBRARY_RELATIVE_PATH
-#define MAGICKCORE_LIBRARY_RELATIVE_PATH "ImageMagick-6.8.5"
+#define MAGICKCORE_LIBRARY_RELATIVE_PATH "ImageMagick-6.8.6"
 #endif
 
 /* Binaries in libraries path base name (will be during install linked to bin)
@@ -1180,7 +1184,9 @@
 /* #undef NO_MINUS_C_MINUS_O */
 
 /* Define if you have OPENEXR library */
-/* #undef OPENEXR_DELEGATE */
+#ifndef MAGICKCORE_OPENEXR_DELEGATE
+#define MAGICKCORE_OPENEXR_DELEGATE 1
+#endif
 
 /* Name of package */
 #ifndef MAGICKCORE_PACKAGE
@@ -1199,7 +1205,7 @@
 
 /* Define to the full name and version of this package. */
 #ifndef MAGICKCORE_PACKAGE_STRING
-#define MAGICKCORE_PACKAGE_STRING "ImageMagick 6.8.5-6"
+#define MAGICKCORE_PACKAGE_STRING "ImageMagick 6.8.6-6"
 #endif
 
 /* Define to the one symbol short name of this package. */
@@ -1214,7 +1220,7 @@
 
 /* Define to the version of this package. */
 #ifndef MAGICKCORE_PACKAGE_VERSION
-#define MAGICKCORE_PACKAGE_VERSION "6.8.5-6"
+#define MAGICKCORE_PACKAGE_VERSION "6.8.6-6"
 #endif
 
 /* Define if you have PANGOCAIRO library */
@@ -1426,11 +1432,13 @@
 
 /* Version number of package */
 #ifndef MAGICKCORE_VERSION
-#define MAGICKCORE_VERSION "6.8.5-6"
+#define MAGICKCORE_VERSION "6.8.6-6"
 #endif
 
 /* Define if you have WEBP library */
-/* #undef WEBP_DELEGATE */
+#ifndef MAGICKCORE_WEBP_DELEGATE
+#define MAGICKCORE_WEBP_DELEGATE 1
+#endif
 
 /* Define to use the Windows GDI32 library */
 /* #undef WINGDI32_DELEGATE */

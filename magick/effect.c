@@ -1027,6 +1027,10 @@ MagickExport Image *DespeckleImage(const Image *image,ExceptionInfo *exception)
   MagickBooleanType
     status;
 
+  MemoryInfo
+    *buffer_info,
+    *pixel_info;
+
   register ssize_t
     i;
 
@@ -1065,17 +1069,20 @@ MagickExport Image *DespeckleImage(const Image *image,ExceptionInfo *exception)
     Allocate image buffer.
   */
   length=(size_t) ((image->columns+2)*(image->rows+2));
-  pixels=(Quantum *) AcquireQuantumMemory(length,sizeof(*pixels));
-  buffer=(Quantum *) AcquireQuantumMemory(length,sizeof(*pixels));
-  if ((pixels == (Quantum *) NULL) || (buffer == (Quantum *) NULL))
+  pixel_info=AcquireVirtualMemory(length,sizeof(*pixels));
+  buffer_info=AcquireVirtualMemory(length,sizeof(*buffer));
+  if ((pixel_info == (MemoryInfo *) NULL) ||
+      (buffer_info == (MemoryInfo *) NULL))
     {
-      if (buffer != (Quantum *) NULL)
-        buffer=(Quantum *) RelinquishMagickMemory(buffer);
-      if (pixels != (Quantum *) NULL)
-        pixels=(Quantum *) RelinquishMagickMemory(pixels);
+      if (buffer_info != (MemoryInfo *) NULL)
+        buffer_info=RelinquishVirtualMemory(buffer_info);
+      if (pixel_info != (MemoryInfo *) NULL)
+        pixel_info=RelinquishVirtualMemory(pixel_info);
       despeckle_image=DestroyImage(despeckle_image);
       ThrowImageException(ResourceLimitError,"MemoryAllocationFailed");
     }
+  pixels=(Quantum *) GetVirtualMemoryBlob(pixel_info);
+  buffer=(Quantum *) GetVirtualMemoryBlob(buffer_info);
   /*
     Reduce speckle in the image.
   */
@@ -1189,8 +1196,8 @@ MagickExport Image *DespeckleImage(const Image *image,ExceptionInfo *exception)
   }
   despeckle_view=DestroyCacheView(despeckle_view);
   image_view=DestroyCacheView(image_view);
-  buffer=(Quantum *) RelinquishMagickMemory(buffer);
-  pixels=(Quantum *) RelinquishMagickMemory(pixels);
+  buffer_info=RelinquishVirtualMemory(buffer_info);
+  pixel_info=RelinquishVirtualMemory(pixel_info);
   despeckle_image->type=image->type;
   if (status == MagickFalse)
     despeckle_image=DestroyImage(despeckle_image);
@@ -1362,8 +1369,8 @@ MagickExport Image *EmbossImage(const Image *image,const double radius,
       kernel_info->values[i]=(double) (((u < 0) || (v < 0) ? -8.0 :
         8.0)*exp(-((double) u*u+v*v)/(2.0*MagickSigma*MagickSigma))/
         (2.0*MagickPI*MagickSigma*MagickSigma));
-      if (u == k)
-        kernel_info->values[i]=v == k ? 1.0 : 0.0;
+      if (u != k)
+        kernel_info->values[i]=0.0;
       i++;
     }
     k--;
@@ -1378,7 +1385,8 @@ MagickExport Image *EmbossImage(const Image *image,const double radius,
     kernel_info,UndefinedCompositeOp,0.0,exception);
   kernel_info=DestroyKernelInfo(kernel_info);
   if (emboss_image != (Image *) NULL)
-    (void) EqualizeImage(emboss_image);
+    (void) EqualizeImageChannel(emboss_image,(ChannelType)
+      (AllChannels &~ SyncChannels));
   return(emboss_image);
 }
 
@@ -3975,7 +3983,8 @@ MagickExport Image *UnsharpMaskImageChannel(const Image *image,
   if (image->debug != MagickFalse)
     (void) LogMagickEvent(TraceEvent,GetMagickModule(),"%s",image->filename);
   assert(exception != (ExceptionInfo *) NULL);
-  unsharp_image=BlurImageChannel(image,channel,radius,sigma,exception);
+  unsharp_image=BlurImageChannel(image,channel &~ SyncChannels,radius,sigma,
+    exception);
   if (unsharp_image == (Image *) NULL)
     return((Image *) NULL);
   quantum_threshold=(MagickRealType) QuantumRange*threshold;

@@ -60,8 +60,10 @@
 #include "magick/exception-private.h"
 #include "magick/memory_.h"
 #include "magick/memory-private.h"
+#include "magick/resource_.h"
 #include "magick/semaphore.h"
 #include "magick/string_.h"
+#include "magick/utility-private.h"
 
 /*
   Define declarations.
@@ -104,7 +106,37 @@ typedef struct _DataSegmentInfo
     *next;
 } DataSegmentInfo;
 
-typedef struct _MemoryInfo
+typedef struct _MagickMemoryMethods
+{
+  AcquireMemoryHandler
+    acquire_memory_handler;
+
+  ResizeMemoryHandler
+    resize_memory_handler;
+
+  DestroyMemoryHandler
+    destroy_memory_handler;
+} MagickMemoryMethods;
+
+struct _MemoryInfo
+{
+  char
+    filename[MaxTextExtent];
+
+  MagickBooleanType
+    mapped;
+
+  size_t
+    length;
+
+  void
+    *blob;
+
+  size_t
+    signature;
+};
+
+typedef struct _MemoryPool
 {
   size_t
     allocation;
@@ -118,20 +150,7 @@ typedef struct _MemoryInfo
   DataSegmentInfo
     *segments[MaxSegments],
     segment_pool[MaxSegments];
-} MemoryInfo;
-
-typedef struct _MagickMemoryMethods
-{
-  AcquireMemoryHandler
-    acquire_memory_handler;
-
-  ResizeMemoryHandler
-    resize_memory_handler;
-
-  DestroyMemoryHandler
-    destroy_memory_handler;
-} MagickMemoryMethods;
-
+} MemoryPool;
 
 /*
   Global declarations.
@@ -145,8 +164,8 @@ static MagickMemoryMethods
   };
 
 #if defined(MAGICKCORE_ZERO_CONFIGURATION_SUPPORT)
-static MemoryInfo
-  memory_info;
+static MemoryPool
+  memory_pool;
 
 static SemaphoreInfo
   *memory_semaphore = (SemaphoreInfo *) NULL;
@@ -299,7 +318,7 @@ static inline void InsertFreeBlock(void *block,const size_t i)
 
   size=SizeOfBlock(block);
   previous=(void *) NULL;
-  next=memory_info.blocks[i];
+  next=memory_pool.blocks[i];
   while ((next != (void *) NULL) && (SizeOfBlock(next) < size))
   {
     previous=next;
@@ -310,7 +329,7 @@ static inline void InsertFreeBlock(void *block,const size_t i)
   if (previous != (void *) NULL)
     NextBlockInList(previous)=block;
   else
-    memory_info.blocks[i]=block;
+    memory_pool.blocks[i]=block;
   if (next != (void *) NULL)
     PreviousBlockInList(next)=block;
 }
@@ -324,7 +343,7 @@ static inline void RemoveFreeBlock(void *block,const size_t i)
   next=NextBlockInList(block);
   previous=PreviousBlockInList(block);
   if (previous == (void *) NULL)
-    memory_info.blocks[i]=next;
+    memory_pool.blocks[i]=next;
   else
     NextBlockInList(previous)=next;
   if (next != (void *) NULL)
@@ -344,15 +363,15 @@ static void *AcquireBlock(size_t size)
   */
   size=(size_t) (size+sizeof(size_t)+6*sizeof(size_t)-1) & -(4U*sizeof(size_t));
   i=AllocationPolicy(size);
-  block=memory_info.blocks[i];
+  block=memory_pool.blocks[i];
   while ((block != (void *) NULL) && (SizeOfBlock(block) < size))
     block=NextBlockInList(block);
   if (block == (void *) NULL)
     {
       i++;
-      while (memory_info.blocks[i] == (void *) NULL)
+      while (memory_pool.blocks[i] == (void *) NULL)
         i++;
-      block=memory_info.blocks[i];
+      block=memory_pool.blocks[i];
       if (i >= MaxBlocks)
         return((void *) NULL);
     }
@@ -379,7 +398,7 @@ static void *AcquireBlock(size_t size)
     }
   assert(size == SizeOfBlock(block));
   *BlockHeader(NextBlock(block))|=PreviousBlockBit;
-  memory_info.allocation+=size;
+  memory_pool.allocation+=size;
   return(block);
 }
 #endif
@@ -426,18 +445,18 @@ MagickExport void *AcquireMagickMemory(const size_t size)
             i;
 
           assert(2*sizeof(size_t) > (size_t) (~SizeMask));
-          (void) ResetMagickMemory(&memory_info,0,sizeof(memory_info));
-          memory_info.allocation=SegmentSize;
-          memory_info.blocks[MaxBlocks]=(void *) (-1);
+          (void) ResetMagickMemory(&memory_pool,0,sizeof(memory_pool));
+          memory_pool.allocation=SegmentSize;
+          memory_pool.blocks[MaxBlocks]=(void *) (-1);
           for (i=0; i < MaxSegments; i++)
           {
             if (i != 0)
-              memory_info.segment_pool[i].previous=
-                (&memory_info.segment_pool[i-1]);
+              memory_pool.segment_pool[i].previous=
+                (&memory_pool.segment_pool[i-1]);
             if (i != (MaxSegments-1))
-              memory_info.segment_pool[i].next=(&memory_info.segment_pool[i+1]);
+              memory_pool.segment_pool[i].next=(&memory_pool.segment_pool[i+1]);
           }
-          free_segments=(&memory_info.segment_pool[0]);
+          free_segments=(&memory_pool.segment_pool[0]);
         }
       UnlockSemaphoreInfo(memory_semaphore);
     }
@@ -490,6 +509,96 @@ MagickExport void *AcquireQuantumMemory(const size_t count,const size_t quantum)
       return((void *) NULL);
     }
   return(AcquireMagickMemory(size));
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   A c q u i r e V i r t u a l M e m o r y                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  AcquireVirtualMemory() allocates a pointer to a block of memory at least size
+%  bytes suitably aligned for any use.
+%
+%  The format of the AcquireVirtualMemory method is:
+%
+%      MemoryInfo *AcquireVirtualMemory(const size_t count,const size_t quantum)
+%
+%  A description of each parameter follows:
+%
+%    o count: the number of quantum elements to allocate.
+%
+%    o quantum: the number of bytes in each quantum.
+%
+*/
+MagickExport MemoryInfo *AcquireVirtualMemory(const size_t count,
+  const size_t quantum)
+{
+  MemoryInfo
+    *memory_info;
+
+  size_t
+    length;
+
+  length=count*quantum;
+  if ((count == 0) || (quantum != (length/count)))
+    {
+      errno=ENOMEM;
+      return((MemoryInfo *) NULL);
+    }
+  memory_info=(MemoryInfo *) MagickAssumeAligned(AcquireAlignedMemory(1,
+    sizeof(*memory_info)));
+  if (memory_info == (MemoryInfo *) NULL)
+    ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+  (void) ResetMagickMemory(memory_info,0,sizeof(*memory_info));
+  memory_info->length=length;
+  memory_info->signature=MagickSignature;
+  if (AcquireMagickResource(MemoryResource,length) != MagickFalse)
+    {
+      memory_info->blob=AcquireMagickMemory(length);
+      if (memory_info->blob == NULL)
+        RelinquishMagickResource(MemoryResource,length);
+    }
+  if ((memory_info->blob == NULL) &&
+      (AcquireMagickResource(MapResource,length) != MagickFalse))
+    {
+      /*
+        Heap memory failed, try anonymous memory mapping.
+      */
+      memory_info->mapped=MagickTrue;
+      memory_info->blob=MapBlob(-1,IOMode,0,length);
+      if (memory_info->blob == NULL)
+        RelinquishMagickResource(MapResource,length);
+    }
+  if (memory_info->blob == NULL)
+    {
+      int
+        file;
+
+      /*
+        Anonymous memory mapping failed, try file-backed memory mapping.
+      */
+      file=AcquireUniqueFileResource(memory_info->filename);
+      if (file != -1)
+        {
+          if ((lseek(file,length-1,SEEK_SET) >= 0) && (write(file,"",1) == 1))
+            {
+              memory_info->mapped=MagickTrue;
+              memory_info->blob=MapBlob(file,IOMode,0,length);
+              if (memory_info->blob != NULL)
+                (void) AcquireMagickResource(MapResource,length);
+            }
+          (void) close(file);
+        }
+    }
+  if (memory_info->blob == NULL)
+    return(RelinquishVirtualMemory(memory_info));
+  return(memory_info);
 }
 
 /*
@@ -579,15 +688,15 @@ MagickExport void DestroyMagickMemory(void)
     AcquireSemaphoreInfo(&memory_semaphore);
   LockSemaphoreInfo(memory_semaphore);
   UnlockSemaphoreInfo(memory_semaphore);
-  for (i=0; i < (ssize_t) memory_info.number_segments; i++)
-    if (memory_info.segments[i]->mapped == MagickFalse)
+  for (i=0; i < (ssize_t) memory_pool.number_segments; i++)
+    if (memory_pool.segments[i]->mapped == MagickFalse)
       memory_methods.destroy_memory_handler(
-        memory_info.segments[i]->allocation);
+        memory_pool.segments[i]->allocation);
     else
-      (void) UnmapBlob(memory_info.segments[i]->allocation,
-        memory_info.segments[i]->length);
+      (void) UnmapBlob(memory_pool.segments[i]->allocation,
+        memory_pool.segments[i]->length);
   free_segments=(DataSegmentInfo *) NULL;
-  (void) ResetMagickMemory(&memory_info,0,sizeof(memory_info));
+  (void) ResetMagickMemory(&memory_pool,0,sizeof(memory_pool));
   DestroySemaphoreInfo(&memory_semaphore);
 #endif
 }
@@ -637,7 +746,7 @@ static MagickBooleanType ExpandHeap(size_t size)
     *segment;
 
   blocksize=((size+12*sizeof(size_t))+SegmentSize-1) & -SegmentSize;
-  assert(memory_info.number_segments < MaxSegments);
+  assert(memory_pool.number_segments < MaxSegments);
   segment=MapBlob(-1,IOMode,0,blocksize);
   mapped=segment != (void *) NULL ? MagickTrue : MagickFalse;
   if (segment == (void *) NULL)
@@ -650,11 +759,11 @@ static MagickBooleanType ExpandHeap(size_t size)
   segment_info->length=blocksize;
   segment_info->allocation=segment;
   segment_info->bound=(char *) segment+blocksize;
-  i=(ssize_t) memory_info.number_segments-1;
-  for ( ; (i >= 0) && (memory_info.segments[i]->allocation > segment); i--)
-    memory_info.segments[i+1]=memory_info.segments[i];
-  memory_info.segments[i+1]=segment_info;
-  memory_info.number_segments++;
+  i=(ssize_t) memory_pool.number_segments-1;
+  for ( ; (i >= 0) && (memory_pool.segments[i]->allocation > segment); i--)
+    memory_pool.segments[i+1]=memory_pool.segments[i];
+  memory_pool.segments[i+1]=segment_info;
+  memory_pool.number_segments++;
   size=blocksize-12*sizeof(size_t);
   block=(char *) segment_info->allocation+4*sizeof(size_t);
   *BlockHeader(block)=size | PreviousBlockBit;
@@ -708,6 +817,35 @@ MagickExport void GetMagickMemoryMethods(
   *acquire_memory_handler=memory_methods.acquire_memory_handler;
   *resize_memory_handler=memory_methods.resize_memory_handler;
   *destroy_memory_handler=memory_methods.destroy_memory_handler;
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   G e t V i r t u a l M e m o r y B l o b                                   %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetVirtualMemoryBlob() returns the virtual memory blob associated with the
+%  specified MemoryInfo structure.
+%
+%  The format of the GetVirtualMemoryBlob method is:
+%
+%      void *GetVirtualMemoryBlob(const MemoryInfo *memory_info)
+%
+%  A description of each parameter follows:
+%
+%    o memory_info: The MemoryInfo structure.
+*/
+MagickExport void *GetVirtualMemoryBlob(const MemoryInfo *memory_info)
+{
+  assert(memory_info != (const MemoryInfo *) NULL);
+  assert(memory_info->signature == MagickSignature);
+  return(memory_info->blob);
 }
 
 /*
@@ -820,6 +958,53 @@ MagickExport void *RelinquishMagickMemory(void *memory)
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%   R e l i n q u i s h V i r t u a l M e m o r y                             %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  RelinquishVirtualMemory() frees memory acquired with AcquireVirtualMemory().
+%
+%  The format of the RelinquishVirtualMemory method is:
+%
+%      MemoryInfo *RelinquishVirtualMemory(MemoryInfo *memory_info)
+%
+%  A description of each parameter follows:
+%
+%    o memory_info: A pointer to a block of memory to free for reuse.
+%
+*/
+MagickExport MemoryInfo *RelinquishVirtualMemory(MemoryInfo *memory_info)
+{
+  assert(memory_info != (MemoryInfo *) NULL);
+  assert(memory_info->signature == MagickSignature);
+  if (memory_info->blob != (void *) NULL)
+    {
+      if (memory_info->mapped == MagickFalse)
+        {
+          memory_info->blob=RelinquishMagickMemory(memory_info->blob);
+          RelinquishMagickResource(MemoryResource,memory_info->length);
+        }
+      else
+        {
+          (void) UnmapBlob(memory_info->blob,memory_info->length);
+          RelinquishMagickResource(MapResource,memory_info->length);
+          memory_info->blob=NULL;
+          if (*memory_info->filename != '\0')
+            (void) RelinquishUniqueFileResource(memory_info->filename);
+        }
+    }
+  memory_info->signature=(~MagickSignature);
+  memory_info=(MemoryInfo *) RelinquishAlignedMemory(memory_info);
+  return(memory_info);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
 %   R e s e t M a g i c k M e m o r y                                         %
 %                                                                             %
 %                                                                             %
@@ -835,11 +1020,11 @@ MagickExport void *RelinquishMagickMemory(void *memory)
 %
 %  A description of each parameter follows:
 %
-%    o memory: A pointer to a memory allocation.
+%    o memory: a pointer to a memory allocation.
 %
-%    o byte: Set the memory to this value.
+%    o byte: set the memory to this value.
 %
-%    o size: Size of the memory to reset.
+%    o size: size of the memory to reset.
 %
 */
 MagickExport void *ResetMagickMemory(void *memory,int byte,const size_t size)
@@ -890,7 +1075,7 @@ static inline void *ResizeBlock(void *block,size_t size)
     (void) memcpy(memory,block,size);
   else
     (void) memcpy(memory,block,SizeOfBlock(block)-sizeof(size_t));
-  memory_info.allocation+=size;
+  memory_pool.allocation+=size;
   return(memory);
 }
 #endif

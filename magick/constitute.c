@@ -634,13 +634,8 @@ MagickExport Image *ReadImage(const ImageInfo *image_info,
         }
     }
   if (GetBlobError(image) != MagickFalse)
-    {
-      ThrowFileException(exception,FileOpenError,
-        "AnErrorHasOccurredReadingFromFile",read_info->filename);
-      image=DestroyImageList(image);
-      read_info=DestroyImageInfo(read_info);
-      return((Image *) NULL);
-    }
+    ThrowFileException(exception,FileOpenError,
+      "AnErrorHasOccurredReadingFromFile",read_info->filename);
   for (next=image; next != (Image *) NULL; next=GetNextImageInList(next))
   {
     char
@@ -1101,15 +1096,7 @@ MagickExport MagickBooleanType WriteImage(const ImageInfo *image_info,
             image->endian=(*(char *) &lsb_first) == 1 ? LSBEndian : MSBEndian;
          }
     }
-  if (IsGrayColorspace(image->colorspace) != MagickFalse)
-    {
-      /*
-        sRGB masquerading as a grayscale image?
-      */
-      if (IsGrayImage(image,&image->exception) == MagickFalse)
-        (void) SetImageColorspace(image,sRGBColorspace);
-    }
-  (void) SyncImageProfiles(image);
+ (void) SyncImageProfiles(image);
   option=GetImageOption(image_info,"delegate:bimodal");
   if ((option != (const char *) NULL) &&
       (IsMagickTrue(option) != MagickFalse) &&

@@ -111,6 +111,7 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
     *image;
 
   MagickBooleanType
+    split,
     status;
 
   register ssize_t
@@ -155,10 +156,11 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
   if (gravity != (char *) NULL)
     draw_info->gravity=(GravityType) ParseCommandOption(MagickGravityOptions,
       MagickFalse,gravity);
+  split=MagickFalse;
   if (image->columns == 0)
     {
       text=AcquireString(caption);
-      i=FormatMagickCaption(image,draw_info,MagickFalse,&metrics,&text);
+      i=FormatMagickCaption(image,draw_info,split,&metrics,&text);
       (void) CloneString(&draw_info->text,text);
       text=DestroyString(text);
       (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
@@ -171,8 +173,9 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
     }
   if (image->rows == 0)
     {
+      split=MagickTrue;
       text=AcquireString(caption);
-      i=FormatMagickCaption(image,draw_info,MagickFalse,&metrics,&text);
+      i=FormatMagickCaption(image,draw_info,split,&metrics,&text);
       (void) CloneString(&draw_info->text,text);
       text=DestroyString(text);
       (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
@@ -195,7 +198,7 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
       for ( ; ; draw_info->pointsize*=2.0)
       {
         text=AcquireString(caption);
-        i=FormatMagickCaption(image,draw_info,MagickFalse,&metrics,&text);
+        i=FormatMagickCaption(image,draw_info,split,&metrics,&text);
         (void) CloneString(&draw_info->text,text);
         text=DestroyString(text);
         (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
@@ -208,20 +211,20 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
         height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
         if ((image->columns != 0) && (image->rows != 0))
           {
-            if ((width > image->columns) && (height > image->rows))
+            if ((width >= image->columns) && (height >= image->rows))
               break;
           }
         else
-          if (((image->columns != 0) && (width > image->columns)) ||
-              ((image->rows != 0) && (height > image->rows)))
+          if (((image->columns != 0) && (width >= image->columns)) ||
+              ((image->rows != 0) && (height >= image->rows)))
             break;
       }
       high=draw_info->pointsize;
-      for (low=1.0; (high-low) > 1.0; )
+      for (low=1.0; (high-low) > 0.5; )
       {
         draw_info->pointsize=(low+high)/2.0;
         text=AcquireString(caption);
-        i=FormatMagickCaption(image,draw_info,MagickFalse,&metrics,&text);
+        i=FormatMagickCaption(image,draw_info,split,&metrics,&text);
         (void) CloneString(&draw_info->text,text);
         text=DestroyString(text);
         (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
@@ -233,22 +236,22 @@ static Image *ReadCAPTIONImage(const ImageInfo *image_info,
         height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
         if ((image->columns != 0) && (image->rows != 0))
           {
-            if ((width <= image->columns) && (height <= image->rows))
-              low=draw_info->pointsize+1.0;
+            if ((width < image->columns) && (height < image->rows))
+              low=draw_info->pointsize+0.5;
             else
-              high=draw_info->pointsize-1.0;
+              high=draw_info->pointsize-0.5;
           }
         else
           if (((image->columns != 0) && (width < image->columns)) ||
               ((image->rows != 0) && (height < image->rows)))
-            low=draw_info->pointsize+1.0;
+            low=draw_info->pointsize+0.5;
           else
-            high=draw_info->pointsize-1.0;
+            high=draw_info->pointsize-0.5;
       }
-      draw_info->pointsize=(low+high)/2.0;
+      draw_info->pointsize=(low+high)/2.0-0.5;
     }
   (void) CloneString(&draw_info->text,caption);
-  i=FormatMagickCaption(image,draw_info,MagickFalse,&metrics,&caption);
+  i=FormatMagickCaption(image,draw_info,split,&metrics,&caption);
   if (SetImageBackgroundColor(image) == MagickFalse)
     {
       InheritException(exception,&image->exception);

@@ -145,6 +145,7 @@ MagickExport MagickBooleanType CloneImageProperties(Image *image,
   image->filter=clone_image->filter;
   image->blur=clone_image->blur;
   image->fuzz=clone_image->fuzz;
+  image->intensity=clone_image->intensity;
   image->interlace=clone_image->interlace;
   image->interpolate=clone_image->interpolate;
   image->endian=clone_image->endian;
@@ -2509,17 +2510,11 @@ MagickExport const char *GetMagickProperty(const ImageInfo *image_info,
         }
       if (LocaleCompare("colorspace",property) == 0)
         {
-          ColorspaceType
-            colorspace;
-
           /*
             Image storage class and colorspace.
           */
-          colorspace=image->colorspace;
-          if (IsGrayImage(image,&image->exception) != MagickFalse)
-            colorspace=GRAYColorspace;
           string=CommandOptionToMnemonic(MagickColorspaceOptions,(ssize_t)
-            colorspace);
+            image->colorspace);
           break;
         }
       if (LocaleCompare("copyright",property) == 0)

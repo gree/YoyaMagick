@@ -1366,7 +1366,7 @@ static MagickRealType FxGetSymbol(FxInfo *fx_info,const ChannelType channel,
           if (*p == '.')
             p++;
         }
-      if ((isalpha((int) *(p+1)) == 0) && (*p == 'p'))
+      if ((*p == 'p') && (isalpha((int) *(p+1)) == 0))
         {
           p++;
           if (*p == '{')
@@ -1438,6 +1438,7 @@ static MagickRealType FxGetSymbol(FxInfo *fx_info,const ChannelType channel,
     point.x,point.y,&pixel,exception);
   if ((strlen(p) > 2) &&
       (LocaleCompare(p,"intensity") != 0) &&
+      (LocaleCompare(p,"luma") != 0) &&
       (LocaleCompare(p,"luminance") != 0) &&
       (LocaleCompare(p,"hue") != 0) &&
       (LocaleCompare(p,"saturation") != 0) &&
@@ -1717,13 +1718,21 @@ static MagickRealType FxGetSymbol(FxInfo *fx_info,const ChannelType channel,
             ClampToQuantum(pixel.blue),&hue,&saturation,&lightness);
           return(lightness);
         }
+      if (LocaleCompare(symbol,"luma") == 0)
+        {
+          double
+            luma;
+
+          luma=0.212656*pixel.red+0.715158*pixel.green+0.072186*pixel.blue;
+          return(QuantumScale*luma);
+        }
       if (LocaleCompare(symbol,"luminance") == 0)
         {
           double
-            luminence;
+            luminance;
 
-          luminence=0.21267f*pixel.red+0.71516f*pixel.green+0.07217f*pixel.blue;
-          return(QuantumScale*luminence);
+          luminance=0.212656*pixel.red+0.715158*pixel.green+0.072186*pixel.blue;
+          return(QuantumScale*luminance);
         }
       break;
     }
@@ -4487,8 +4496,7 @@ MagickExport Image *SketchImage(const Image *image,const double radius,
   random_image=DestroyImage(random_image);
   if (blur_image == (Image *) NULL)
     return((Image *) NULL);
-  dodge_image=EdgeImage(blur_image,GetOptimalKernelWidth1D(radius,0.5),
-    exception);
+  dodge_image=EdgeImage(blur_image,radius,exception);
   blur_image=DestroyImage(blur_image);
   if (dodge_image == (Image *) NULL)
     return((Image *) NULL);
@@ -5314,8 +5322,8 @@ MagickExport Image *TintImage(const Image *image,const char *opacity,
         (weight*weight)));
       SetPixelRed(q,ClampToQuantum(pixel.red));
       weight=QuantumScale*GetPixelGreen(p)-0.5;
-      pixel.green=(MagickRealType) GetPixelGreen(p)+color_vector.green*(1.0-(4.0*
-        (weight*weight)));
+      pixel.green=(MagickRealType) GetPixelGreen(p)+color_vector.green*(1.0-
+        (4.0*(weight*weight)));
       SetPixelGreen(q,ClampToQuantum(pixel.green));
       weight=QuantumScale*GetPixelBlue(p)-0.5;
       pixel.blue=(MagickRealType) GetPixelBlue(p)+color_vector.blue*(1.0-(4.0*

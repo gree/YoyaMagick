@@ -1062,7 +1062,8 @@ static void ExportIntegerPixel(Image *image,const RectangleInfo *roi,
           break;
         for (x=0; x < (ssize_t) roi->width; x++)
         {
-          *q++=(unsigned int) ScaleQuantumToLong(ClampToQuantum(GetPixelIntensity(image,p)));
+          *q++=(unsigned int) ScaleQuantumToLong(ClampToQuantum(
+            GetPixelIntensity(image,p)));
           p++;
         }
       }
@@ -1175,7 +1176,8 @@ static void ExportIntegerPixel(Image *image,const RectangleInfo *roi,
           }
           case IndexQuantum:
           {
-            *q=(unsigned int) ScaleQuantumToLong(ClampToQuantum(GetPixelIntensity(image,p)));
+            *q=(unsigned int) ScaleQuantumToLong(ClampToQuantum(
+              GetPixelIntensity(image,p)));
             break;
           }
           default:
@@ -2063,12 +2065,14 @@ MagickExport void GetMagickPixelPacket(const Image *image,
 %
 %    Rec601Luma       0.298839R' + 0.586811G' + 0.114350B'
 %    Rec601Luminance  0.298839R + 0.586811G + 0.114350B
-%    Rec709Luma       0.21260R' + 0.71520G' + 0.07220B'
-%    Rec709Luminance  0.21260R + 0.71520G + 0.07220B
-%    Brightness       max(R, G, B)
-%    Lightness        (min(R, G, B) + max(R, G, B)) / 2.0
-%    RMS              (R'^2 + G'^2 + B'^2) / 3.0
-%    Average          (R' + G' + B') / 3.0
+%    Rec709Luma       0.212656R' + 0.715158G' + 0.072186B'
+%    Rec709Luminance  0.212656R + 0.715158G + 0.072186B
+%    Brightness       max(R', G', B')
+%    Lightness        (min(R', G', B') + max(R', G', B')) / 2.0
+%
+%    MS               (R^2 + G^2 + B^2) / 3.0
+%    RMS              sqrt(R^2 + G^2 + B^2) / 3.0
+%    Average          (R + G + B) / 3.0
 %
 %  The format of the GetPixelIntensity method is:
 %
@@ -2127,7 +2131,8 @@ MagickExport MagickRealType GetPixelIntensity(const Image *image,
     }
     case LightnessPixelIntensityMethod:
     {
-      intensity=MagickMin(MagickMin(red,green),blue);
+      intensity=(MagickMin(MagickMin(red,green),blue)+
+        MagickMax(MagickMax(red,green),blue))/2.0;
       break;
     }
     case MSPixelIntensityMethod:
@@ -2138,6 +2143,12 @@ MagickExport MagickRealType GetPixelIntensity(const Image *image,
     }
     case Rec601LumaPixelIntensityMethod:
     {
+      if (image->colorspace == RGBColorspace)
+        {
+          red=EncodePixelGamma(red);
+          green=EncodePixelGamma(green);
+          blue=EncodePixelGamma(blue);
+        }
       intensity=0.298839*red+0.586811*green+0.114350*blue;
       break;
     }
@@ -2155,7 +2166,13 @@ MagickExport MagickRealType GetPixelIntensity(const Image *image,
     case Rec709LumaPixelIntensityMethod:
     default:
     {
-      intensity=0.21260f*red+0.71520f*green+0.07220f*blue;
+      if (image->colorspace == RGBColorspace)
+        {
+          red=EncodePixelGamma(red);
+          green=EncodePixelGamma(green);
+          blue=EncodePixelGamma(blue);
+        }
+      intensity=0.212656*red+0.715158*green+0.072186*blue;
       break;
     }
     case Rec709LuminancePixelIntensityMethod:
@@ -2166,7 +2183,7 @@ MagickExport MagickRealType GetPixelIntensity(const Image *image,
           green=DecodePixelGamma(green);
           blue=DecodePixelGamma(blue);
         }
-      intensity=0.21260f*red+0.71520f*green+0.07220f*blue;
+      intensity=0.212656*red+0.715158*green+0.072186*blue;
       break;
     }
     case RMSPixelIntensityMethod:
@@ -4533,7 +4550,7 @@ MagickExport MagickBooleanType InterpolateMagickPixelPacket(const Image *image,
     {
       PointInfo
         delta,
-        luminance;
+        luma;
 
       p=GetCacheViewVirtualPixels(image_view,x_offset,y_offset,2,2,
         exception);
@@ -4547,11 +4564,9 @@ MagickExport MagickBooleanType InterpolateMagickPixelPacket(const Image *image,
         AlphaBlendMagickPixelPacket(image,p+i,indexes+i,pixels+i,alpha+i);
       delta.x=x-x_offset;
       delta.y=y-y_offset;
-      luminance.x=fabs(MagickPixelLuminance(pixels+0)-
-        MagickPixelLuminance(pixels+3));
-      luminance.y=fabs(MagickPixelLuminance(pixels+1)-
-        MagickPixelLuminance(pixels+2));
-      if (luminance.x < luminance.y)
+      luma.x=fabs(MagickPixelLuma(pixels+0)-MagickPixelLuma(pixels+3));
+      luma.y=fabs(MagickPixelLuma(pixels+1)-MagickPixelLuma(pixels+2));
+      if (luma.x < luma.y)
         {
           /*
             Diagonal 0-3 NW-SE.

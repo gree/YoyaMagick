@@ -85,7 +85,8 @@ typedef struct _IPLInfo
 static MagickBooleanType
   WriteIPLImage(const ImageInfo *,Image *);
 
-void increase (void *pixel, int byteType){
+/*
+static void increase (void *pixel, int byteType){
   switch(byteType){
     case 0:(*((unsigned char *) pixel))++; break;
     case 1:(*((signed int *) pixel))++; break;
@@ -94,6 +95,7 @@ void increase (void *pixel, int byteType){
     default:(*((unsigned int *) pixel))++; break;
   }
 }
+*/
 
 /*
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -162,7 +164,7 @@ static MagickBooleanType IsIPL(const unsigned char *magick,const size_t length)
  %
  */
 
-void SetHeaderFromIPL(Image *image, IPLInfo *ipl){
+static void SetHeaderFromIPL(Image *image, IPLInfo *ipl){
   image->columns = ipl->width;
   image->rows = ipl->height;
   image->depth = ipl->depth;

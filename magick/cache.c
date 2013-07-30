@@ -579,6 +579,29 @@ MagickExport void ClonePixelCacheMethods(Cache clone,const Cache cache)
 %
 */
 
+static inline void CopyPixels(PixelPacket *destination,
+  const PixelPacket *source,const MagickSizeType number_pixels)
+{
+#if !defined(MAGICKCORE_OPENMP_SUPPORT) || (MAGICKCORE_QUANTUM_DEPTH <= 8)
+  (void) memcpy(destination,source,(size_t) number_pixels*sizeof(*source));
+#else
+  {
+    register MagickOffsetType
+      i;
+
+    if ((number_pixels*sizeof(*source)) < MagickMaxBufferExtent)
+      {
+        (void) memcpy(destination,source,(size_t) number_pixels*
+          sizeof(*source));
+        return;
+      }
+    #pragma omp parallel for
+    for (i=0; i < (MagickOffsetType) number_pixels; i++)
+      destination[i]=source[i];
+  }
+#endif
+}
+
 static inline MagickSizeType MagickMin(const MagickSizeType x,
   const MagickSizeType y)
 {
@@ -624,8 +647,8 @@ static MagickBooleanType ClonePixelCacheRepository(
       /*
         Identical pixel cache morphology.
       */
-      (void) memcpy(clone_info->pixels,cache_info->pixels,cache_info->columns*
-        cache_info->rows*sizeof(*cache_info->pixels));
+      CopyPixels(clone_info->pixels,cache_info->pixels,cache_info->columns*
+        cache_info->rows);
       if (cache_info->active_index_channel != MagickFalse)
         (void) memcpy(clone_info->indexes,cache_info->indexes,
           cache_info->columns*cache_info->rows*sizeof(*cache_info->indexes));
@@ -4645,6 +4668,10 @@ static inline MagickBooleanType IsAuthenticPixelCache(
   MagickOffsetType
     offset;
 
+ 
+  /*
+    Does nexus pixels point directly to in-core cache pixels or is it buffered?
+  */
   if (cache_info->type == PingCache)
     return(MagickTrue);
   offset=(MagickOffsetType) nexus_info->region.y*cache_info->columns+

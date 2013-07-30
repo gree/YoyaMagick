@@ -174,6 +174,7 @@ static MagickBooleanType CompareUsage(void)
 WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
   int argc,char **argv,char **metadata,ExceptionInfo *exception)
 {
+#define CompareEpsilon  (1.0e-06)
 #define DefaultDissimilarityThreshold  0.31830988618379067154
 #define DefaultSimilarityThreshold  (-1.0)
 #define DestroyCompare() \
@@ -279,7 +280,7 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
   format=(char *) NULL;
   j=1;
   k=0;
-  metric=UndefinedMetric;
+  metric=UndefinedErrorMetric;
   NewImageStack();
   option=(char *) NULL;
   pend=MagickFalse;
@@ -988,6 +989,12 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
             channels,metric,&distortion,exception);
         else
           {
+            Image
+              *distort_image;
+
+            RectangleInfo
+              page;
+
             (void) CompositeImage(composite_image,CopyCompositeOp,
               reconstruct_image,offset.x,offset.y);
             difference_image=CompareImageChannels(image,composite_image,
@@ -998,6 +1005,22 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
                 difference_image->page.y=offset.y;
               }
             composite_image=DestroyImage(composite_image);
+            page.width=reconstruct_image->columns;
+            page.height=reconstruct_image->rows;
+            page.x=offset.x;
+            page.y=offset.y;
+            distort_image=CropImage(image,&page,exception);
+            if (distort_image != (Image *) NULL)
+              {
+                Image
+                  *sans_image;
+
+                sans_image=CompareImageChannels(distort_image,reconstruct_image,
+                  channels,metric,&distortion,exception);
+                distort_image=DestroyImage(distort_image);
+                if (sans_image != (Image *) NULL)
+                  sans_image=DestroyImage(sans_image);
+              }
           }
         if (difference_image != (Image *) NULL)
           {
@@ -1030,7 +1053,6 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
                   (reconstruct_image->rows != image->rows))
                 (void) FormatLocaleFile(stderr," @ %.20g,%.20g",(double)
                   difference_image->page.x,(double) difference_image->page.y);
-              (void) FormatLocaleFile(stderr,"\n");
               break;
             }
             case AbsoluteErrorMetric:
@@ -1042,7 +1064,6 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
                   (reconstruct_image->rows != image->rows))
                 (void) FormatLocaleFile(stderr," @ %.20g,%.20g",(double)
                   difference_image->page.x,(double) difference_image->page.y);
-              (void) FormatLocaleFile(stderr,"\n");
               break;
             }
             case MeanErrorPerPixelMetric:
@@ -1054,10 +1075,9 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
                   (reconstruct_image->rows != image->rows))
                 (void) FormatLocaleFile(stderr," @ %.20g,%.20g",(double)
                   difference_image->page.x,(double) difference_image->page.y);
-              (void) FormatLocaleFile(stderr,"\n");
               break;
             }
-            case UndefinedMetric:
+            case UndefinedErrorMetric:
               break;
           }
         }
@@ -1197,7 +1217,7 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
                 image->error.normalized_maximum_error);
               break;
             }
-            case UndefinedMetric:
+            case UndefinedErrorMetric:
               break;
           }
           channel_distortion=(double *) RelinquishMagickMemory(
@@ -1214,11 +1234,19 @@ WandExport MagickBooleanType CompareImageCommand(ImageInfo *image_info,
             ThrowCompareException(ResourceLimitError,"MemoryAllocationFailed",
               GetExceptionMessage(errno));
           (void) ConcatenateString(&(*metadata),text);
-          (void) ConcatenateString(&(*metadata),"\n");
           text=DestroyString(text);
         }
       difference_image=DestroyImageList(difference_image);
     }
   DestroyCompare();
-  return((status != 0) || (distortion != 0.0) ? MagickTrue : MagickFalse);
+  if ((metric == NormalizedCrossCorrelationErrorMetric) ||
+      (metric == UndefinedErrorMetric))
+    {
+      if (fabs(distortion-1.0) > CompareEpsilon)
+        return(MagickTrue);
+    }
+  else
+    if (fabs(distortion) > CompareEpsilon)
+      return(MagickTrue);
+  return(status != 0 ? MagickTrue : MagickFalse);
 }

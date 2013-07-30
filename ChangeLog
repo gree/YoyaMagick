@@ -1,10 +1,160 @@
-2013-05-09  6.8.5-6 Cristy  <quetzlzacatenango@image...>
+2013-07-15  6.8.6-6 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-6, SVN revision 12718.
+
+2013-07-16  6.8.6-6 Cristy  <quetzlzacatenango@image...>
+  * JPEG ICC folor profile requires null after ICC tag (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23756).
+  * Don't sync channels for the -unsharp option (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23740).
+  * Magick++ version so bump (reference
+   http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23752).
+
+2013-07-15  6.8.6-5 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-5, SVN revision 12684.
+
+2013-07-12  6.8.6-5 Dirk Lemstra <dirk@snakeware...>
+  * Fixed calculation of pixel area count limit flag ('@').
+  * Added option to enable OpenMP to configure.exe and improved creation
+    of x64 project file
+
+2013-07-10  6.8.6-5 Cristy  <quetzlzacatenango@image...>
+  * compare exits with a non-zero exit code when no error (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23722).
+  * correct calculaton of quantization error (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?t=23734).
+  * correct quantize tree walking mistake for RiemersmaDither (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23735).
+
+2013-07-10  6.8.6-4 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-4, SVN revision 12661.
+
+2013-07-09  6.8.6-4 Dirk Lemstra <dirk@snakeware...>
+  * Added combineImages, evaluateImages, mergeImageLayers, optimizeImageLayers
+    optimizePlusImageLayers and separateImages to STL.h (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23699).
+  * Added support for the fill area flag ('^') and the pixel area
+    count limit flag ('@') to the Geometry class of Magick++ (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23704).
+  * Enabled automatic linking for static Magick++ in Visual Studio (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23558).
+
+2013-07-01  6.8.6-4 Cristy  <quetzlzacatenango@image...>
+  * Thumb property need Height, not height (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23661).
+  * White pixels previously were written as black for the CIP format (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23677).
+  * Rec709Luma is sRGB compatible (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23693).
+  * Colorspace RGB is linear, gamma is 1.0 (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23708).
+
+2013-07-01  6.8.6-3 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-3, SVN revision 12579.
+
+2013-06-26  6.8.6-3 Cristy  <quetzlzacatenango@image...>
+  * Improve HCL to RGB roundtrip (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=22384).
+  * Prefer external log configuration file to built-in (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23640).
+  * Do not log in the IsLinkedListEmpty() method to prevent overflow (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23640).
+  * Fix bug loading TGA image with 32-bit palette (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=17889).
+  * Color profiles are no longer corrupted for the JPEG format (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23651).
+  * Repair problem with -emboss / -equalize problem (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23643).
+
+2013-06-24  6.8.6-2 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-2, SVN revision 12561.
+
+2013-06-21  6.8.6-2 Cristy  <quetzlzacatenango@image...>
+  * Fix memory corruption in the MorphologyApply() method.
+
+2013-06-20  6.8.6.2 Glenn Randers-Pehrson <glennrp@image...>
+  * Quiet two warnings about uninitialized variables in coders/png.c
+
+2013-06-20  6.8.6-1 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-1, SVN revision 12509.
+
+2013-06-16  6.8.6-1 Cristy  <quetzlzacatenango@image...>
+  * Don't decompand RGB for the -modulate option.
+  * Improve LCHab and LCHuv roundtrip to / from sRGB (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=23596).
+
+2013-06-16  6.8.6-0 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-0, SVN revision 12475.
+
+2013-06-10  6.8.6-0 Cristy  <quetzlzacatenango@image...>
+  * Clone image->intensity in CloneImageProperties() (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23569).
+  * Split test suite into smaller tests (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23577).
+  * Undercolor rectangle was off by one pixel (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23574).
+  * Don't msync() for a read-only memory-mapped mode (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23531).
+  * BlurChannelImage() no longer faults for certain CMYK images (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23581).
+  * Reduce memory requirements for large BMP images.
+
+2013-06-05  6.8.5-10 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.5-10, SVN revision 12419.
+
+2013-06-02  6.8.5-10 Cristy  <quetzlzacatenango@image...>
+  * Improve caption formatting (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23522).
+
+2013-06-01  6.8.5-9 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.5-9, SVN revision 12401.
+
+2013-05-30  6.8.5-9 Cristy  <quetzlzacatenango@image...>
+  * Caption no longer clips long words (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23504).
+  * The lightness intensity is (min(R',G',B')+max(R',G',B'))/2.0 (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23517).
+
+2013-05-25  6.8.5-8 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.5-8, SVN revision 12362.
+
+2013-05-23  6.8.5-8 Glenn Randers-Pehrson <glennrp@image...>
+  * Stopped a "-fsanitize-address" warning in the JNG coder.
+
+2013-05-20  6.8.5-8 Cristy  <quetzlzacatenango@image...>
+  * The -white-threshold option is symetrical with -black-threshold (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23441);
+  * Fix multi-line PNM comments (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23442).
+  * The -format option should not automatically append a newline since the
+    user can specify a newline in the formatting expression.
+  * The -level option is no longer returning a darkened image (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23479).
+
+2013-05-20  6.8.5-7 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.5-7, SVN revision 12310.
+
+2013-05-14  6.8.5-7 Glenn Randers-Pehrson <glennrp@image...>
+  * Recognize PNG iCCP chunks that contain the sRGB profile and replace
+    them with the PNG sRGB chunk.  Use "-define png:preserve-iCCP" to
+    get the previous behavior, of simply copying the iCCP chunk.
+
+2013-05-11  6.8.5-7 Cristy  <quetzlzacatenango@image...>
   * Sometimes an sRGB image is masquerading as grayscale (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23370).
-  * The stream utility no longer faults when exporting float pixels (reference
-    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23394).
   * Labels no longer overflow (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=22964).
+  * If more then one exception, return the highest security exception.
+  * A grayscale image returns a color JPEG for -type TrueColor (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=23421).
+  * Read PAM comment (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23442).
+
+2013-05-10  6.8.5-6 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.5-6, SVN revision 12257.
+
+2013-05-09  6.8.5-6 Cristy  <quetzlzacatenango@image...>
+  * The stream utility no longer faults when exporting float pixels (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23394).
 
 2013-05-08  6.8.5-5 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.5-5, SVN revision 12227.
@@ -24,7 +174,7 @@
   * Let user override the TIFF rows per strip  (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23307).
   * Fix transient bug in the -separate option (reference
-   http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23335).
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23335).
 
 2013-05-01  6.8.5-4 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.5-4, SVN revision 12089.

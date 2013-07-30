@@ -106,7 +106,7 @@ static const ColorMapInfo
     { "cyan", 0, 255, 255, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "blue", 0, 0, 255, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "yellow", 255, 255, 0, 1, SVGCompliance | X11Compliance | XPMCompliance },
-    { "white", 255, 255, 255, 1, SVGCompliance | X11Compliance },
+    { "white", 255, 255, 255, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "AliceBlue", 240, 248, 255, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "AntiqueWhite", 250, 235, 215, 1, SVGCompliance | X11Compliance | XPMCompliance },
     { "AntiqueWhite1", 255, 239, 219, 1, X11Compliance },
@@ -2282,9 +2282,8 @@ static MagickBooleanType LoadColorLists(const char *filename,
     i;
 
   /*
-    Load built-in color map.
+    Load external color map.
   */
-  status=MagickFalse;
   if (color_list == (LinkedListInfo *) NULL)
     {
       color_list=NewLinkedList(0);
@@ -2295,6 +2294,19 @@ static MagickBooleanType LoadColorLists(const char *filename,
           return(MagickFalse);
         }
     }
+  status=MagickTrue;
+  options=GetConfigureOptions(filename,exception);
+  option=(const StringInfo *) GetNextValueInLinkedList(options);
+  while (option != (const StringInfo *) NULL)
+  {
+    status|=LoadColorList((const char *) GetStringInfoDatum(option),
+      GetStringInfoPath(option),0,exception);
+    option=(const StringInfo *) GetNextValueInLinkedList(options);
+  }
+  options=DestroyConfigureOptions(options);
+  /*
+    Load built-in color map.
+  */
   for (i=0; i < (ssize_t) (sizeof(ColorMap)/sizeof(*ColorMap)); i++)
   {
     ColorInfo
@@ -2326,23 +2338,11 @@ static MagickBooleanType LoadColorLists(const char *filename,
     color_info->compliance=(ComplianceType) p->compliance;
     color_info->exempt=MagickTrue;
     color_info->signature=MagickSignature;
-    status=AppendValueToLinkedList(color_list,color_info);
+    status|=AppendValueToLinkedList(color_list,color_info);
     if (status == MagickFalse)
       (void) ThrowMagickException(exception,GetMagickModule(),
         ResourceLimitError,"MemoryAllocationFailed","`%s'",color_info->name);
   }
-  /*
-    Load external color map.
-  */
-  options=GetConfigureOptions(filename,exception);
-  option=(const StringInfo *) GetNextValueInLinkedList(options);
-  while (option != (const StringInfo *) NULL)
-  {
-    status|=LoadColorList((const char *) GetStringInfoDatum(option),
-      GetStringInfoPath(option),0,exception);
-    option=(const StringInfo *) GetNextValueInLinkedList(options);
-  }
-  options=DestroyConfigureOptions(options);
   return(status != 0 ? MagickTrue : MagickFalse);
 }
 

@@ -174,7 +174,6 @@ WandExport MagickBooleanType MagickCommandGenesis(ImageInfo *image_info,
         if ((metadata != (char **) NULL) && (*metadata != (char *) NULL))
           {
             (void) fputs(*metadata,stdout);
-            (void) fputc('\n',stdout);
             *metadata=DestroyString(*metadata);
           }
       return(status);
@@ -216,7 +215,6 @@ WandExport MagickBooleanType MagickCommandGenesis(ImageInfo *image_info,
           if ((metadata != (char **) NULL) && (*metadata != (char *) NULL))
             {
               (void) fputs(*metadata,stdout);
-              (void) fputc('\n',stdout);
               *metadata=DestroyString(*metadata);
             }
         }
@@ -252,7 +250,6 @@ WandExport MagickBooleanType MagickCommandGenesis(ImageInfo *image_info,
             if ((metadata != (char **) NULL) && (*metadata != (char *) NULL))
               {
                 (void) fputs(*metadata,stdout);
-                (void) fputc('\n',stdout);
                 *metadata=DestroyString(*metadata);
               }
           }
@@ -1814,7 +1811,6 @@ WandExport MagickBooleanType MogrifyImage(ImageInfo *image_info,const int argc,
             if (text == (char *) NULL)
               break;
             (void) fputs(text,stdout);
-            (void) fputc('\n',stdout);
             text=DestroyString(text);
             break;
           }

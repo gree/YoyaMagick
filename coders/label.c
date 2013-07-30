@@ -131,69 +131,70 @@ static Image *ReadLABELImage(const ImageInfo *image_info,
   label=GetImageProperty(image,"label");
   draw_info=CloneDrawInfo(image_info,(DrawInfo *) NULL);
   draw_info->text=ConstantString(label);
+  status=GetMultilineTypeMetrics(image,draw_info,&metrics);
   if ((image->columns == 0) && (image->rows == 0))
     {
-      status=GetMultilineTypeMetrics(image,draw_info,&metrics);
       image->columns=(size_t) (metrics.width+draw_info->stroke_width+0.5);
       image->rows=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
     }
-  if (((image->columns == 0) || (image->rows == 0)) ||
-      (fabs(image_info->pointsize) < MagickEpsilon))
-    {
-      double
-        high,
-        low;
+  else
+    if (((image->columns == 0) || (image->rows == 0)) ||
+        (fabs(image_info->pointsize) < MagickEpsilon))
+      {
+        double
+          high,
+          low;
 
-      /*
-        Auto fit text into bounding box.
-      */
-      for ( ; ; draw_info->pointsize*=2.0)
-      {
-        (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
-          -metrics.bounds.x1,metrics.ascent);
-        if (draw_info->gravity == UndefinedGravity)
-          (void) CloneString(&draw_info->geometry,geometry);
-        status=GetMultilineTypeMetrics(image,draw_info,&metrics);
-        (void) status;
-        width=(size_t) floor(metrics.width+draw_info->stroke_width+0.5);
-        height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
-        if ((image->columns != 0) && (image->rows != 0))
-          {
-            if ((width > image->columns) && (height > image->rows))
-              break;
-          }
-        else
-          if (((image->columns != 0) && (width > image->columns)) ||
-              ((image->rows != 0) && (height > image->rows)))
-            break;
-      }
-      high=draw_info->pointsize;
-      for (low=1.0; (high-low) > 1.0; )
-      {
-        draw_info->pointsize=(low+high)/2.0;
-        (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
-          -metrics.bounds.x1,metrics.ascent);
-        if (draw_info->gravity == UndefinedGravity)
-          (void) CloneString(&draw_info->geometry,geometry);
-        status=GetMultilineTypeMetrics(image,draw_info,&metrics);
-        width=(size_t) floor(metrics.width+draw_info->stroke_width+0.5);
-        height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
-        if ((image->columns != 0) && (image->rows != 0))
-          {
-            if ((width <= image->columns) && (height <= image->rows))
-              low=draw_info->pointsize+1.0;
-            else
-              high=draw_info->pointsize-1.0;
-          }
-        else
-          if (((image->columns != 0) && (width < image->columns)) ||
-              ((image->rows != 0) && (height < image->rows)))
-            low=draw_info->pointsize+1.0;
+        /*
+          Auto fit text into bounding box.
+        */
+        for ( ; ; draw_info->pointsize*=2.0)
+        {
+          (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
+            -metrics.bounds.x1,metrics.ascent);
+          if (draw_info->gravity == UndefinedGravity)
+            (void) CloneString(&draw_info->geometry,geometry);
+          status=GetMultilineTypeMetrics(image,draw_info,&metrics);
+          (void) status;
+          width=(size_t) floor(metrics.width+draw_info->stroke_width+0.5);
+          height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
+          if ((image->columns != 0) && (image->rows != 0))
+            {
+              if ((width >= image->columns) && (height >= image->rows))
+                break;
+            }
           else
-            high=draw_info->pointsize-1.0;
+            if (((image->columns != 0) && (width >= image->columns)) ||
+                ((image->rows != 0) && (height >= image->rows)))
+              break;
+        }
+        high=draw_info->pointsize;
+        for (low=1.0; (high-low) > 0.5; )
+        {
+          draw_info->pointsize=(low+high)/2.0;
+          (void) FormatLocaleString(geometry,MaxTextExtent,"%+g%+g",
+            -metrics.bounds.x1,metrics.ascent);
+          if (draw_info->gravity == UndefinedGravity)
+            (void) CloneString(&draw_info->geometry,geometry);
+          status=GetMultilineTypeMetrics(image,draw_info,&metrics);
+          width=(size_t) floor(metrics.width+draw_info->stroke_width+0.5);
+          height=(size_t) floor(metrics.height+draw_info->stroke_width+0.5);
+          if ((image->columns != 0) && (image->rows != 0))
+            {
+              if ((width < image->columns) && (height < image->rows))
+                low=draw_info->pointsize+0.5;
+              else
+                high=draw_info->pointsize-0.5;
+            }
+          else
+            if (((image->columns != 0) && (width < image->columns)) ||
+                ((image->rows != 0) && (height < image->rows)))
+              low=draw_info->pointsize+0.5;
+            else
+              high=draw_info->pointsize-0.5;
+        }
+        draw_info->pointsize=(low+high)/2.0-0.5;
       }
-      draw_info->pointsize=(low+high)/2.0;
-    }
   status=GetMultilineTypeMetrics(image,draw_info,&metrics);
   if (status == MagickFalse)
     {

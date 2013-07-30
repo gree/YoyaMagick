@@ -160,17 +160,17 @@ MagickExport RectangleInfo GetImageBoundingBox(const Image *image,
       image_view=DestroyCacheView(image_view);
       return(bounds);
     }
-  SetMagickPixelPacket(image,p,GetCacheViewAuthenticIndexQueue(image_view),
+  SetMagickPixelPacket(image,p,GetCacheViewVirtualIndexQueue(image_view),
     &target[0]);
   GetMagickPixelPacket(image,&target[1]);
   p=GetCacheViewVirtualPixels(image_view,(ssize_t) image->columns-1,0,1,1,
     exception);
-  SetMagickPixelPacket(image,p,GetCacheViewAuthenticIndexQueue(image_view),
+  SetMagickPixelPacket(image,p,GetCacheViewVirtualIndexQueue(image_view),
     &target[1]);
   GetMagickPixelPacket(image,&target[2]);
   p=GetCacheViewVirtualPixels(image_view,0,(ssize_t) image->rows-1,1,1,
     exception);
-  SetMagickPixelPacket(image,p,GetCacheViewAuthenticIndexQueue(image_view),
+  SetMagickPixelPacket(image,p,GetCacheViewVirtualIndexQueue(image_view),
     &target[2]);
   status=MagickTrue;
   GetMagickPixelPacket(image,&zero);
@@ -529,9 +529,8 @@ MagickExport size_t GetImageChannelDepth(const Image *image,
             ScaleQuantumToAny(GetPixelOpacity(p),range),range);
         if (((channel & IndexChannel) != 0) &&
             (image->colorspace == CMYKColorspace))
-          status|=GetPixelIndex(indexes+x) !=
-            ScaleAnyToQuantum(ScaleQuantumToAny(GetPixelIndex(indexes+
-            x),range),range);
+          status|=GetPixelIndex(indexes+x) != ScaleAnyToQuantum(
+            ScaleQuantumToAny(GetPixelIndex(indexes+x),range),range);
         if (status == 0)
           break;
         current_depth[id]++;

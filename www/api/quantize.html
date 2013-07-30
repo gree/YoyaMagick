@@ -27,7 +27,7 @@
   <meta name="distribution" content="Global"/>
   <link rel="icon" href="../../images/wand.png"/>
   <link rel="shortcut icon" href="../../images/wand.ico"  type="images/x-icon"/>
-  <link rel="canonical" href="../../index.html" />
+  <link rel="canonical" href="http://www.imagemagick.org" />
   <link rel="meta" type="application/rdf+xml" title="ICI" href="http://imagemagick.org/ici.rdf"/>
 
   <!-- Add jQuery library -->
@@ -66,7 +66,7 @@
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
   (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
   m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'offline-script','//www.google-analytics.com/analytics.js','ga');
+  })(window,document,'offline-script','//127.0.0.1/analytics.js','ga');
 
   ga('create', 'UA-40133312-1', 'imagemagick.org');
   ga('send', 'pageview');
@@ -83,10 +83,10 @@
   //-->
   </script>
   <script type="text/javascript"
-    src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+    src="http://127.0.0.1/pagead/show_ads.js">
   </script>
 </div>
-<a href="../../discourse-server">
+<a href="http://www.imagemagick.org/discourse-server/">
   <img src="../../images/logo.jpg"
   alt="ImageMagick Logo"
   style="width: 123px; height: 118px; border: 0px; float: right;" /></a>
@@ -176,30 +176,48 @@
 </div>
 <div class="sep"></div>
 <div class="menu">
-  <a title="Sponsors" href="../../www/sponsors.html">Sponsors</a>
+  <a title="Support ImageMagick Development" href="../../www/support.html">Support ImageMagick Development</a>
 </div>
 </div>
 
 <div class="eastbar">
-  <div class="g-plusone" id="gplusone"></div>
   <script type="text/javascript">
-    window.___gcfg = {
-      lang: 'en-US'
-    };
-
+    /* <![CDATA[ */
     (function() {
-      var po = document.createElement('offline-script');
-      po.type = 'text/javascript';
-      po.async = true;
-      po.src = 'https://apis.google.com/js/plusone.js';
-      var script = document.getElementsByTagName('offline-script')[0];
-      script.parentNode.insertBefore(po, script);
+        var po = document.createElement('offline-script'), t = document.getElementsByTagName('offline-script')[0];
+        po.type = 'text/javascript';
+        po.async = true;
+        po.src = 'http://api.flattr.com/js/0.6/load.js?mode=auto';
+        var script = document.getElementsByTagName('offline-script')[0];
+        script.parentNode.insertBefore(po, script);
     })();
-    var gplusone = document.getElementById("gplusone");
-    gplusone.setAttribute("data-size","medium");
-    gplusone.setAttribute("data-count","false");
+    /* ]]> */
   </script>
-  <a href="http://flattr.com/thing/947300/Convert-Edit-And-Compose-Images"><img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Click to flattr ImageMagick" title="Click to flattr ImageMagick" width="93" height="20" /></a>
+  <div> <a class="FlattrButton" style="display:none;" rev="flattr;button:compact;" href="http://www.imagemagick.org/"></a></div>
+  <noscript>
+    <a href="http://flattr.com/thing/947300/Convert-Edit-And-Compose-Images" target="_blank">
+    <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" width="93" height="20" border="0" /></a>
+  </noscript>
+    <div class="g-plusone" id="gplusone"></div>
+    <script type="text/javascript">
+      /* <![CDATA[ */
+      window.___gcfg = {
+        lang: 'en-US'
+      };
+
+      (function() {
+        var po = document.createElement('offline-script');
+        po.type = 'text/javascript';
+        po.async = true;
+        po.src = 'https://127.0.0.1/js/plusone.js';
+        var script = document.getElementsByTagName('offline-script')[0];
+        script.parentNode.insertBefore(po, script);
+      })();
+      var gplusone = document.getElementById("gplusone");
+      gplusone.setAttribute("data-size","medium");
+      gplusone.setAttribute("data-count","true");
+      /* ]]> */
+    </script>
 </div>
 
 <div class="main">
@@ -523,8 +541,9 @@
 
 <div id="linkbar">
     <span id="linkbar-west">&nbsp;</span>
+
     <span id="linkbar-center">
-      <a href="../../discourse-server">Discourse Server</a> &bull;
+      <a href="http://www.imagemagick.org/discourse-server/">Discourse Server</a> &bull;
       <a href="http://www.imagemagick.org/MagickStudio/scripts/MagickStudio.cgi">Studio</a> &bull;
       <a href="http://jqmagick.imagemagick.org/">JqMagick</a>
     </span>

@@ -304,14 +304,12 @@ static inline void CompositeColorBurn(const MagickPixelPacket *p,
 static MagickRealType ColorDodge(const MagickRealType Sca,
   const MagickRealType Sa, const MagickRealType Dca,const MagickRealType Da)
 {
-#if 0
   /*
     Oct 2004 SVG specification.
   */
   if ((Sca*Da+Dca*Sa) >= Sa*Da)
-    return( Sa*Da + Sca*(1.0-Da) + Dca*(1.0-Sa) );
-  return( Dca*Sa*Sa/(Sa-Sca) + Sca*(1.0-Da) + Dca*(1.0-Sa) );
-#endif
+    return(Sa*Da+Sca*(1.0-Da)+Dca*(1.0-Sa));
+  return(Dca*Sa*Sa/(Sa-Sca)+Sca*(1.0-Da)+Dca*(1.0-Sa));
 #if 0
   /*
     New specification, March 2009 SVG specification.  This specification was
@@ -323,6 +321,7 @@ static MagickRealType ColorDodge(const MagickRealType Sca,
     return(Sa*Da+Sca*(1.0-Da)+Dca*(1.0-Sa));
   return(Sa*MagickMin(Da,Dca*Sa/(Sa-Sca)));
 #endif
+#if 0
   /*
     Working from first principles using the original formula:
 
@@ -336,6 +335,7 @@ static MagickRealType ColorDodge(const MagickRealType Sca,
   if (fabs(Sca-Sa) < MagickEpsilon)
     return(Sa*Da+Sca*(1.0-Da)+Dca*(1.0-Sa));
   return(Dca*Sa*Sa/(Sa-Sca)+Sca*(1.0-Da)+Dca*(1.0-Sa));
+#endif
 }
 
 static inline void CompositeColorDodge(const MagickPixelPacket *p,
@@ -655,8 +655,7 @@ static void HCLComposite(const double hue,const double chroma,const double luma,
     h,
     m,
     r,
-    x,
-    z;
+    x;
 
   /*
     Convert HCL to RGB colorspace.
@@ -706,21 +705,9 @@ static void HCLComposite(const double hue,const double chroma,const double luma,
                 b=x;
               }
   m=luma-(0.298839*r+0.586811*g+0.114350*b);
-  z=1.0;
-  if (m < 0.0)
-    {
-      z=luma/(luma-m);
-      m=0.0;
-    }
-  else
-    if (m+c > 1.0)
-      {
-        z=(1.0-luma)/(m+c-luma);
-        m=1.0-z*c;
-      }
-  *red=QuantumRange*(z*r+m);
-  *green=QuantumRange*(z*g+m);
-  *blue=QuantumRange*(z*b+m);
+  *red=QuantumRange*(r+m);
+  *green=QuantumRange*(g+m);
+  *blue=QuantumRange*(b+m);
 }
 
 static void CompositeHCL(const MagickRealType red,const MagickRealType green,

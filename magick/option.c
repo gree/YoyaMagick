@@ -1311,7 +1311,7 @@ static const OptionInfo
   },
   MetricOptions[] =
   {
-    { "Undefined", UndefinedMetric, UndefinedOptionFlag, MagickTrue },
+    { "Undefined", UndefinedErrorMetric, UndefinedOptionFlag, MagickTrue },
     { "AE", AbsoluteErrorMetric, UndefinedOptionFlag, MagickFalse },
     { "Fuzz", FuzzErrorMetric, UndefinedOptionFlag, MagickFalse },
     { "MAE", MeanAbsoluteErrorMetric, UndefinedOptionFlag, MagickFalse },
@@ -1321,7 +1321,7 @@ static const OptionInfo
     { "PAE", PeakAbsoluteErrorMetric, UndefinedOptionFlag, MagickFalse },
     { "PSNR", PeakSignalToNoiseRatioMetric, UndefinedOptionFlag, MagickFalse },
     { "RMSE", RootMeanSquaredErrorMetric, UndefinedOptionFlag, MagickFalse },
-    { (char *) NULL, UndefinedMetric, UndefinedOptionFlag, MagickFalse }
+    { (char *) NULL, UndefinedErrorMetric, UndefinedOptionFlag, MagickFalse }
   },
   MethodOptions[] =
   {
@@ -1602,8 +1602,9 @@ static const OptionInfo
     { "Compare", CompareValidate, UndefinedOptionFlag, MagickFalse },
     { "Composite", CompositeValidate, UndefinedOptionFlag, MagickFalse },
     { "Convert", ConvertValidate, UndefinedOptionFlag, MagickFalse },
-    { "FormatsInMemory", FormatsInMemoryValidate, UndefinedOptionFlag, MagickFalse },
-    { "FormatsOnDisk", FormatsOnDiskValidate, UndefinedOptionFlag, MagickFalse },
+    { "FormatsDisk", FormatsDiskValidate, UndefinedOptionFlag, MagickFalse },
+    { "FormatsMap", FormatsMapValidate, UndefinedOptionFlag, MagickFalse },
+    { "FormatsMemory", FormatsMemoryValidate, UndefinedOptionFlag, MagickFalse },
     { "Identify", IdentifyValidate, UndefinedOptionFlag, MagickFalse },
     { "ImportExport", ImportExportValidate, UndefinedOptionFlag, MagickFalse },
     { "Montage", MontageValidate, UndefinedOptionFlag, MagickFalse },
