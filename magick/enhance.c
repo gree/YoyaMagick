@@ -2118,8 +2118,8 @@ MagickExport MagickBooleanType GammaImage(Image *image,const char *level)
   else
     {
       status=GammaImageChannel(image,RedChannel,(double) gamma.red);
-      status|=GammaImageChannel(image,GreenChannel,(double) gamma.green);
-      status|=GammaImageChannel(image,BlueChannel,(double) gamma.blue);
+      status&=GammaImageChannel(image,GreenChannel,(double) gamma.green);
+      status&=GammaImageChannel(image,BlueChannel,(double) gamma.blue);
     }
   return(status != 0 ? MagickTrue : MagickFalse);
 }
@@ -3039,6 +3039,7 @@ MagickExport MagickBooleanType LevelImageChannel(Image *image,
       }
   }
   image_view=DestroyCacheView(image_view);
+  (void) ClampImage(image);
   return(status);
 }
 
@@ -3290,41 +3291,41 @@ MagickExport MagickBooleanType LevelColorsImageChannel(Image *image,
   if (invert == MagickFalse)
     {
       if ((channel & RedChannel) != 0)
-        status|=LevelImageChannel(image,RedChannel,black_color->red,
+        status&=LevelImageChannel(image,RedChannel,black_color->red,
           white_color->red,(double) 1.0);
       if ((channel & GreenChannel) != 0)
-        status|=LevelImageChannel(image,GreenChannel,black_color->green,
+        status&=LevelImageChannel(image,GreenChannel,black_color->green,
           white_color->green,(double) 1.0);
       if ((channel & BlueChannel) != 0)
-        status|=LevelImageChannel(image,BlueChannel,black_color->blue,
+        status&=LevelImageChannel(image,BlueChannel,black_color->blue,
           white_color->blue,(double) 1.0);
       if (((channel & OpacityChannel) != 0) &&
           (image->matte == MagickTrue))
-        status|=LevelImageChannel(image,OpacityChannel,black_color->opacity,
+        status&=LevelImageChannel(image,OpacityChannel,black_color->opacity,
           white_color->opacity,(double) 1.0);
       if (((channel & IndexChannel) != 0) &&
           (image->colorspace == CMYKColorspace))
-        status|=LevelImageChannel(image,IndexChannel,black_color->index,
+        status&=LevelImageChannel(image,IndexChannel,black_color->index,
           white_color->index,(double) 1.0);
     }
   else
     {
       if ((channel & RedChannel) != 0)
-        status|=LevelizeImageChannel(image,RedChannel,black_color->red,
+        status&=LevelizeImageChannel(image,RedChannel,black_color->red,
           white_color->red,(double) 1.0);
       if ((channel & GreenChannel) != 0)
-        status|=LevelizeImageChannel(image,GreenChannel,black_color->green,
+        status&=LevelizeImageChannel(image,GreenChannel,black_color->green,
           white_color->green,(double) 1.0);
       if ((channel & BlueChannel) != 0)
-        status|=LevelizeImageChannel(image,BlueChannel,black_color->blue,
+        status&=LevelizeImageChannel(image,BlueChannel,black_color->blue,
           white_color->blue,(double) 1.0);
       if (((channel & OpacityChannel) != 0) &&
           (image->matte == MagickTrue))
-        status|=LevelizeImageChannel(image,OpacityChannel,black_color->opacity,
+        status&=LevelizeImageChannel(image,OpacityChannel,black_color->opacity,
           white_color->opacity,(double) 1.0);
       if (((channel & IndexChannel) != 0) &&
           (image->colorspace == CMYKColorspace))
-        status|=LevelizeImageChannel(image,IndexChannel,black_color->index,
+        status&=LevelizeImageChannel(image,IndexChannel,black_color->index,
           white_color->index,(double) 1.0);
     }
   return(status == 0 ? MagickFalse : MagickTrue);
@@ -3855,6 +3856,12 @@ MagickExport MagickBooleanType ModulateImage(Image *image,const char *modulate)
             &red,&green,&blue);
           break;
         }
+        case HCLpColorspace:
+        {
+          ModulateHCLp(percent_hue,percent_saturation,percent_brightness,
+            &red,&green,&blue);
+          break;
+        }
         case HSBColorspace:
         {
           ModulateHSB(percent_hue,percent_saturation,percent_brightness,
@@ -4110,21 +4117,29 @@ MagickExport MagickBooleanType NegateImageChannel(Image *image,
         continue;
       }
     indexes=GetCacheViewAuthenticIndexQueue(image_view);
-    for (x=0; x < (ssize_t) image->columns; x++)
-    {
-      if ((channel & RedChannel) != 0)
-        SetPixelRed(q,QuantumRange-GetPixelRed(q));
-      if ((channel & GreenChannel) != 0)
-        SetPixelGreen(q,QuantumRange-GetPixelGreen(q));
-      if ((channel & BlueChannel) != 0)
-        SetPixelBlue(q,QuantumRange-GetPixelBlue(q));
-      if ((channel & OpacityChannel) != 0)
-        SetPixelOpacity(q,QuantumRange-GetPixelOpacity(q));
-      if (((channel & IndexChannel) != 0) &&
-          (image->colorspace == CMYKColorspace))
+    if (channel == DefaultChannels)
+      for (x=0; x < (ssize_t) image->columns; x++)
+      {
+        SetPixelRed(q+x,QuantumRange-GetPixelRed(q+x));
+        SetPixelGreen(q+x,QuantumRange-GetPixelGreen(q+x));
+        SetPixelBlue(q+x,QuantumRange-GetPixelBlue(q+x));
+      }
+    else
+      for (x=0; x < (ssize_t) image->columns; x++)
+      {
+        if ((channel & RedChannel) != 0)
+          SetPixelRed(q+x,QuantumRange-GetPixelRed(q+x));
+        if ((channel & GreenChannel) != 0)
+          SetPixelGreen(q+x,QuantumRange-GetPixelGreen(q+x));
+        if ((channel & BlueChannel) != 0)
+          SetPixelBlue(q+x,QuantumRange-GetPixelBlue(q+x));
+        if ((channel & OpacityChannel) != 0)
+          SetPixelOpacity(q+x,QuantumRange-GetPixelOpacity(q+x));
+      }
+    if (((channel & IndexChannel) != 0) &&
+        (image->colorspace == CMYKColorspace))
+      for (x=0; x < (ssize_t) image->columns; x++)
         SetPixelIndex(indexes+x,QuantumRange-GetPixelIndex(indexes+x));
-      q++;
-    }
     if (SyncCacheViewAuthenticPixels(image_view,exception) == MagickFalse)
       status=MagickFalse;
     if (image->progress_monitor != (MagickProgressMonitor) NULL)

@@ -1,52 +1,46 @@
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" 
-  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html version="-//W3C//DTD XHTML 1.1//EN"
-      xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
-      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:schemaLocation="http://www.w3.org/1999/xhtml
-                          http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en" xsi:schemaLocation="http://www.w3.org/1999/xhtml                           http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd">
 <head>
-  <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
-  <meta name="google-site-verification" content="_bMOCDpkx9ZAzBwb2kF3PRHbfUUdFj2uO8Jd1AXArz4"/>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8"></meta>
+  <meta name="google-site-verification" content="_bMOCDpkx9ZAzBwb2kF3PRHbfUUdFj2uO8Jd1AXArz4"></meta>
   <title>ImageMagick: Formats</title>
-  <meta http-equiv="content-language" content="en-US"/>
-  <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
-  <meta http-equiv="reply-to" content="magick-users@imagemagick.org"/>
-  <meta name="application-name" content="ImageMagick"/>
-  <meta name="description" content="Use ImageMagick to convert, edit, or compose bitmap images in a variety of formats.  In addition, resize, rotate, shear, distort or transform images automagically."/>
-  <meta name="application-url" content="http://www.imagemagick.org"/>
-  <meta name="generator" content="PHP"/>
-  <meta name="keywords" content="formats, ImageMagick, PerlMagick, image processing, OpenMP, software development library, image, photo, software, Magick++, MagickWand"/>
-  <meta name="rating" content="GENERAL"/>
-  <meta name="robots" content="INDEX, FOLLOW"/>
-  <meta name="generator" content="ImageMagick Studio LLC"/>
-  <meta name="author" content="ImageMagick Studio LLC"/>
-  <meta name="revisit-after" content="2 DAYS"/>
-  <meta name="resource-type" content="document"/>
-  <meta name="copyright" content="Copyright (c) 1999-2012 ImageMagick Studio LLC"/>
-  <meta name="distribution" content="Global"/>
-  <link rel="icon" href="../images/wand.png"/>
-  <link rel="shortcut icon" href="../images/wand.ico"  type="images/x-icon"/>
-  <link rel="canonical" href="http://www.imagemagick.org" />
-  <link rel="meta" type="application/rdf+xml" title="ICI" href="http://imagemagick.org/ici.rdf"/>
+  <meta http-equiv="content-language" content="en-US"></meta>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8"></meta>
+  <meta http-equiv="reply-to" content="magick-users@imagemagick.org"></meta>
+  <meta name="application-name" content="ImageMagick"></meta>
+  <meta name="description" content="Use ImageMagick to convert, edit, or compose bitmap images in a variety of formats.  In addition, resize, rotate, shear, distort or transform images automagically."></meta>
+  <meta name="application-url" content="http://www.imagemagick.org"></meta>
+  <meta name="generator" content="PHP"></meta>
+  <meta name="keywords" content="formats, ImageMagick, PerlMagick, image processing, OpenMP, software development library, image, photo, software, Magick++, MagickWand"></meta>
+  <meta name="rating" content="GENERAL"></meta>
+  <meta name="robots" content="INDEX, FOLLOW"></meta>
+  <meta name="generator" content="ImageMagick Studio LLC"></meta>
+  <meta name="author" content="ImageMagick Studio LLC"></meta>
+  <meta name="revisit-after" content="2 DAYS"></meta>
+  <meta name="resource-type" content="document"></meta>
+  <meta name="copyright" content="Copyright (c) 1999-2012 ImageMagick Studio LLC"></meta>
+  <meta name="distribution" content="Global"></meta>
+  <link rel="icon" href="../images/wand.png"></link>
+  <link rel="shortcut icon" href="../images/wand.ico" type="images/x-icon"></link>
+  <link rel="canonical" href="../index.html"></link>
+  <link rel="meta" type="application/rdf+xml" title="ICI" href="http://imagemagick.org/ici.rdf"></link>
 
   <!-- Add jQuery library -->
-  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7/jquery.min.js"></script>
+  <script type="text/javascript" src="http://localhost/ajax/libs/jquery/1.7/jquery.min.js"></script>
   
   <!-- Add mousewheel plugin (this is optional) -->
   <script type="text/javascript" src="http://www.imagemagick.org/fancybox/lib/jquery.mousewheel-3.0.6.pack.js"></script>
   
   <!-- Add fancyBox -->
-  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/jquery.fancybox.css?v=2.0.6" type="text/css" media="screen" />
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/jquery.fancybox.css?v=2.0.6" type="text/css" media="screen"></link>
   <script type="text/javascript" src="http://www.imagemagick.org/fancybox/source/jquery.fancybox.pack.js?v=2.0.6"></script>
   
   <!-- Optionally add helpers - button, thumbnail and/or media -->
-  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-buttons.css?v=1.0.2" type="text/css" media="screen" />
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-buttons.css?v=1.0.2" type="text/css" media="screen"></link>
   <script type="text/javascript" src="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-buttons.js?v=1.0.2"></script>
   <script type="text/javascript" src="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-media.js?v=1.0.0"></script>
   
-  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-thumbs.css?v=2.0.6" type="text/css" media="screen" />
+  <link rel="stylesheet" href="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-thumbs.css?v=2.0.6" type="text/css" media="screen"></link>
   <script type="text/javascript" src="http://www.imagemagick.org/fancybox/source/helpers/jquery.fancybox-thumbs.js?v=2.0.6"></script>
   
   <script type="text/javascript">
@@ -63,15 +57,7 @@
 
 <body id="www-imagemagick-org">
 
-<script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'offline-script','//127.0.0.1/analytics.js','ga');
 
-  ga('create', 'UA-40133312-1', 'imagemagick.org');
-  ga('send', 'pageview');
-</script>
 
 <div class="titlebar">
 <div style="margin: 17px auto; float: left;">
@@ -83,18 +69,12 @@
     google_ad_height = 90;
   //-->
   </script>
-  <script type="text/javascript"
-    src="http://127.0.0.1/pagead/show_ads.js">
-  </script>
+  
 </div>
-<a href="http://www.imagemagick.org/discourse-server/">
-  <img src="../images/logo.jpg"
-  alt="ImageMagick Logo"
-  style="width: 123px; height: 118px; border: 0px; float: right;" /></a>
+<a href="../discourse-server">
+  <img src="../images/logo.jpg" alt="ImageMagick Logo" style="width: 123px; height: 118px; border: 0px; float: right;"></img></a>
 <a href="../index.html">
-  <img src="../images/sprite.jpg"
-  alt="ImageMagick Sprite"
-  style="width: 114px; height: 118px; border: 0px; float: right;" /></a>
+  <img src="../images/sprite.jpg" alt="ImageMagick Sprite" style="width: 114px; height: 118px; border: 0px; float: right;"></img></a>
 </div>
 
 <div class="westbar">
@@ -146,7 +126,7 @@
     <a title="Program Interface: Magick++" href="magick++.html">Magick++</a>
 </div>
 <div class="sep"></div>
-<div  class="menu">
+<div class="menu">
    <a title="Install from Source" href="install-source.html">Install from Source</a>
 </div>
 <div class="sub">
@@ -172,7 +152,7 @@
 <div class="menu">
   <a title="Site Map" href="sitemap.html">Site Map</a>
 </div>
-<div  class="sub">
+<div class="sub">
   <a title="Site Map: Links" href="links.html">Links</a>
 </div>
 <div class="sep"></div>
@@ -182,49 +162,20 @@
 </div>
 
 <div class="eastbar">
-  <script type="text/javascript">
-    /* <![CDATA[ */
-    (function() {
-        var po = document.createElement('offline-script'), t = document.getElementsByTagName('offline-script')[0];
-        po.type = 'text/javascript';
-        po.async = true;
-        po.src = 'http://api.flattr.com/js/0.6/load.js?mode=auto';
-        var script = document.getElementsByTagName('offline-script')[0];
-        script.parentNode.insertBefore(po, script);
-    })();
-    /* ]]> */
-  </script>
-  <div> <a class="FlattrButton" style="display:none;" rev="flattr;button:compact;" href="http://www.imagemagick.org/"></a></div>
+  
+  <div> <a class="FlattrButton" style="display:none;" rev="flattr;button:compact;" href="../index.html"></a></div>
   <noscript>
     <a href="http://flattr.com/thing/947300/Convert-Edit-And-Compose-Images" target="_blank">
-    <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" width="93" height="20" border="0" /></a>
+    <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" width="93" height="20" border="0"></img></a>
   </noscript>
-    <div class="g-plusone" id="gplusone"></div>
-    <script type="text/javascript">
-      /* <![CDATA[ */
-      window.___gcfg = {
-        lang: 'en-US'
-      };
-
-      (function() {
-        var po = document.createElement('offline-script');
-        po.type = 'text/javascript';
-        po.async = true;
-        po.src = 'https://127.0.0.1/js/plusone.js';
-        var script = document.getElementsByTagName('offline-script')[0];
-        script.parentNode.insertBefore(po, script);
-      })();
-      var gplusone = document.getElementById("gplusone");
-      gplusone.setAttribute("data-size","medium");
-      gplusone.setAttribute("data-count","true");
-      /* ]]> */
-    </script>
+    
+    
 </div>
 
 <div class="main">
 
 <h1>ImageMagick Image Formats</h1>
-<p class="navigation-index">[<a href="formats.html#intro">Introducing Formats</a> &bull; <a href="formats.html#colorspace">A Word about Colorspaces</a> &bull; <a href="formats.html#supported">Supported Formats</a> &bull; <a href="formats.html#pseudo">Pseudo Formats</a> &bull; <a href="formats.html#builtin-images">Built-in Images</a>  &bull; <a href="formats.html#builtin-patterns">Built-in Patterns</a> &bull; <a href="formats.html#embedded">Embedded Profiles</a>]</p>
+<p class="navigation-index">[<a href="formats.html#intro">Introducing Formats</a> • <a href="formats.html#colorspace">A Word about Colorspaces</a> • <a href="formats.html#supported">Supported Formats</a> • <a href="formats.html#pseudo">Pseudo Formats</a> • <a href="formats.html#builtin-images">Built-in Images</a>  • <a href="formats.html#builtin-patterns">Built-in Patterns</a> • <a href="formats.html#embedded">Embedded Profiles</a>]</p>
 
 <h2><a id="intro"></a>Introducing Image Formats</h2>
 <div class="doc-section">
@@ -235,12 +186,11 @@
 
 <p>To get a complete listing of which image formats are supported on your system, type</p>
 
-<p class='crt'><span class="crtprompt"> $ </span><span class='crtin'>identify -list format</span></p>
+<p class="crt"><span class="crtprompt"> $ </span><span class="crtin">identify -list format</span></p>
 <p>On some platforms, ImageMagick automagically processes these extensions: .gz for Zip compression, .Z for Unix compression, .bz2 for block compression, and .pgp for PGP encryption. For example, a PNM image called image.pnm.gz is automagically uncompressed.</p>
 </div>
 
-<h2><a id="colorspace"></a>A Word about Colorspaces</h2> <div
-class="doc-section"> <p>A majority of the image formats assume an sRGB
+<h2><a id="colorspace"></a>A Word about Colorspaces</h2> <div class="doc-section"> <p>A majority of the image formats assume an sRGB
 colorspace (e.g. JPEG, PNG, etc.).  A few support only linear RGB (e.g. EXR,
 DPX, CIN, HDR) or only linear GRAY (e.g. PGM).  A few formats support CMYK.
 Then there is the occasional format that also supports LAB (that is CieLAB)
@@ -317,7 +267,7 @@ the supported image formats.</p>
     <td valign="top">AAI</td>
     <td valign="top">RW</td>
     <td valign="top">AAI Dune image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -331,21 +281,21 @@ the supported image formats.</p>
     <td valign="top">ARW</td>
     <td valign="top">R</td>
     <td valign="top">Sony Digital Camera Alpha Raw Image Format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://www.jmcgowan.com/avi.html">AVI</a></td>
     <td valign="top">R</td>
     <td valign="top">Microsoft Audio/Visual Interleaved</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">AVS</td>
     <td valign="top">RW</td>
     <td valign="top">AVS X image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -401,21 +351,21 @@ the supported image formats.</p>
     <td valign="top">CRW</td>
     <td valign="top">R</td>
     <td valign="top">Canon Digital Camera Raw Image Format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">CUR</td>
     <td valign="top">R</td>
     <td valign="top">Microsoft Cursor Icon</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">CUT</td>
     <td valign="top">R</td>
     <td valign="top">DR Halo</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -429,14 +379,14 @@ the supported image formats.</p>
     <td valign="top">DCR</td>
     <td valign="top">R</td>
     <td valign="top">Kodak Digital Camera Raw Image File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">DCX</td>
     <td valign="top">RW</td>
     <td valign="top">ZSoft IBM PC multi-page Paintbrush image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -597,7 +547,7 @@ the supported image formats.</p>
     <td valign="top"><a href="http://en.wikipedia.org/wiki/RGBE_image_format">HDR</a></td>
     <td valign="top">RW</td>
     <td valign="top">Radiance RGBE image format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -611,7 +561,7 @@ the supported image formats.</p>
     <td valign="top">HRZ</td>
     <td valign="top">RW</td>
     <td valign="top">Slow Scane TeleVision</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -674,7 +624,7 @@ the supported image formats.</p>
     <td valign="top"><a href="http://www.jpeg.org/">JPEG</a></td>
     <td valign="top">RW</td>
     <td valign="top">Joint Photographic Experts Group JFIF format</td>
-    <td valign="top">Note, JPEG is a lossy compression.  In addition, you cannot create black and white images with JPEG nor can you save transparency.<br /><br /> Requires <a href="http://www.ijg.org/files/">jpegsrc.v8c.tar.gz</a>.  You can set quality scaling for luminance and chrominance separately (e.g. -quality 90,70). You can optionally define the DCT method, for example to specify the float method, use <a href="command-line-options.html#define">-define jpeg:dct-method=float</a>. By default we compute optimal Huffman coding tables.  Specify <a href="command-line-options.html#define">-define jpeg:optimize-coding=false</a> to use the default Huffman tables. Two other options include <a href="command-line-options.html#define">-define jpeg:block-smoothing</a> and <a href="command-line-options.html#define">-define jpeg:fancy-upsampling</a>. Set the sampling factor with <a href="command-line-options.html#define">-define jpeg:sampling-factor</a>. You can size the image with <code>jpeg:size</code>, for example <a href="command-line-options.html#define">-define jpeg:size=128x128</a>. To restrict the maximum file size, use <code>jpeg:extent</code>, for example <a href="command-line-options.html#define">-define jpeg:extent=400kb</a>.  Finally, to define one or more custom quantization tables, use <a href="command-line-options.html#define">-define jpeg:q-table=<i>filename</i>.</a></td>
+    <td valign="top">Note, JPEG is a lossy compression.  In addition, you cannot create black and white images with JPEG nor can you save transparency.<br></br><br></br> Requires <a href="http://www.ijg.org/files/">jpegsrc.v8c.tar.gz</a>.  You can set quality scaling for luminance and chrominance separately (e.g. -quality 90,70). You can optionally define the DCT method, for example to specify the float method, use <a href="command-line-options.html#define">-define jpeg:dct-method=float</a>. By default we compute optimal Huffman coding tables.  Specify <a href="command-line-options.html#define">-define jpeg:optimize-coding=false</a> to use the default Huffman tables. Two other options include <a href="command-line-options.html#define">-define jpeg:block-smoothing</a> and <a href="command-line-options.html#define">-define jpeg:fancy-upsampling</a>. Set the sampling factor with <a href="command-line-options.html#define">-define jpeg:sampling-factor</a>. You can size the image with <code>jpeg:size</code>, for example <a href="command-line-options.html#define">-define jpeg:size=128x128</a>. To restrict the maximum file size, use <code>jpeg:extent</code>, for example <a href="command-line-options.html#define">-define jpeg:extent=400kb</a>.  Finally, to define one or more custom quantization tables, use <a href="command-line-options.html#define">-define jpeg:q-table=<i>filename</i>.</a></td>
   </tr>
 
   <tr>
@@ -695,7 +645,7 @@ the supported image formats.</p>
     <td valign="top">MAT</td>
     <td valign="top">R</td>
     <td valign="top">MATLAB image format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -709,7 +659,7 @@ the supported image formats.</p>
     <td valign="top">MONO</td>
     <td valign="top">RW</td>
     <td valign="top">Bi-level bitmap in least-significant-byte first order</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -756,7 +706,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">MRW</td>
     <td valign="top">R</td>
     <td valign="top">Sony (Minolta) Raw Image File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -770,7 +720,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://www.fileformat.info/format/mtv/egff.htm">MTV</a></td>
     <td valign="top">RW</td>
     <td valign="top">MTV Raytracing image format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -784,42 +734,42 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">NEF</td>
     <td valign="top">R</td>
     <td valign="top">Nikon Digital SLR Camera Raw Image File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">ORF</td>
     <td valign="top">R</td>
     <td valign="top">Olympus Digital Camera Raw Image File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">OTB</td>
     <td valign="top">RW</td>
     <td valign="top">On-the-air Bitmap</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">P7</td>
     <td valign="top">RW</td>
     <td valign="top">Xv's Visual Schnauzer thumbnail format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">PALM</td>
     <td valign="top">RW</td>
     <td valign="top">Palm pixmap</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://netpbm.sourceforge.net/doc/pam.html">PAM</a></td>
     <td valign="top">W</td>
     <td valign="top">Common 2-dimensional bitmap format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -832,7 +782,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://netpbm.sourceforge.net/doc/pbm.html">PBM</a></td>
     <td valign="top">RW</td>
     <td valign="top">Portable bitmap format (black and white)</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -860,14 +810,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://www.fileformat.info/format/pcx/egff.htm">PCX</a></td>
     <td valign="top">RW</td>
     <td valign="top">ZSoft IBM PC Paintbrush file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">PDB</td>
     <td valign="top">RW</td>
     <td valign="top">Palm Database ImageViewer Format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -902,35 +852,35 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://netpbm.sourceforge.net/doc/pfm.html">PFM</a></td>
     <td valign="top">RW</td>
     <td valign="top">Portable float map format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://netpbm.sourceforge.net/doc/pgm.html">PGM</a></td>
     <td valign="top">RW</td>
     <td valign="top">Portable graymap format (gray scale)</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">PICON</td>
     <td valign="top">RW</td>
     <td valign="top">Personal Icon</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">PICT</td>
     <td valign="top">RW</td>
     <td valign="top">Apple Macintosh QuickDraw/PICT file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">PIX</td>
     <td valign="top">R</td>
     <td valign="top">Alias/Wavefront RLE image format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -993,7 +943,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://netpbm.sourceforge.net/doc/ppm.html">PPM</a></td>
     <td valign="top">RW</td>
     <td valign="top">Portable pixmap format (color)</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1021,14 +971,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://www.adobe.com/devnet-apps/photoshop/fileformatashtml/">PSB</a></td>
     <td valign="top">RW</td>
     <td valign="top">Adobe Large Document Format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://www.adobe.com/devnet-apps/photoshop/fileformatashtml/">PSD</a></td>
     <td valign="top">RW</td>
     <td valign="top">Adobe Photoshop bitmap file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1042,7 +992,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://www.photoworks.com/">PWP</a></td>
     <td valign="top">R</td>
     <td valign="top">Seattle File Works multi-image file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1056,7 +1006,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">RAF</td>
     <td valign="top">R</td>
     <td valign="top">Fuji CCD-RAW Graphic File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1077,35 +1027,35 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">RLA</td>
     <td valign="top">R</td>
     <td valign="top">Alias/Wavefront image file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">RLE</td>
     <td valign="top">R</td>
     <td valign="top">Utah Run length encoded image file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://www.oreilly.com/www/centers/gff/formats/scitex/">SCT</a></td>
     <td valign="top">R</td>
     <td valign="top">Scitex Continuous Tone Picture</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://www.photoworks.com/">SFW</a></td>
     <td valign="top">R</td>
     <td valign="top">Seattle File Works image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">SGI</td>
     <td valign="top">RW</td>
     <td valign="top">Irix RGB image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1133,7 +1083,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">SUN</td>
     <td valign="top">RW</td>
     <td valign="top">SUN Rasterfile</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1161,7 +1111,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">TIM</td>
     <td valign="top">R</td>
     <td valign="top">PSX TIM file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1175,14 +1125,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">TXT</td>
     <td valign="top">RW</td>
     <td valign="top">Raw text file</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">UIL</td>
     <td valign="top">W</td>
     <td valign="top">X-Motif UIL table</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1196,14 +1146,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">VICAR</td>
     <td valign="top">RW</td>
     <td valign="top">VICAR rasterfile format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top"><a href="http://www.fileformat.info/format/viff/egff.htm">VIFF</a></td>
     <td valign="top">RW</td>
     <td valign="top">Khoros Visualization Image File Format</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1238,7 +1188,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top"><a href="http://www.fileformat.info/format/wpg/egff.htm">WPG</a></td>
     <td valign="top">R</td>
     <td valign="top">Word Perfect Graphics File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1259,7 +1209,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">XCF</td>
     <td valign="top">R</td>
     <td valign="top">GIMP image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1280,7 +1230,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">X3F</td>
     <td valign="top">R</td>
     <td valign="top">Sigma Camera RAW Picture File</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1326,13 +1276,12 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">R</td>
     <td valign="top">Canvas image of specified color</td>
     <td valign="top">Useful to create solid color <em>canvas</em> images. Use
-       <a href="command-line-options.html#size" >-size</a> and <a
-       href="command-line-options.html#depth" >-depth</a> to specify the
+       <a href="command-line-options.html#size">-size</a> and <a href="command-line-options.html#depth">-depth</a> to specify the
        image width, height, and depth.  Example canvas color specifications
-       include <code>canvas:red</code> and <code>canvas:#FF0000</code>.<br/>
+       include <code>canvas:red</code> and <code>canvas:#FF0000</code>.<br></br>
 
        If no color is specified a '<code>white</code>' canvas image is
-       generated.  If no <a href="command-line-options.html#size" >-size</a> is specified
+       generated.  If no <a href="command-line-options.html#size">-size</a> is specified
        a single pixel image of the specified color is generated.</td>
 
   </tr>
@@ -1341,14 +1290,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">CAPTION</td>
     <td valign="top">R</td>
     <td valign="top">Image caption</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
     <td valign="top">CLIP</td>
     <td valign="top">RW</td>
     <td valign="top">Clip path of image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1362,7 +1311,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">FRACTAL</td>
     <td valign="top">R</td>
     <td valign="top">Plasma fractal image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1410,7 +1359,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">MASK</td>
     <td valign="top">RW</td>
     <td valign="top">Image mask</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1438,7 +1387,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">PLASMA</td>
     <td valign="top">R</td>
     <td valign="top">Plasma fractal image</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1474,7 +1423,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">SCANX</td>
     <td valign="top">R</td>
     <td valign="top">Import image from the default scanner device</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1496,7 +1445,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">UNIQUE</td>
     <td valign="top">W</td>
     <td valign="top">Write only unique pixels to the image file.</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -1550,14 +1499,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">GRANITE</td>
     <td valign="top">R</td>
     <td valign="top">128x128 granite texture pattern</td>
-    <td valign="top"><img src="../images/granite.png" width="64" height="64" alt="GRANITE"/></td>
+    <td valign="top"><img src="../images/granite.png" width="64" height="64" alt="GRANITE"></img></td>
   </tr>
 
   <tr>
     <td valign="top"><a href="../images/logo.png">LOGO</a></td>
     <td valign="top">R</td>
     <td valign="top">ImageMagick Logo, 640x480</td>
-    <td valign="top"><img src="../images/logo.jpg" width="123" height="118" alt="Logo"/></td>
+    <td valign="top"><img src="../images/logo.jpg" width="123" height="118" alt="Logo"></img></td>
   </tr>
 
   <tr>
@@ -1571,14 +1520,14 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">ROSE</td>
     <td valign="top">R</td>
     <td valign="top">Picture of a rose, 70x46</td>
-    <td valign="top"><img src="../images/rose.png" width="70" height="46" alt="ROSE"/></td>
+    <td valign="top"><img src="../images/rose.png" width="70" height="46" alt="ROSE"></img></td>
   </tr>
 
   <tr>
     <td valign="top"><a href="../images/wizard.png">WIZARD</a></td>
     <td valign="top">R</td>
     <td valign="top">ImageMagick Wizard, 480x640</td>
-    <td valign="top"><img src="../images/wizard.jpg" width="125" height="167" alt="Logo"/></td>
+    <td valign="top"><img src="../images/wizard.jpg" width="125" height="167" alt="Logo"></img></td>
   </tr>
 
 </table>
@@ -1602,378 +1551,378 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">BRICKS</td>
     <td valign="top">R</td>
     <td valign="top">brick pattern, 16x16</td>
-    <td valign="top"><img src="../images/patterns/bricks.png" width="100" height="26" alt="BRICKS" /></td>
+    <td valign="top"><img src="../images/patterns/bricks.png" width="100" height="26" alt="BRICKS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">CHECKERBOARD</td>
     <td valign="top">R</td>
     <td valign="top">checkerboard pattern, 30x30</td>
-    <td valign="top"><img src="../images/patterns/checkerboard.png" width="100" height="26" alt="CHECKERBOARD" /></td>
+    <td valign="top"><img src="../images/patterns/checkerboard.png" width="100" height="26" alt="CHECKERBOARD"></img></td>
   </tr>
 
   <tr>
     <td valign="top">CIRCLES</td>
     <td valign="top">R</td>
     <td valign="top">circles pattern, 16x16</td>
-    <td valign="top"><img src="../images/patterns/circles.png" width="100" height="26" alt="CIRCLES"/></td>
+    <td valign="top"><img src="../images/patterns/circles.png" width="100" height="26" alt="CIRCLES"></img></td>
   </tr>
 
   <tr>
     <td valign="top">CROSSHATCH</td>
     <td valign="top">R</td>
     <td valign="top">crosshatch pattern, 8x4</td>
-    <td valign="top"><img src="../images/patterns/crosshatch.png" width="100" height="26" alt="CROSSHATCH" /></td>
+    <td valign="top"><img src="../images/patterns/crosshatch.png" width="100" height="26" alt="CROSSHATCH"></img></td>
   </tr>
 
   <tr>
     <td valign="top">CROSSHATCH30</td>
     <td valign="top">R</td>
     <td valign="top">crosshatch pattern with lines at 30 degrees, 8x4</td>
-    <td valign="top"><img src="../images/patterns/crosshatch30.png" width="100" height="26" alt="CROSSHATCH30" /></td>
+    <td valign="top"><img src="../images/patterns/crosshatch30.png" width="100" height="26" alt="CROSSHATCH30"></img></td>
   </tr>
 
   <tr>
     <td valign="top">CROSSHATCH45</td>
     <td valign="top">R</td>
     <td valign="top">crosshatch pattern with lines at 45 degrees, 8x4</td>
-    <td valign="top"><img src="../images/patterns/crosshatch45.png" width="100" height="26" alt="CROSSHATCH45" /></td>
+    <td valign="top"><img src="../images/patterns/crosshatch45.png" width="100" height="26" alt="CROSSHATCH45"></img></td>
   </tr>
 
   <tr>
     <td valign="top">FISHSCALES</td>
     <td valign="top">R</td>
     <td valign="top">fish scales pattern, 16x8</td>
-    <td valign="top"><img src="../images/patterns/fishscales.png" width="100" height="26" alt="FISHSCALES" /></td>
+    <td valign="top"><img src="../images/patterns/fishscales.png" width="100" height="26" alt="FISHSCALES"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY0</td>
     <td valign="top">R</td>
     <td valign="top">0% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray0.png" width="100" height="32" alt="GRAY0" /></td>
+    <td valign="top"><img src="../images/patterns/gray0.png" width="100" height="32" alt="GRAY0"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY5</td>
     <td valign="top">R</td>
     <td valign="top">5% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray5.png" width="100" height="32" alt="GRAY5" /></td>
+    <td valign="top"><img src="../images/patterns/gray5.png" width="100" height="32" alt="GRAY5"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY10</td>
     <td valign="top">R</td>
     <td valign="top">10% intensity gray, 32x32</td>
-    <td valign="top"> <img src="../images/patterns/gray10.png" width="100" height="32" alt="GRAY10" /></td>
+    <td valign="top"> <img src="../images/patterns/gray10.png" width="100" height="32" alt="GRAY10"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY15</td>
     <td valign="top">R</td>
     <td valign="top">15% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray15.png" width="100" height="32" alt="GRAY15" /></td>
+    <td valign="top"><img src="../images/patterns/gray15.png" width="100" height="32" alt="GRAY15"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY20</td>
     <td valign="top">R</td>
     <td valign="top">20% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray20.png" width="100" height="32" alt="GRAY20" /></td>
+    <td valign="top"><img src="../images/patterns/gray20.png" width="100" height="32" alt="GRAY20"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY25</td>
     <td valign="top">R</td>
     <td valign="top">25% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray25.png" width="100" height="32" alt="GRAY25" /></td>
+    <td valign="top"><img src="../images/patterns/gray25.png" width="100" height="32" alt="GRAY25"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY30</td>
     <td valign="top">R</td>
     <td valign="top">30% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray30.png" width="100" height="32" alt="GRAY30" /></td>
+    <td valign="top"><img src="../images/patterns/gray30.png" width="100" height="32" alt="GRAY30"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY35</td>
     <td valign="top">R</td>
     <td valign="top">35% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray35.png" width="100" height="32" alt="GRAY35" /></td>
+    <td valign="top"><img src="../images/patterns/gray35.png" width="100" height="32" alt="GRAY35"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY40</td>
     <td valign="top">R</td>
     <td valign="top">40% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray40.png" width="100" height="32" alt="GRAY40" /></td>
+    <td valign="top"><img src="../images/patterns/gray40.png" width="100" height="32" alt="GRAY40"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY45</td>
     <td valign="top">R</td>
     <td valign="top">45% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray45.png" width="100" height="32" alt="GRAY45" /></td>
+    <td valign="top"><img src="../images/patterns/gray45.png" width="100" height="32" alt="GRAY45"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY50</td>
     <td valign="top">R</td>
     <td valign="top">50% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray50.png" width="100" height="32" alt="GRAY50" /></td>
+    <td valign="top"><img src="../images/patterns/gray50.png" width="100" height="32" alt="GRAY50"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY55</td>
     <td valign="top">R</td>
     <td valign="top">55% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray55.png" width="100" height="32" alt="GRAY55" /></td>
+    <td valign="top"><img src="../images/patterns/gray55.png" width="100" height="32" alt="GRAY55"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY60</td>
     <td valign="top">R</td>
     <td valign="top">60% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray60.png" width="100" height="32" alt="GRAY60" /></td>
+    <td valign="top"><img src="../images/patterns/gray60.png" width="100" height="32" alt="GRAY60"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY65</td>
     <td valign="top">R</td>
     <td valign="top">65% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray65.png" width="100" height="32" alt="GRAY65" /></td>
+    <td valign="top"><img src="../images/patterns/gray65.png" width="100" height="32" alt="GRAY65"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY70</td>
     <td valign="top">R</td>
     <td valign="top">70% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray70.png" width="100" height="32" alt="GRAY70" /></td>
+    <td valign="top"><img src="../images/patterns/gray70.png" width="100" height="32" alt="GRAY70"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY75</td>
     <td valign="top">R</td>
     <td valign="top">75% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray75.png" width="100" height="32" alt="GRAY75" /></td>
+    <td valign="top"><img src="../images/patterns/gray75.png" width="100" height="32" alt="GRAY75"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY80</td>
     <td valign="top">R</td>
     <td valign="top">80% intensity gray, 32x32</td>
-    <td valign="top"> <img src="../images/patterns/gray80.png" width="100" height="32" alt="GRAY80" /></td>
+    <td valign="top"> <img src="../images/patterns/gray80.png" width="100" height="32" alt="GRAY80"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY85</td>
     <td valign="top">R</td>
     <td valign="top">85% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray85.png" width="100" height="32" alt="GRAY85" /></td>
+    <td valign="top"><img src="../images/patterns/gray85.png" width="100" height="32" alt="GRAY85"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY90</td>
     <td valign="top">R</td>
     <td valign="top">100% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray90.png" width="100" height="32" alt="GRAY90" /></td>
+    <td valign="top"><img src="../images/patterns/gray90.png" width="100" height="32" alt="GRAY90"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY95</td>
     <td valign="top">R</td>
     <td valign="top">100% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray95.png" width="100" height="32" alt="GRAY95" /></td>
+    <td valign="top"><img src="../images/patterns/gray95.png" width="100" height="32" alt="GRAY95"></img></td>
   </tr>
 
   <tr>
     <td valign="top">GRAY100</td>
     <td valign="top">R</td>
     <td valign="top">100% intensity gray, 32x32</td>
-    <td valign="top"><img src="../images/patterns/gray100.png" width="100" height="32" alt="GRAY100" /></td>
+    <td valign="top"><img src="../images/patterns/gray100.png" width="100" height="32" alt="GRAY100"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HEXAGONS</td>
     <td valign="top">R</td>
     <td valign="top">hexagon pattern, 30x18</td>
-    <td valign="top"><img src="../images/patterns/hexagons.png" width="100" height="26" alt="HEXAGONS" /></td>
+    <td valign="top"><img src="../images/patterns/hexagons.png" width="100" height="26" alt="HEXAGONS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HORIZONTAL</td>
     <td valign="top">R</td>
     <td valign="top">horizontal line pattern, 8x4</td>
-    <td valign="top"><img src="../images/patterns/horizontal.png" width="100" height="26" alt="HORIZONTAL" /></td>
+    <td valign="top"><img src="../images/patterns/horizontal.png" width="100" height="26" alt="HORIZONTAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HORIZONTAL2</td>
     <td valign="top">R</td>
     <td valign="top">horizontal line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/horizontal2.png" width="100" height="26" alt="HORIZONTAL2" /></td>
+    <td valign="top"><img src="../images/patterns/horizontal2.png" width="100" height="26" alt="HORIZONTAL2"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HORIZONTAL3</td>
     <td valign="top">R</td>
     <td valign="top">horizontal line pattern, 9x9</td>
-    <td valign="top"><img src="../images/patterns/horizontal3.png" width="100" height="26" alt="HORIZONTAL3" /></td>
+    <td valign="top"><img src="../images/patterns/horizontal3.png" width="100" height="26" alt="HORIZONTAL3"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HORIZONTALSAW</td>
     <td valign="top">R</td>
     <td valign="top">horizontal saw-tooth pattern, 16x8</td>
-    <td valign="top"><img src="../images/patterns/horizontalsaw.png" width="100" height="26" alt="HORIZONTALSAW" /></td>
+    <td valign="top"><img src="../images/patterns/horizontalsaw.png" width="100" height="26" alt="HORIZONTALSAW"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_BDIAGONAL</td>
     <td valign="top">R</td>
     <td valign="top">backward diagonal line pattern (45 degrees slope), 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_bdiagonal.png" width="100" height="26" alt="HS_BDIAGONAL" /></td>
+    <td valign="top"><img src="../images/patterns/hs_bdiagonal.png" width="100" height="26" alt="HS_BDIAGONAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_CROSS</td>
     <td valign="top">R</td>
     <td valign="top">cross line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_cross.png" width="100" height="26" alt="HS_CROSS" /></td>
+    <td valign="top"><img src="../images/patterns/hs_cross.png" width="100" height="26" alt="HS_CROSS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_DIAGCROSS</td>
     <td valign="top">R</td>
     <td valign="top">diagonal line cross pattern (45 degrees slope), 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_diagcross.png" width="100" height="26" alt="HS_DIAGCROSS" /></td>
+    <td valign="top"><img src="../images/patterns/hs_diagcross.png" width="100" height="26" alt="HS_DIAGCROSS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_FDIAGONAL</td>
     <td valign="top">R</td>
     <td valign="top">forward diagonal line pattern (45 degrees slope), 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_fdiagonal.png" width="100" height="26" alt="HS_FDIAGONAL" /></td>
+    <td valign="top"><img src="../images/patterns/hs_fdiagonal.png" width="100" height="26" alt="HS_FDIAGONAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_HORIZONTAL</td>
     <td valign="top">R</td>
     <td valign="top">horizontal line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_horizontal.png" width="100" height="26" alt="HS_HORIZONTAL" /></td>
+    <td valign="top"><img src="../images/patterns/hs_horizontal.png" width="100" height="26" alt="HS_HORIZONTAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">HS_VERTICAL</td>
     <td valign="top">R</td>
     <td valign="top">vertical line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/hs_vertical.png" width="100" height="26" alt="HS_VERTICAL" /></td>
+    <td valign="top"><img src="../images/patterns/hs_vertical.png" width="100" height="26" alt="HS_VERTICAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">LEFT30</td>
     <td valign="top">R</td>
     <td valign="top">forward diagonal pattern (30 degrees slope), 8x4</td>
-    <td valign="top"><img src="../images/patterns/left30.png" width="100" height="26" alt="LEFT0" /></td>
+    <td valign="top"><img src="../images/patterns/left30.png" width="100" height="26" alt="LEFT0"></img></td>
   </tr>
 
   <tr>
     <td valign="top">LEFT45</td>
     <td valign="top">R</td>
     <td valign="top">forward diagonal line pattern (45 degrees slope), 8x8</td>
-    <td valign="top"><img src="../images/patterns/left45.png" width="100" height="26" alt="LEFT45" /></td>
+    <td valign="top"><img src="../images/patterns/left45.png" width="100" height="26" alt="LEFT45"></img></td>
   </tr>
 
   <tr>
     <td valign="top">LEFTSHINGLE</td>
     <td valign="top">R</td>
     <td valign="top">left shingle pattern, 24x24</td>
-    <td valign="top"><img src="../images/patterns/leftshingle.png" width="100" height="26" alt="LEFTSHINGLE" /></td>
+    <td valign="top"><img src="../images/patterns/leftshingle.png" width="100" height="26" alt="LEFTSHINGLE"></img></td>
   </tr>
 
   <tr>
     <td valign="top">OCTAGONS</td>
     <td valign="top">R</td>
     <td valign="top">octagons pattern, 16x16</td>
-    <td valign="top"><img src="../images/patterns/octagons.png" width="100" height="26" alt="OCTAGONS" /></td>
+    <td valign="top"><img src="../images/patterns/octagons.png" width="100" height="26" alt="OCTAGONS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">RIGHT30</td>
     <td valign="top">R</td>
     <td valign="top">backward diagonal line pattern (30 degrees) 8x4</td>
-    <td valign="top"><img src="../images/patterns/right30.png" width="100" height="26" alt="RIGHT30" /></td>
+    <td valign="top"><img src="../images/patterns/right30.png" width="100" height="26" alt="RIGHT30"></img></td>
   </tr>
 
   <tr>
     <td valign="top">RIGHT45</td>
     <td valign="top">R</td>
     <td valign="top">backward diagonal line pattern (30 degrees), 8x8</td>
-    <td valign="top"><img src="../images/patterns/right45.png" width="100" height="26" alt="RIGHT45" /></td>
+    <td valign="top"><img src="../images/patterns/right45.png" width="100" height="26" alt="RIGHT45"></img></td>
   </tr>
 
   <tr>
     <td valign="top">RIGHTSHINGLE</td>
     <td valign="top">R</td>
     <td valign="top">right shingle pattern, 24x24</td>
-    <td valign="top"><img src="../images/patterns/rightshingle.png" width="100" height="26" alt="RIGHTSHINGLE" /></td>
+    <td valign="top"><img src="../images/patterns/rightshingle.png" width="100" height="26" alt="RIGHTSHINGLE"></img></td>
   </tr>
 
   <tr>
     <td valign="top">SMALLFISHSCALES</td>
     <td valign="top">R</td>
     <td valign="top">small fish scales pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/smallfishscales.png" width="100" height="26" alt="SMALLFISHSCALES" /></td>
+    <td valign="top"><img src="../images/patterns/smallfishscales.png" width="100" height="26" alt="SMALLFISHSCALES"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICAL</td>
     <td valign="top">R</td>
     <td valign="top">vertical line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/vertical.png" width="100" height="26" alt="VERTICAL" /></td>
+    <td valign="top"><img src="../images/patterns/vertical.png" width="100" height="26" alt="VERTICAL"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICAL2</td>
     <td valign="top">R</td>
     <td valign="top">vertical line pattern, 8x8</td>
-    <td valign="top"><img src="../images/patterns/vertical2.png" width="100" height="26" alt="VERTICAL2" /></td>
+    <td valign="top"><img src="../images/patterns/vertical2.png" width="100" height="26" alt="VERTICAL2"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICAL3</td>
     <td valign="top">R</td>
     <td valign="top">vertical line pattern, 9x9</td>
-    <td valign="top"><img src="../images/patterns/vertical3.png" width="100" height="26" alt="VERTICAL3" /></td>
+    <td valign="top"><img src="../images/patterns/vertical3.png" width="100" height="26" alt="VERTICAL3"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICALBRICKS</td>
     <td valign="top">R</td>
     <td valign="top">vertical brick pattern, 16x16</td>
-    <td valign="top"><img src="../images/patterns/verticalbricks.png" width="100" height="26" alt="VERTICALBRICKS" /></td>
+    <td valign="top"><img src="../images/patterns/verticalbricks.png" width="100" height="26" alt="VERTICALBRICKS"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICALLEFTSHINGLE</td>
     <td valign="top">R</td>
     <td valign="top">vertical left shingle pattern, 24x24</td>
-    <td valign="top"><img src="../images/patterns/verticalleftshingle.png" width="100" height="26" alt="VERTICALLEFTSHINGLE" /></td>
+    <td valign="top"><img src="../images/patterns/verticalleftshingle.png" width="100" height="26" alt="VERTICALLEFTSHINGLE"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICALRIGHTSHINGLE</td>
     <td valign="top">R</td>
     <td valign="top">vertical right shingle pattern, 24x24</td>
-    <td valign="top"><img src="../images/patterns/verticalrightshingle.png" width="100" height="26" alt="VERTICALRIGHTSHINGLE" /></td>
+    <td valign="top"><img src="../images/patterns/verticalrightshingle.png" width="100" height="26" alt="VERTICALRIGHTSHINGLE"></img></td>
   </tr>
 
   <tr>
     <td valign="top">VERTICALSAW</td>
     <td valign="top">R</td>
     <td valign="top">vertical saw-tooth pattern, 8x16</td>
-    <td valign="top"><img src="../images/patterns/verticalsaw.png" width="100" height="26" alt="VERTICALSAW" /></td>
+    <td valign="top"><img src="../images/patterns/verticalsaw.png" width="100" height="26" alt="VERTICALSAW"></img></td>
   </tr>
 </table>
 
@@ -1997,7 +1946,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">8BIM</td>
     <td valign="top">RW</td>
     <td valign="top">Photoshop resource format (binary)</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -2011,7 +1960,7 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
     <td valign="top">APP1</td>
     <td valign="top">RW</td>
     <td valign="top">Raw application information</td>
-    <td valign="top">&nbsp;</td>
+    <td valign="top"> </td>
   </tr>
 
   <tr>
@@ -2051,19 +2000,20 @@ convert \( -size 15x15 canvas:black canvas:white -append \) \
 </div>
 
 <div id="linkbar">
-    <span id="linkbar-west">&nbsp;</span>
+    <span id="linkbar-west"> </span>
 
     <span id="linkbar-center">
-      <a href="http://www.imagemagick.org/discourse-server/">Discourse Server</a> &bull;
-      <a href="http://www.imagemagick.org/MagickStudio/scripts/MagickStudio.cgi">Studio</a> &bull;
+      <a href="http://pgp.mit.edu:11371/pks/lookup?op=get&amp;search=0x89AB63D48277377A">Public Key</a> •
+      <a href="../discourse-server">Discourse Server</a> •
+      <a href="http://www.imagemagick.org/MagickStudio/scripts/MagickStudio.cgi">Studio</a> •
       <a href="http://jqmagick.imagemagick.org/">JqMagick</a>
     </span>
-    <span id="linkbar-east">&nbsp;</span>
-  </div>
-  <div class="footer">
-    <span id="footer-west">&copy; 1999-2013 ImageMagick Studio LLC</span>
-    <span id="footer-east"> <a href="contact.html">Contact the Wizards</a></span>
-  </div>
-  <div style="clear: both; margin: 0; width: 100%; "></div>
+    <span id="linkbar-east"> </span>
+</div>
+<div class="footer">
+  <span id="footer-west">©  1999-2013 ImageMagick Studio LLC</span>
+  <span id="footer-east"> <a href="contact.html">Contact the Wizards</a></span>
+</div>
+<div style="clear: both; margin: 0; width: 100%; "></div>
 </body>
 </html>

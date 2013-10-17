@@ -309,9 +309,6 @@
 /* Define to 1 if you have a working `mmap' system call. */
 #undef HAVE_MMAP
 
-/* Define to 1 if you have a working `mmap' system call. */
-#undef HAVE_MMAP_FILEIO
-
 /* Define to 1 if you have the `munmap' function. */
 #undef HAVE_MUNMAP
 
@@ -774,6 +771,9 @@
 
 /* Module directory dirname */
 #undef MODULES_DIRNAME
+
+/* Define if you have MUPDF library */
+#undef MUPDF_DELEGATE
 
 /* Magick API method prefix */
 #undef NAMESPACE_PREFIX

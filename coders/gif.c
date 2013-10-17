@@ -320,12 +320,12 @@ static int ReadBlobLZWByte(LZWInfo *lzw_info)
   int
     code;
 
-  ssize_t
-    count;
-
   size_t
     one,
     value;
+
+  ssize_t
+    count;
 
   if (lzw_info->stack->index != lzw_info->stack->codes)
     return(PopLZWStack(lzw_info->stack));
@@ -334,8 +334,7 @@ static int ReadBlobLZWByte(LZWInfo *lzw_info)
       lzw_info->genesis=MagickFalse;
       do
       {
-        lzw_info->first_code=(size_t) GetNextLZWCode(lzw_info,
-          lzw_info->bits);
+        lzw_info->first_code=(size_t) GetNextLZWCode(lzw_info,lzw_info->bits);
         lzw_info->last_code=lzw_info->first_code;
       } while (lzw_info->first_code == lzw_info->clear_code);
       return((int) lzw_info->first_code);
@@ -398,12 +397,12 @@ static MagickBooleanType DecodeImage(Image *image,const ssize_t opacity)
   int
     c;
 
+  LZWInfo
+    *lzw_info;
+
   ssize_t
     offset,
     y;
-
-  LZWInfo
-    *lzw_info;
 
   unsigned char
     data_size;
@@ -451,57 +450,59 @@ static MagickBooleanType DecodeImage(Image *image,const ssize_t opacity)
       index=ConstrainColormapIndex(image,(size_t) c);
       SetPixelIndex(indexes+x,index);
       SetPixelRGBO(q,image->colormap+(ssize_t) index);
-      SetPixelOpacity(q,(ssize_t) index == opacity ?
-        TransparentOpacity : OpaqueOpacity);
+      SetPixelOpacity(q,(ssize_t) index == opacity ? TransparentOpacity :
+        OpaqueOpacity);
       x++;
       q++;
     }
+    if (SyncAuthenticPixels(image,exception) == MagickFalse)
+      break;
     if (x < (ssize_t) image->columns)
       break;
     if (image->interlace == NoInterlace)
       offset++;
     else
-      switch (pass)
       {
-        case 0:
-        default:
+        switch (pass)
         {
-          offset+=8;
-          if (offset >= (ssize_t) image->rows)
-            {
-              pass++;
-              offset=4;
-            }
-          break;
+          case 0:
+          default:
+          {
+            offset+=8;
+            break;
+          }
+          case 1:
+          {
+            offset+=8;
+            break;
+          }
+          case 2:
+          {
+            offset+=4;
+            break;
+          }
+          case 3:
+          {
+            offset+=2;
+            break;
+          }
         }
-        case 1:
+      if ((pass == 0) && (offset >= (ssize_t) image->rows))
         {
-          offset+=8;
-          if (offset >= (ssize_t) image->rows)
-            {
-              pass++;
-              offset=2;
-            }
-          break;
+          pass++;
+          offset=4;
         }
-        case 2:
+      if ((pass == 1) && (offset >= (ssize_t) image->rows))
         {
-          offset+=4;
-          if (offset >= (ssize_t) image->rows)
-            {
-              pass++;
-              offset=1;
-            }
-          break;
+          pass++;
+          offset=2;
         }
-        case 3:
+      if ((pass == 2) && (offset >= (ssize_t) image->rows))
         {
-          offset+=2;
-          break;
+          pass++;
+          offset=1;
         }
-      }
-    if (SyncAuthenticPixels(image,exception) == MagickFalse)
-      break;
+    }
   }
   lzw_info=RelinquishLZWInfo(lzw_info);
   if (y < (ssize_t) image->rows)
@@ -1414,6 +1415,7 @@ ModuleExport size_t RegisterGIFImage(void)
   entry->encoder=(EncodeImageHandler *) WriteGIFImage;
   entry->magick=(IsImageFormatHandler *) IsGIF;
   entry->description=ConstantString("CompuServe graphics interchange format");
+  entry->mime_type=ConstantString("image/gif");
   entry->module=ConstantString("GIF");
   (void) RegisterMagickInfo(entry);
   entry=SetMagickInfo("GIF87");
@@ -1423,6 +1425,7 @@ ModuleExport size_t RegisterGIFImage(void)
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("CompuServe graphics interchange format");
   entry->version=ConstantString("version 87a");
+  entry->mime_type=ConstantString("image/gif");
   entry->module=ConstantString("GIF");
   (void) RegisterMagickInfo(entry);
   return(MagickImageCoderSignature);

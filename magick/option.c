@@ -279,6 +279,8 @@ static const OptionInfo
     { "-combine", 0L, ListOperatorOptionFlag | FireOptionFlag, MagickFalse },
     { "+comment", 0L, ImageInfoOptionFlag, MagickFalse },
     { "-comment", 1L, ImageInfoOptionFlag, MagickFalse },
+    { "+compare", 0L, FireOptionFlag | DeprecateOptionFlag, MagickFalse },
+    { "-compare", 0L, ListOperatorOptionFlag | FireOptionFlag, MagickFalse },
     { "+compose", 0L, ImageInfoOptionFlag, MagickFalse },
     { "-compose", 1L, ImageInfoOptionFlag, MagickFalse },
     { "+composite", 0L, FireOptionFlag | DeprecateOptionFlag, MagickFalse },
@@ -483,8 +485,8 @@ static const OptionInfo
     { "-maximum", 0L, ListOperatorOptionFlag | FireOptionFlag | DeprecateOptionFlag, MagickFalse },
     { "+median", 1L, DeprecateOptionFlag, MagickFalse },
     { "-median", 1L, SimpleOperatorOptionFlag | DeprecateOptionFlag, MagickFalse },
-    { "+metric", 0L, NonConvertOptionFlag, MagickFalse },
-    { "-metric", 1L, NonConvertOptionFlag, MagickFalse },
+    { "+metric", 0L, DeprecateOptionFlag | FireOptionFlag, MagickFalse },
+    { "-metric", 1L, ListOperatorOptionFlag | FireOptionFlag, MagickFalse },
     { "+minimum", 0L, DeprecateOptionFlag | FireOptionFlag, MagickFalse },
     { "-minimum", 0L, ImageInfoOptionFlag | FireOptionFlag | DeprecateOptionFlag, MagickFalse },
     { "+mode", 1L, NonConvertOptionFlag, MagickFalse },
@@ -1671,8 +1673,12 @@ MagickExport MagickBooleanType CloneImageOptions(ImageInfo *image_info,
   assert(clone_info != (const ImageInfo *) NULL);
   assert(clone_info->signature == MagickSignature);
   if (clone_info->options != (void *) NULL)
-    image_info->options=CloneSplayTree((SplayTreeInfo *) clone_info->options,
-      (void *(*)(void *)) ConstantString,(void *(*)(void *)) ConstantString);
+    {
+      if (image_info->options != (void *) NULL)
+        DestroyImageOptions(image_info);
+      image_info->options=CloneSplayTree((SplayTreeInfo *) clone_info->options,
+        (void *(*)(void *)) ConstantString,(void *(*)(void *)) ConstantString);
+    }
   return(MagickTrue);
 }
 

@@ -1,13 +1,120 @@
-2013-07-15  6.8.6-6 Cristy  <quetzlzacatenango@image...>
+2013-09-23  6.8.7.0 Glenn Randers-Pehrson <glennrp@image...>
+  * Fixed comments in coders/png.c about interpretation of the -quality
+  value (reference
+  http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=24134).
+
+2013-09-19  6.8.7-0 Dirk Lemstra <dirk@snakeware...>
+  * Fixed issue with colormap when reading viff image.
+  * Added support for opening https files under windows (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=24121).
+  * Fixed incorrect format when reading EPT image from a blob (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=24129).
+
+2013-09-18  6.8.6-10 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-10, SVN revision 13240.
+
+2013-09-07  6.8.6-10 Dirk Lemstra <dirk@snakeware...>
+  * Added support for writing DDS files.
+
+2013-08-29  6.8.6-10 Cristy  <quetzlzacatenango@image...>
+  * Call SVG / MSL xmlCleanupParser() / xmlInitParser() once (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23991).
+  * Support LEGO Mindstorms EV3 Robot Graphics File format (contributed
+    by bdwheele@ind.../
+  * Since glib-2.35.0 g_type_init() was removed (reference
+    https://bugs.gentoo.org/show_bug.cgi?id=481042).
+  * New identify define to output the location of the minimum, maximum, or
+    mean pixel of the image (e.g. identify -define identify:locate=maximum
+    -define identify:limit=7 rose).
+  * Column columns / rows no longer inverted for RGF image format (patch
+    from Brian Wheeler <bdwheele@india...>.
+  * 16bit PSD images might have a 65536 colormap (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=24102).
+  * Ascii map is now declare as AsciiMap (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=24106).
+  * Return label for identify -format "%l" (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=24105).
+
+2013-08-26  6.8.6-9 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-9, SVN revision 13087.
+
+2013-08-16  6.8.6-9  Siu Chi Chan <...@amd.com>
+  * Accelerate numerous image filters with OpenCL under AMD, Intel, and
+    NVidia.  Adapted from MulticoreWare OpenCL contribution.
+
+2013-08-10  6.8.6-9 Dirk Lemstra <dirk@snakeware..>
+  * Added the following command line options to configure.exe:
+      /x64, set 64 bit build
+      /mtd, set project type to: multi threaded dll
+      /sts, set project type to: single threaded static
+      /mts, set project type to: multi threaded static
+      /mtsd, set project type to: multi threaded static dll
+      /noWizard, skip the wizard and generate the project/solution files
+  * Fixed infinite loop with jpeg:extent (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23314).
+  * Fixed performance issue when converting jpeg to png (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23922).
+
+2013-08-10  6.8.6.9 Glenn Randers-Pehrson <glennrp@image...>
+  * Added "-define bmp:format=bmp2|bmp3|bmp4" option (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=23875).
+
+2013-08-07  6.8.6-9 Cristy  <quetzlzacatenango@image...>
+  * Free disk resource if cache resources are exhausted (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23877).
+  * Return proper EXIF:ISOSpeedRating property value for TIFF images (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23913).
+  * Escape MIFF properties with null values (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23931).
+  * Allow negative pixel values in TXT image format (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23923).
+  * The -fx option no longer crashes for certain expressions (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23932).
+  * Add support for the -compare option (e.g. convert image.png reference.png
+    -metric RMSE -compare -format "%[distortion]" info:).
+  * The internal SVG renderer is now invariant for the "fill" and "opacity"
+    keywords.
+
+2013-08-06  6.8.6-8 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-8, SVN revision 12918.
+
+2013-08-04  6.8.6-8 Dirk Lemstra <dirk@snakeware...>
+  * Added support for WebP to the Windows distribution (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=23856).
+
+2013-07-31  6.8.6-8 Cristy  <quetzlzacatenango@image...>
+  * Properly handle interlaced GIF images with less than 8 rows (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23812).
+  * Ensure image colorspace is sRGB when writing WebP format (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=23841).
+  * Avoid deadlock with logging subsystem (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23849).
+
+2013-07-25  6.8.6-7 Cristy  <quetzlzacatenango@image...>
+  * New version 6.8.6-7, SVN revision 12752.
+
+2013-07-24  6.8.6-7 Cristy  <quetzlzacatenango@image...>
+  * Missing case for HCLpColorspace (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23811).
+
+2013-07-21  6.8.6.7 Glenn Randers-Pehrson <glennrp@image...>
+  * Do not write "jpeg:" properties in a PNG output file (reference
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23794).
+
+2013-07-17  6.8.6-7 Dirk Lemstra <dirk@snakeware...>
+  * Fix memory leak in CloneImageArtifacts and CloneImageProfiles.
+  * Minor fix for the clipMask property in Magick++.
+
+2013-07-16  6.8.6-6 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.6-6, SVN revision 12718.
 
 2013-07-16  6.8.6-6 Cristy  <quetzlzacatenango@image...>
-  * JPEG ICC folor profile requires null after ICC tag (reference
+  * JPEG ICC color profile requires null after ICC tag (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23756).
   * Don't sync channels for the -unsharp option (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23740).
   * Magick++ version so bump (reference
-   http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23752).
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23752).
 
 2013-07-15  6.8.6-5 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.6-5, SVN revision 12684.
@@ -20,7 +127,7 @@
 2013-07-10  6.8.6-5 Cristy  <quetzlzacatenango@image...>
   * compare exits with a non-zero exit code when no error (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23722).
-  * correct calculaton of quantization error (reference
+  * correct calculation of quantization error (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?t=23734).
   * correct quantize tree walking mistake for RiemersmaDither (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=23735).
@@ -227,7 +334,7 @@
   * Removed the ICC profile from the logo: image definition in coders/magick.c;
     libpng16 detected that it was a broken sRGB profile.
   * Negatives raised to a non-integer power returns NaN's (reference
-   http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23234).
+    http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23234).
 
 2013-04-15  6.8.4-10 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.4-10, SVN revision 11851.
@@ -255,7 +362,7 @@
   * The -page option only affects new images (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=23172).
   * Revert 'Move binaries to lib subdirectory and link are created from binary
-	  package' patch.  We're getting too many bug reports.
+    package' patch.  We're getting too many bug reports.
 
 2013-04-07  6.8.4-8 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.4-8, SVN revision 11743.
@@ -496,7 +603,7 @@
 2013-02-07  6.8.2-6 Cristy  <quetzlzacatenango@image...>
   * Don't destroy an image that's already destroyed (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=22747).
-  * Montage is now invarient to the font when no label image label exists.
+  * Montage is now invariant to the font when no label image label exists.
 
 2013-02-06  6.8.2-5 Cristy  <quetzlzacatenango@image...>
   * New version 6.8.2-5, SVN revision 10952.
@@ -767,7 +874,7 @@
 2012-10-20  6.8.0-2 Cristy  <quetzlzacatenango@image...>
   * Wait for more bytes if the number of returned bytes is less than
     requested in ReadBlob().
-  * Prefer fullname property for font, if it exists, otherwise famly + style.
+  * Prefer fullname property for font, if it exists, otherwise family + style.
 
 2012-10-17  6.8.0-2 Anthony Thyssen <A.Thyssen@griffith...>
   * Added LanczosRadius filter, that blurs an EWA Lanczos to a integer
@@ -1079,7 +1186,7 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
     zlib-1.2.0) that does not support it.
   * Increase PLTE chunk length to accommodate background color in indexed PNG
     (reference www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=21288).
-  * Added png:PLTE.number_colors to verbose output
+  * Added png:PLTE.number_colors to verbose output.
 
 2012-06-25  6.7.7-10 Cristy  <quetzlzacatenango@image...>
   * Permit linear RGB for PNM and TIFF image formats.
@@ -1113,9 +1220,9 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
 
 2012-06-12  6.7.7-8 Nicolas Robidoux <nicolas.robidoux@gmail...>
   * Refactor Catmull-Rom and Spline "interpolation" using
-    state-of-the-art unpublished formulas
+    state-of-the-art unpublished formulas.
   * Fix incorrect transparency handling of "interpolative" cubic
-    B-spline smoothing
+    B-spline smoothing.
 
 2012-06-09  6.7.7-8 Cristy  <quetzlzacatenango@image...>
   * Initialize alpha channel when floodfill fill color is not opaque.
@@ -1133,7 +1240,7 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
 
 2012-06-06  6.7.7-7 Anthony Thyssen <A.Thyssen@griffith...>
   * Small refactor of Average Interpolators (save some multiplies)
-  * Added 'Spline' as a filter type as an alias to 'Cubic'. this brings both
+  * Added 'Spline' as a filter type as an alias to 'Cubic'. This brings both
     Catrom and Spline -filter and -interpolate methods in line.  Cubic should
     only be used when defining a general cubic using expert settings or
     when listed in "filter:verbose" debugging output.
@@ -1288,7 +1395,7 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
   * Added the RobidouxSharp filter (originally defined Dec 2011)
   * Fixed Variable Blur - bad blur area calculation
     Also Gaussian is sampling properly. Substitute the faster Cubic for now.
-  * Convert no longer will do an implicit write to a single space image
+  * Convert no longer will do an implicit write to a single space image.
 
 2012-04-21  6.7.6-7 Cristy  <quetzlzacatenango@image...>
   * New version 6.7.6-7, SVN revision 7587.
@@ -1433,8 +1540,8 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
 
 2012-02-29  6.7.5-8 Cristy  <quetzlzacatenango@image...>
   * Support infinite caption lengths.
-  * Permit custome JPEG quantization tables (e.g.
-	  -define jpeg:q-table=quantization-table.xml).
+  * Permit custom JPEG quantization tables (e.g.
+    -define jpeg:q-table=quantization-table.xml).
   * Missing grestore from ps2.c (reference
     http://www.imagemagick.org/discourse-server/viewtopic.php?f=3&t=20445).
 
@@ -3130,16 +3237,13 @@ http://www.imagemagick.org/discourse-server/viewtopic.php?f=2&t=21884).
     normal SVG 'Over' blending specifications, (see next for override)
     Note that this does NOT include the "Plus" composition method which has
     SVG definition for it to use a 'Plus' blending rather than 'Over' blending.
-
   * By default mathematical compositions work as per SVG definition. That is
     the results are synchronized with 'Over' alpha-blending (except "Plus"
     which uses 'plus' alpha-blending).
-
   * By removing the default 'sync' flag from the -channel setting however
     Break this inter-channel synchronization and do the mathematical operations
     only on the individual channels as specified by the -channel setting.
     That is do 'channel' math rather than 'SVG' composition.
-
   * With this change you can then use mathematical composition methods on
     individual channels or even with the alpha channel of images.
 

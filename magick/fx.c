@@ -175,7 +175,7 @@ MagickExport FxInfo *AcquireFxInfo(const Image *image,const char *expression)
   fx_info->exception=AcquireExceptionInfo();
   fx_info->images=image;
   fx_info->colors=NewSplayTree(CompareSplayTreeString,RelinquishMagickMemory,
-    RelinquishMagickMemory);
+    RelinquishAlignedMemory);
   fx_info->symbols=NewSplayTree(CompareSplayTreeString,RelinquishMagickMemory,
     RelinquishMagickMemory);
   fx_info->view=(CacheView **) AcquireQuantumMemory(GetImageListLength(
@@ -201,7 +201,7 @@ MagickExport FxInfo *AcquireFxInfo(const Image *image,const char *expression)
   (void) SubstituteString(&fx_info->expression,"E-1.0*","E-");
   (void) SubstituteString(&fx_info->expression,"e-1.0*","e-");
   /*
-    Convert complex to simple operators.
+    Convert compound to simple operators.
   */
   fx_op[1]='\0';
   *fx_op=(char) LeftShiftOperator;
@@ -1898,7 +1898,7 @@ static const char *FxOperatorPrecedence(const char *expression,
   while (*expression != '\0')
   {
     precedence=UndefinedPrecedence;
-    if ((isspace((int) ((char) *expression)) != 0) || (c == (int) '@'))
+    if ((isspace((int) ((unsigned char) *expression)) != 0) || (c == (int) '@'))
       {
         expression++;
         continue;
@@ -1988,13 +1988,13 @@ static const char *FxOperatorPrecedence(const char *expression,
         }
         default:
         {
-          if (((c != 0) && ((isdigit((int) ((char) c)) != 0) ||
-               (strchr(")",c) != (char *) NULL))) &&
-              (((islower((int) ((char) *expression)) != 0) ||
-               (strchr("(",(int) *expression) != (char *) NULL)) ||
-               ((isdigit((int) ((char) c)) == 0) &&
-                (isdigit((int) ((char) *expression)) != 0))) &&
-              (strchr("xy",(int) *expression) == (char *) NULL))
+          if (((c != 0) && ((isdigit((int) ((unsigned char) c)) != 0) ||
+               (strchr(")",(int) ((unsigned char) c)) != (char *) NULL))) &&
+              (((islower((int) ((unsigned char) *expression)) != 0) ||
+               (strchr("(",(int) ((unsigned char) *expression)) != (char *) NULL)) ||
+               ((isdigit((int) ((unsigned char) c)) == 0) &&
+                (isdigit((int) ((unsigned char) *expression)) != 0))) &&
+              (strchr("xy",(int) ((unsigned char) *expression)) == (char *) NULL))
             precedence=MultiplyPrecedence;
           break;
         }
@@ -2127,7 +2127,7 @@ static MagickRealType FxEvaluateSubexpression(FxInfo *fx_info,
   *beta=0.0;
   if (exception->severity != UndefinedException)
     return(0.0);
-  while (isspace((int) *expression) != 0)
+  while (isspace((int) ((unsigned char) *expression)) != 0)
     expression++;
   if (*expression == '\0')
     {

@@ -37,7 +37,7 @@
 
 /* Directory where architecture-dependent configuration files live. */
 #ifndef MAGICKCORE_CONFIGURE_PATH
-#define MAGICKCORE_CONFIGURE_PATH "/usr/etc/ImageMagick-6/"
+#define MAGICKCORE_CONFIGURE_PATH "/etc/ImageMagick-6/"
 #endif
 
 /* Subdirectory of lib where architecture-dependent configuration files live.
@@ -83,7 +83,9 @@
 #endif
 
 /* Define if you have FlashPIX library */
-/* #undef FPX_DELEGATE */
+#ifndef MAGICKCORE_FPX_DELEGATE
+#define MAGICKCORE_FPX_DELEGATE 1
+#endif
 
 /* Define if you have FREETYPE library */
 #ifndef MAGICKCORE_FREETYPE_DELEGATE
@@ -462,11 +464,6 @@
 /* Define to 1 if you have a working `mmap' system call. */
 #ifndef MAGICKCORE_HAVE_MMAP
 #define MAGICKCORE_HAVE_MMAP 1
-#endif
-
-/* Define to 1 if you have a working `mmap' system call. */
-#ifndef MAGICKCORE_HAVE_MMAP_FILEIO
-#define MAGICKCORE_HAVE_MMAP_FILEIO 1
 #endif
 
 /* Define to 1 if you have the `munmap' function. */
@@ -1116,13 +1113,13 @@
 
 /* Directory where architecture-dependent files live. */
 #ifndef MAGICKCORE_LIBRARY_PATH
-#define MAGICKCORE_LIBRARY_PATH "/usr/lib/ImageMagick-6.8.6/"
+#define MAGICKCORE_LIBRARY_PATH "/usr/lib64/ImageMagick-6.8.7/"
 #endif
 
 /* Subdirectory of lib where ImageMagick architecture dependent files are
    installed */
 #ifndef MAGICKCORE_LIBRARY_RELATIVE_PATH
-#define MAGICKCORE_LIBRARY_RELATIVE_PATH "ImageMagick-6.8.6"
+#define MAGICKCORE_LIBRARY_RELATIVE_PATH "ImageMagick-6.8.7"
 #endif
 
 /* Binaries in libraries path base name (will be during install linked to bin)
@@ -1174,6 +1171,9 @@
 /* Module directory dirname */
 /* #undef MODULES_DIRNAME */
 
+/* Define if you have MUPDF library */
+/* #undef MUPDF_DELEGATE */
+
 /* Magick API method prefix */
 /* #undef NAMESPACE_PREFIX */
 
@@ -1205,7 +1205,7 @@
 
 /* Define to the full name and version of this package. */
 #ifndef MAGICKCORE_PACKAGE_STRING
-#define MAGICKCORE_PACKAGE_STRING "ImageMagick 6.8.6-6"
+#define MAGICKCORE_PACKAGE_STRING "ImageMagick 6.8.7-0"
 #endif
 
 /* Define to the one symbol short name of this package. */
@@ -1220,7 +1220,7 @@
 
 /* Define to the version of this package. */
 #ifndef MAGICKCORE_PACKAGE_VERSION
-#define MAGICKCORE_PACKAGE_VERSION "6.8.6-6"
+#define MAGICKCORE_PACKAGE_VERSION "6.8.7-0"
 #endif
 
 /* Define if you have PANGOCAIRO library */
@@ -1432,7 +1432,7 @@
 
 /* Version number of package */
 #ifndef MAGICKCORE_VERSION
-#define MAGICKCORE_VERSION "6.8.6-6"
+#define MAGICKCORE_VERSION "6.8.7-0"
 #endif
 
 /* Define if you have WEBP library */

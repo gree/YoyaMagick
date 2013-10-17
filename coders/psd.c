@@ -851,7 +851,8 @@ static Image *ReadPSDImage(const ImageInfo *image_info,ExceptionInfo *exception)
       (psd_info.mode == DuotoneMode))
     {
       psd_info.color_channels=1;
-      if (AcquireImageColormap(image,256) == MagickFalse)
+      status=AcquireImageColormap(image,psd_info.depth != 16 ? 256 : 65536);
+      if (status == MagickFalse)
         ThrowReaderException(ResourceLimitError,"MemoryAllocationFailed");
       if (image->debug != MagickFalse)
         (void) LogMagickEvent(CoderEvent,GetMagickModule(),
@@ -925,6 +926,14 @@ static Image *ReadPSDImage(const ImageInfo *image_info,ExceptionInfo *exception)
         }
       (void) ParseImageResourceBlocks(image,blocks,(size_t) length);
       blocks=(unsigned char *) RelinquishMagickMemory(blocks);
+    }
+   /*
+     If we are only "pinging" the image, then we're done - so return.
+   */
+  if (image_info->ping != MagickFalse)
+    {
+      (void) CloseBlob(image);
+      return(GetFirstImageInList(image));
     }
   /*
     Layer and mask block.

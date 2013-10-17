@@ -34,6 +34,7 @@ extern "C" {
     PopImageStack(); \
   image_stack[k].image=DestroyImageList(image_stack[k].image); \
   image_stack[k].image_info=DestroyImageInfo(image_stack[k].image_info); \
+  image_info=image_stack[MaxImageStackDepth].image_info; \
 }
 #define FinalizeImageSettings(image_info,image,advance) \
 { \
@@ -62,9 +63,10 @@ extern "C" {
             pend=MagickFalse; \
           } \
     }
-#define MaxImageStackDepth  32
+#define MaxImageStackDepth  128
 #define NewImageStack() \
 { \
+  image_stack[MaxImageStackDepth].image_info=image_info; \
   image_stack[0].image_info=CloneImageInfo(image_info); \
   image_stack[0].image=NewImageList(); \
   image_info=image_stack[0].image_info; \

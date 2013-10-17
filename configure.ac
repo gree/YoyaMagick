@@ -18,12 +18,12 @@
 #  are permitted in any medium without royalty provided the copyright
 #  notice and this notice are preserved.
 
-AC_PREREQ(2.67)
+AC_PREREQ(2.69)
 
 m4_define([magick_major_version], [6])
 m4_define([magick_minor_version], [8])
-m4_define([magick_micro_version], [6])
-m4_define([magick_patchlevel_version], [6])
+m4_define([magick_micro_version], [7])
+m4_define([magick_patchlevel_version], [0])
 m4_define([magick_version],
           [magick_major_version.magick_minor_version.magick_micro_version-magick_patchlevel_version])
 m4_define([magick_svn_revision], esyscmd([sh -c "(svnversion .) | awk '{ print \$1 }' | tr -d '\n'"]))
@@ -476,11 +476,15 @@ AC_ARG_WITH([pkgconfigdir], AS_HELP_STRING([--with-pkgconfigdir=DIR],
 AC_SUBST([pkgconfigdir])
 
 # Enable support for threads
+#
+# Find Posix threads library
+#
 AC_ARG_WITH([threads],
     [AC_HELP_STRING([--without-threads], [disable threads support])],
     [with_threads=$withval],
     [with_threads='yes'])
 
+THREAD_LIBS=''
 have_threads=no
 if test "$with_threads" != 'no'; then
     AX_PTHREAD()
@@ -489,6 +493,7 @@ if test "$with_threads" != 'no'; then
         DEF_THREAD="$PTHREAD_CFLAGS"
         CFLAGS="$CFLAGS $DEF_THREAD"
         CXXFLAGS="$CXXFLAGS $DEF_THREAD"
+	THREAD_LIBS="$PTHREAD_LIBS"
         if test "$CC" != "$PTHREAD_CC"; then
             AC_MSG_WARN([Replacing compiler $CC with compiler $PTHREAD_CC to support pthreads.])
             CC="$PTHREAD_CC"
@@ -496,6 +501,8 @@ if test "$with_threads" != 'no'; then
         AC_DEFINE(THREAD_SUPPORT,1,[Define if you have POSIX threads libraries and header files.])
     fi
 fi
+LIBS="$LIBS $THREAD_LIBS"
+AC_SUBST(THREAD_LIBS)
 
 # Enable support for OpenMP
 if test "$have_threads" != 'yes'; then
@@ -514,6 +521,7 @@ fi
 # Enable support for OpenCL
 AX_OPENCL([C])
 CFLAGS="$CL_CFLAGS $CFLAGS"
+CPPFLAGS="$CL_CFLAGS $CPPFLAGS"
 LIBS="$CL_LIBS $LIBS"
 AC_SUBST(CL_CFLAGS)
 if test "$enable_opencl" != no; then
@@ -603,7 +611,7 @@ fi
 AM_CONDITIONAL(WITH_MODULES, test "$build_modules" != 'no')
 
 # Enable build using delegate libraries built in subdirectories rather than installed
-# delegate libraries (bzlib fftw fpx gslib jp2 jbig jpeg lcms lzma png tiff ttf wmf xml zlib)
+# delegate libraries (bzlib fftw fpx gslib jp2 jbig jpeg lcms lzma png tiff ttf webp wmf xml zlib)
 AC_ARG_ENABLE([delegate-build],
     [AC_HELP_STRING([--enable-delegate-build],
                     [look for delegate libraries in build directory])],
@@ -1159,7 +1167,6 @@ AC_TRY_COMPILE([],
 # Check for functions
 #
 ########
-MAGICK_FUNC_MMAP_FILEIO
 AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_MMAP
 AC_FUNC_FORK
@@ -1281,7 +1288,7 @@ if test "$enable_delegate_build" != 'no'; then
     # Most delegates have includes in the same directory as the library, but not all...
     #
     # Includes
-    for dir in bzlib fftw fpx gslib/src jp2 jp2/src/libjasper/include jbig/libjbig jpeg lcms/include lzma magick png tiff/libtiff ttf/include wand webp wmf/include xml/include zlib; do
+    for dir in bzlib fftw fpx gslib/src jp2 jp2/src/libjasper/include jbig/libjbig jpeg lcms/include lzma magick mupdf png tiff/libtiff ttf/include wand webp wmf/include xml/include zlib; do
         if test -d "$builddir/$dir"; then
             CPPFLAGS="$CPPFLAGS -I$builddir/$dir"
         else
@@ -1292,7 +1299,7 @@ if test "$enable_delegate_build" != 'no'; then
     done
 
     # Libraries
-    for dir in bzlib fftw fpx gslib/src jp2 jp2/src/libjasper jbig/libjbig jpeg lcms/src lzma magick png tiff/libtiff ttf/objs wand webp wmf/src xml zlib; do
+    for dir in bzlib fftw fpx gslib/src jp2 jp2/src/libjasper jbig/libjbig jpeg lcms/src lzma magick mupdf png tiff/libtiff ttf/objs wand webp wmf/src xml zlib; do
     if test -d "$builddir/$dir/.libs"; then
         LDFLAGS="$LDFLAGS -L$builddir/$dir/.libs"
     else
@@ -1404,29 +1411,7 @@ if test "$enable_openmp" != 'no'; then
 fi
 AC_SUBST(GOMP_LIBS)
 
-#
-# Find Posix threads library
-#
-THREAD_LIBS=''
-if test "$with_threads" != 'no' && test "$have_threads" = 'yes'; then
 
-    if test "x$PTHREAD_LIBS" = "x"; then
-    case "${host_cpu}-${host_os}" in
-      *-freebsd*)
-        MAGICK_CHECK_PTHREAD_LIB(c_r,PTHREAD_LIBS=-lc_r) ;;
-    esac
-    fi
-
-    for lib in pthread pthreads; do
-        if test "x$PTHREAD_LIBS" = "x"; then
-            MAGICK_CHECK_PTHREAD_LIB([$lib],[PTHREAD_LIBS=-l$lib])
-        fi
-    done
-
-    THREAD_LIBS="$PTHREAD_LIBS"
-    LIBS="$LIBS $THREAD_LIBS"
-fi
-AC_SUBST(THREAD_LIBS)
 
 #
 # Check for umem.
@@ -2023,7 +2008,6 @@ AM_CONDITIONAL(FREETYPE_DELEGATE, test "$have_freetype" = 'yes')
 AC_SUBST(FREETYPE_CFLAGS)
 AC_SUBST(FREETYPE_LIBS)
 
-
 dnl ===========================================================================
 
 #
@@ -2491,6 +2475,51 @@ fi
 AM_CONDITIONAL(LZMA_DELEGATE, test "$have_lzma" = 'yes')
 AC_SUBST(LZMA_CFLAGS)
 AC_SUBST(LZMA_LIBS)
+
+dnl ===========================================================================
+
+#
+# Check for MUPDF delegate library.
+#
+AC_ARG_WITH(mupdf,
+    [AC_HELP_STRING([--with-mupdf],
+                    [enable MUPDF support])],
+    [with_mupdf=$withval],
+    [with_mupdf='no'])
+
+if test "$with_mupdf" != 'yes'; then
+    DISTCHECK_CONFIG_FLAGS="${DISTCHECK_CONFIG_FLAGS} --with-mupdf=$with_mupdf "
+fi
+
+have_mupdf='no'
+MUPDF_LIBS=''
+if test "$with_mupdf" != 'no'; then
+    AC_MSG_RESULT([-------------------------------------------------------------])
+    AC_MSG_CHECKING([for MUPDF])
+    AC_MSG_RESULT([])
+    failed=0
+    passed=0
+    AC_CHECK_HEADER(mupdf/fitz.h,passed=`expr $passed + 1`,failed=`expr $failed + 1`,)
+    AC_CHECK_LIB(mupdf,fz_new_context,passed=`expr $passed + 1`,failed=`expr $failed + 1`,-lmupdf $FREETYPE_LIBS)
+    AC_MSG_CHECKING([if MUPDF package is complete])
+    if test $passed -gt 0; then
+        if test $failed -gt 0; then
+            AC_MSG_RESULT([no -- some components failed test])
+            have_mupdf='no (failed tests)'
+        else
+            MUPDF_LIBS='-lmupdf'
+            LIBS="$MUPDF_LIBS $LIBS"
+            AC_DEFINE(MUPDF_DELEGATE,1,Define if you have MUPDF library)
+            AC_MSG_RESULT([yes])
+            have_mupdf='yes'
+        fi
+    else
+        AC_MSG_RESULT([no])
+    fi
+fi
+AM_CONDITIONAL(MUPDF_DELEGATE,test "$have_mupdf" = 'yes')
+AC_SUBST(MUPDF_LIBS)
+
 
 dnl ===========================================================================
 
@@ -3190,14 +3219,12 @@ AutotraceDecodeDelegateDefault='autotrace'
 BlenderDecodeDelegateDefault='blender'
 BZIPDelegateDefault='bzip2'
 BrowseDelegateDefault='xdg-open'
-CGMDecodeDelegateDefault='ralcgm'
 CatDelegateDefault='cat'
 DNGDecodeDelegateDefault='ufraw-batch'
 GVCDecodeDelegateDefault='dot'
 DVIDecodeDelegateDefault='dvips'
 EchoDelegateDefault='echo'
 EditorDelegateDefault='xterm'
-FIGDecodeDelegateDefault='fig2dev'
 ConvertDelegateDefault=`echo convert | sed ${configure_transform_name}`
 DisplayDelegateDefault=`echo display | sed ${configure_transform_name}`
 MogrifyDelegateDefault=`echo mogrify | sed ${configure_transform_name}`
@@ -3233,6 +3260,8 @@ SCANDecodeDelegateDefault='scanimage'
 SVGDecodeDelegateDefault='inkscape'
 TXTDelegateDefault='enscript'
 UniconvertorDelegateDefault='uniconvertor'
+WebPDecodeDelegateDefault='dwebp'
+WebPEncodeDelegateDefault='cwebp'
 WMFDecodeDelegateDefault='wmf2eps'
 WWWDecodeDelegateDefault='curl'
 XPSDelegateDefault='gxps'
@@ -3243,14 +3272,12 @@ AC_PATH_PROG(AutotraceDecodeDelegate, "$AutotraceDecodeDelegateDefault", "$Autot
 AC_PATH_PROG(BlenderDecodeDelegate, "$BlenderDecodeDelegateDefault", "$BlenderDecodeDelegateDefault")
 AC_PATH_PROG(BZIPDelegate, "$BZIPDelegateDefault", "$BZIPDelegateDefault")
 AC_PATH_PROGS(BrowseDelegate, "$BrowseDelegateDefault" google-chrome firefox konqueror mozilla lynx, "$BrowseDelegateDefault")
-AC_PATH_PROG(CGMDecodeDelegate, "$CGMDecodeDelegateDefault", "$CGMDecodeDelegateDefault")
 AC_PATH_PROG(CatDelegate, "$CatDelegateDefault", "$CatDelegateDefault")
 AC_PATH_PROG(DNGDecodeDelegate, "$DNGDecodeDelegateDefault", "$DNGDecodeDelegateDefault")
 AC_PATH_PROG(GVCDecodeDelegate, "$GVCDecodeDelegateDefault", "$GVCDecodeDelegateDefault")
 AC_PATH_PROG(DVIDecodeDelegate, "$DVIDecodeDelegateDefault", "$DVIDecodeDelegateDefault")
 AC_PATH_PROG(EchoDelegate, "$EchoDelegateDefault", "$EchoDelegateDefault")
 AC_PATH_PROG(EditorDelegate, "$EditorDelegateDefault", "$EditorDelegateDefault")
-AC_PATH_PROG(FIGDecodeDelegate, "$FIGDecodeDelegateDefault", "$FIGDecodeDelegateDefault")
 AC_PATH_PROG(ConvertDelegate, "$ConvertDelegateDefault", "$ConvertDelegateDefault")
 AC_PATH_PROG(DisplayDelegate, "$DisplayDelegateDefault", "$DisplayDelegateDefault")
 AC_PATH_PROG(MogrifyDelegate, "$MogrifyDelegateDefault", "$MogrifyDelegateDefault")
@@ -3280,6 +3307,8 @@ AC_PATH_PROG(SCANDecodeDelegate, "$SCANDecodeDelegateDefault", "$SCANDecodeDeleg
 AC_PATH_PROG(SVGDecodeDelegate, "$SVGDecodeDelegateDefault", "$SVGDecodeDelegateDefault")
 AC_PATH_PROG(TXTDelegate, "$TXTDelegateDefault", "$TXTDelegateDefault")
 AC_PATH_PROG(UniconvertorDelegate, "$UniconvertorDelegateDefault", "$UniconvertorDelegateDefault")
+AC_PATH_PROG(WebPDecodeDelegate, "$WebPDecodeDelegateDefault", "$WebPDecodeDelegateDefault")
+AC_PATH_PROG(WebPEncodeDelegate, "$WebPEncodeDelegateDefault", "$WebPEncodeDelegateDefault")
 AC_PATH_PROG(WMFDecodeDelegate, "$WMFDecodeDelegateDefault", "$WMFDecodeDelegateDefault")
 AC_PATH_PROG(WWWDecodeDelegate, "$WWWDecodeDelegateDefault", "$WWWDecodeDelegateDefault")
 AC_PATH_PROG(XPSDelegate, "$XPSDelegateDefault", "$XPSDelegateDefault")
@@ -3300,14 +3329,12 @@ MogrifyDelegate="${BIN_DIR}/${MogrifyDelegateDefault}"
 
 # Set delegate booleans
 have_ffmpeg='no'; if test "$MPEGDecodeDelegate" != "$MPEGDecodeDelegateDefault" ; then have_ffmpeg='yes'; fi
-have_fig2dev='no'    ; if test "$FIGDecodeDelegate" != "$FIGDecodeDelegateDefault" ; then have_fig2dev='yes'; fi
 have_gs='no'         ; if test "$PSDelegate" != "$PSDelegateDefault"; then have_gs='yes'; fi
 have_hp2xx='no'      ; if test "$HPGLDecodeDelegate" !=  "$HPGLDecodeDelegateDefault" ; then have_hp2xx='yes'; fi
 have_ilbmtoppm='no'  ; if test "$ILBMDecodeDelegate" != "$ILBMDecodeDelegateDefault" ; then have_ilbmtoppm='yes'; fi
 have_mrsid='no'; if test "$MrSIDDecodeDelegate" != "$MrSIDDecodeDelegateDefault" ; then have_mrsid='yes'; fi
 have_pcl='no'        ; if test "$PCLDelegate" != "$PCLDelegateDefault"; then have_pcl='yes'; fi
 have_ppmtoilbm='no'  ; if test "$ILBMEncodeDelegate" != "$ILBMEncodeDelegateDefault" ; then have_ppmtoilbm='yes'; fi
-have_ralcgm='no'     ; if test "$CGMDecodeDelegate" != "$CGMDecodeDelegateDefault" ; then have_ralcgm='yes'; fi
 have_xps='no'        ; if test "$XPSDelegate" != "$XPSDelegateDefault"; then have_xps='yes'; fi
 
 #
@@ -3413,7 +3440,6 @@ if test "$with_frozenpaths" != 'yes'; then
   BlenderDecodeDelegate="$BlenderDecodeDelegateDefault"
   BZIPDelegate="$BZIPDelegateDefault"
   BrowseDelegate="$BrowseDelegateDefault"
-  CGMDecodeDelegate="$CGMDecodeDelegateDefault"
   CatDelegate="$CatDelegateDefault"
   ConvertDelegate="$ConvertDelegateDefault"
   DisplayDelegate="$DisplayDelegateDefault"
@@ -3421,7 +3447,6 @@ if test "$with_frozenpaths" != 'yes'; then
   DVIDecodeDelegate="$DVIDecodeDelegateDefault"
   EchoDelegate="$EchoDelegateDefault"
   EditorDelegate="$EditorDelegateDefault"
-  FIGDecodeDelegate="$FIGDecodeDelegateDefault"
   GnuplotDecodeDelegate="$GnuplotDecodeDelegateDefault"
   GVCDecodeDelegate="$GVCDecodeDelegateDefault"
   HPGLDecodeDelegate="$HPGLDecodeDelegateDefault"
@@ -3450,6 +3475,8 @@ if test "$with_frozenpaths" != 'yes'; then
   SVGDecodeDelegate="$SVGDecodeDelegateDefault"
   TXTDelegate="$TXTDelegateDefault"
   UniconvertorDelegate="$UniconvertorDelegateDefault"
+  WebPDecodeDelegate="$WebPDecodeDelegateDefault"
+  WebPEncodeDelegate="$WebPEncodeDelegateDefault"
   WMFDecodeDelegate="$WMFDecodeDelegateDefault"
   WWWDecodeDelegate="$WWWDecodeDelegateDefault"
   XPSDelegate="$XPSDelegateDefault"
@@ -3461,14 +3488,12 @@ AC_SUBST(AutotraceDecodeDelegate)
 AC_SUBST(BlenderDecodeDelegate)
 AC_SUBST(BZIPDelegate)
 AC_SUBST(BrowseDelegate)
-AC_SUBST(CGMDecodeDelegate)
 AC_SUBST(CatDelegate)
 AC_SUBST(ConvertDelegate)
 AC_SUBST(GVCDecodeDelegate)
 AC_SUBST(DVIDecodeDelegate)
 AC_SUBST(EchoDelegate)
 AC_SUBST(EditorDelegate)
-AC_SUBST(FIGDecodeDelegate)
 AC_SUBST(GnuplotDecodeDelegate)
 AC_SUBST(HPGLDecodeDelegate)
 AC_SUBST(HTMLDecodeDelegate)
@@ -3494,6 +3519,8 @@ AC_SUBST(SCANDecodeDelegate)
 AC_SUBST(ShowImageDelegate)
 AC_SUBST(TXTDelegate)
 AC_SUBST(UniconvertorDelegate)
+AC_SUBST(WebPDecodeDelegate)
+AC_SUBST(WebPEncodeDelegate)
 AC_SUBST(WMFDecodeDelegate)
 AC_SUBST(WWWDecodeDelegate)
 AC_SUBST(XPSDelegate)
@@ -3795,8 +3822,8 @@ fi
 if test "$have_fftw"    = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES fftw"
 fi
-if test "$have_fig2dev" = 'yes' && test "$have_ps" = 'yes'  ; then
-   MAGICK_DELEGATES="$MAGICK_DELEGATES xfig"
+if test "$have_mupdf"    = 'yes' ; then
+   MAGICK_DELEGATES="$MAGICK_DELEGATES mupdf"
 fi
 if test "$have_fpx"    = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES fpx"
@@ -3849,9 +3876,6 @@ fi
 if test "$have_ps"     = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES ps"
 fi
-if test "$have_ralcgm" = 'yes' ; then
-   MAGICK_DELEGATES="$MAGICK_DELEGATES cgm"
-fi
 if test "$have_ra_ppm" = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES rad"
 fi
@@ -3863,6 +3887,9 @@ if test "$have_tiff"   = 'yes' ; then
 fi
 if test "$have_ttf"    = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES ttf"
+fi
+if test "$have_webp"    = 'yes' ; then
+   MAGICK_DELEGATES="$MAGICK_DELEGATES webp"
 fi
 if test "$have_wmf"    = 'yes' ; then
    MAGICK_DELEGATES="$MAGICK_DELEGATES wmf"
@@ -4045,6 +4072,7 @@ LQR               --with-lqr=$with_lqr		$have_lqr
 LTDL              --with-ltdl=$with_ltdl		$have_ltdl
 LZMA              --with-lzma=$with_lzma		$have_lzma
 Magick++          --with-magick-plus-plus=$with_magick_plus_plus	$have_magick_plus_plus
+MUPDF             --with-mupdf=$with_mupdf		$have_mupdf
 OpenEXR           --with-openexr=$with_openexr		$have_openexr
 PANGO             --with-pango=$with_pango		$have_pango
 PERL              --with-perl=$with_perl		$have_perl

@@ -2089,18 +2089,18 @@ MagickExport const char *GetImageProperty(const Image *image,
           status=FxEvaluateChannelExpression(fx_info,RedChannel,0,0,&alpha,
             exception);
           pixel.red=(MagickRealType) QuantumRange*alpha;
-          status|=FxEvaluateChannelExpression(fx_info,GreenChannel,0,0,&alpha,
+          status&=FxEvaluateChannelExpression(fx_info,GreenChannel,0,0,&alpha,
             exception);
           pixel.green=(MagickRealType) QuantumRange*alpha;
-          status|=FxEvaluateChannelExpression(fx_info,BlueChannel,0,0,&alpha,
+          status&=FxEvaluateChannelExpression(fx_info,BlueChannel,0,0,&alpha,
             exception);
           pixel.blue=(MagickRealType) QuantumRange*alpha;
-          status|=FxEvaluateChannelExpression(fx_info,OpacityChannel,0,0,&alpha,
+          status&=FxEvaluateChannelExpression(fx_info,OpacityChannel,0,0,&alpha,
             exception);
           pixel.opacity=(MagickRealType) QuantumRange*(1.0-alpha);
           if (image->colorspace == CMYKColorspace)
             {
-              status|=FxEvaluateChannelExpression(fx_info,BlackChannel,0,0,
+              status&=FxEvaluateChannelExpression(fx_info,BlackChannel,0,0,
                 &alpha,exception);
               pixel.index=(MagickRealType) QuantumRange*alpha;
             }
@@ -2322,18 +2322,16 @@ static const char *GetMagickPropertyLetter(const ImageInfo *image_info,
         (image->columns != 0 ? image->columns : image->magick_columns));
       break;
     }
-    case 'x': /* Image horizontal resolution (with units) */
+    case 'x': /* Image horizontal resolution */
     {
-      (void) FormatLocaleString(value,MaxTextExtent,"%g %s",image->x_resolution,
-        CommandOptionToMnemonic(MagickResolutionOptions,(ssize_t)
-        image->units));
+      (void) FormatLocaleString(value,MaxTextExtent,"%.20g",
+        fabs(image->x_resolution) > MagickEpsilon ? image->x_resolution : 72.0);
       break;
     }
-    case 'y': /* Image vertical resolution (with units) */
+    case 'y': /* Image vertical resolution */
     {
-      (void) FormatLocaleString(value,MaxTextExtent,"%g %s",image->y_resolution,
-        CommandOptionToMnemonic(MagickResolutionOptions,(ssize_t)
-        image->units));
+      (void) FormatLocaleString(value,MaxTextExtent,"%.20g",
+        fabs(image->y_resolution) > MagickEpsilon ? image->y_resolution : 72.0);
       break;
     }
     case 'z': /* Image depth as read in */
@@ -2393,7 +2391,7 @@ static const char *GetMagickPropertyLetter(const ImageInfo *image_info,
     case 'Q': /* image compression quality */
     {
       (void) FormatLocaleString(value,MaxTextExtent,"%.20g",(double)
-        image->quality);
+        (image->quality == 0 ? 92 : image->quality));
       break;
     }
     case 'S': /* Image scenes  ???? */
@@ -2771,6 +2769,15 @@ MagickExport const char *GetMagickProperty(const ImageInfo *image_info,
           (LocaleCompare("unique",property) == 0))
         {
           string=image_info->unique;
+          break;
+        }
+      if (LocaleCompare("units",property) == 0)
+        {
+          /*
+            Image resolution units.
+          */
+          string=CommandOptionToMnemonic(MagickResolutionOptions,(ssize_t)
+            image->units);
           break;
         }
       break;

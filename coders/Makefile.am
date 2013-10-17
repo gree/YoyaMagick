@@ -158,6 +158,7 @@ MAGICK_CODER_SRCS = \
 	coders/pwp.c \
 	coders/raw.c \
 	coders/rgb.c \
+	coders/rgf.c \
 	coders/rla.c \
 	coders/rle.c \
 	coders/scr.c \
@@ -279,6 +280,7 @@ coders_LTLIBRARIES = \
 	coders/pwp.la \
 	coders/raw.la \
 	coders/rgb.la \
+	coders/rgf.la \
 	coders/rla.la \
 	coders/rle.la \
 	coders/scr.la \
@@ -842,6 +844,12 @@ coders_rgb_la_CPPFLAGS     = $(MODULE_EXTRA_CPPFLAGS)
 coders_rgb_la_LDFLAGS      = $(MODULECOMMONFLAGS)
 coders_rgb_la_LIBADD       = $(MAGICKCORE_LIBS)
 
+# RFG coder module
+coders_rgf_la_SOURCES      = coders/rgf.c
+coders_rgf_la_CPPFLAGS     = $(MODULE_EXTRA_CPPFLAGS)
+coders_rgf_la_LDFLAGS      = $(MODULECOMMONFLAGS)
+coders_rgf_la_LIBADD       = $(MAGICKCORE_LIBS)
+
 # RLA coder module
 coders_rla_la_SOURCES      = coders/rla.c
 coders_rla_la_CPPFLAGS     = $(MODULE_EXTRA_CPPFLAGS)
@@ -1032,7 +1040,7 @@ coders_xpm_la_LIBADD       = $(MAGICKCORE_LIBS)
 coders_xps_la_SOURCES      = coders/xps.c
 coders_xps_la_CPPFLAGS     = $(MODULE_EXTRA_CPPFLAGS)
 coders_xps_la_LDFLAGS      = $(MODULECOMMONFLAGS)
-coders_xps_la_LIBADD       = $(MAGICKCORE_LIBS) $(MATH_LIBS)
+coders_xps_la_LIBADD       = $(MAGICKCORE_LIBS) $(MUPDF_LIBS) $(FREETYPE_LIBS) $(MATH_LIBS) 
 
 # XWD coder module
 coders_xwd_la_SOURCES      = coders/xwd.c

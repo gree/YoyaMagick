@@ -3377,6 +3377,8 @@ static Image *ReadDCMImage(const ImageInfo *image_info,ExceptionInfo *exception)
             }
             break;
           }
+          default:
+            break;
         }
         break;
       }

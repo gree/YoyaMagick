@@ -44,6 +44,7 @@
 #include "magick/blob.h"
 #include "magick/blob-private.h"
 #include "magick/client.h"
+#include "magick/colorspace-private.h"
 #include "magick/display.h"
 #include "magick/exception.h"
 #include "magick/exception-private.h"
@@ -546,6 +547,8 @@ static MagickBooleanType WriteWEBPImage(const ImageInfo *image_info,
   /*
     Allocate memory for pixels.
   */
+  if (IssRGBCompatibleColorspace(image->colorspace) == MagickFalse)
+    (void) TransformImageColorspace(image,sRGBColorspace);
   pixel_info=AcquireVirtualMemory(image->columns,image->rows*
     sizeof(*picture.argb));
   if (pixel_info == (MemoryInfo *) NULL)

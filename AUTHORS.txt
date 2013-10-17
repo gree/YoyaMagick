@@ -16,6 +16,10 @@ Nathan Brown
 Mike Chiarappa
      Created a Borland C++ Builder 6.0 build environment for ImageMagick.
 
+Siu Chi Chan
+     Accelerate numerous image filters with OpenCL under AMD, Intel, and
+     NVidia.  Adapted from MulticoreWare OpenCL contribution.
+
 Thomas R Crimmins
      Inventor of the eight hull algorithm used for speckle reduction.
 
@@ -55,6 +59,9 @@ Paul Heckbert, Carnegie Mellon University
 Peder Langlo, Hewlett Packard
      Made hundreds of suggestions and bug reports. Without Peder, this software
      would not be nearly as useful as it is today.
+
+Dirk Lemstra
+     Contributed to Magick++ and the Windows distribution.
 
 Rick Mabry
      Contributed code to support filling drawn objects using a pattern image
@@ -99,6 +106,9 @@ Leonard Rosenthol
      Postscript and PDF expertise. Significant drawing enhancements including
      support for dash patterns, linecap stroking, clipping masks and a mask
      image.
+
+Bastien ROUCARIÈS
+     Various patches from Debian downstream.
 
 Kyle Shorter
      Original author of PerlMagick.  Author of the LOCALE coder.

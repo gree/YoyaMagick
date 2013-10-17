@@ -7412,7 +7412,7 @@ ModuleExport size_t RegisterPNGImage(void)
 
   if (*version != '\0')
     entry->version=ConstantString(version);
-
+  entry->mime_type=ConstantString("video/x-mng");
   entry->module=ConstantString("PNG");
   entry->note=ConstantString(MNGNote);
   (void) RegisterMagickInfo(entry);
@@ -7427,6 +7427,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsPNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("Portable Network Graphics");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
 
   if (*version != '\0')
@@ -7446,6 +7447,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->adjoin=MagickFalse;
   entry->description=ConstantString(
             "8-bit indexed with optional binary transparency");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7474,6 +7476,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsPNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("opaque or binary transparent 24-bit RGB");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7487,6 +7490,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsPNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("opaque or transparent 32-bit RGBA");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7500,6 +7504,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsPNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("opaque or binary transparent 48-bit RGB");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7513,6 +7518,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsPNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("opaque or transparent 64-bit RGBA");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7527,6 +7533,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->adjoin=MagickFalse;
   entry->description=ConstantString(
      "PNG inheriting bit-depth and color-type from original");
+  entry->mime_type=ConstantString("image/png");
   entry->module=ConstantString("PNG");
   (void) RegisterMagickInfo(entry);
 
@@ -7542,6 +7549,7 @@ ModuleExport size_t RegisterPNGImage(void)
   entry->magick=(IsImageFormatHandler *) IsJNG;
   entry->adjoin=MagickFalse;
   entry->description=ConstantString("JPEG Network Graphics");
+  entry->mime_type=ConstantString("image/x-jng");
   entry->module=ConstantString("PNG");
   entry->note=ConstantString(JNGNote);
   (void) RegisterMagickInfo(entry);
@@ -10280,7 +10288,7 @@ static MagickBooleanType WriteOnePNGImage(MngInfo *mng_info,
 
      10's digit:
 
-        0: Use Z_HUFFMAN_ONLY strategy with the
+        0 or omitted: Use Z_HUFFMAN_ONLY strategy with the
            zlib default compression level
 
         1-9: the zlib compression level
@@ -10296,13 +10304,13 @@ static MagickBooleanType WriteOnePNGImage(MngInfo *mng_info,
         6:   libpng adaptive filtering
 
         7:   "LOCO" filtering (intrapixel differing) if writing
-             a MNG, othewise "none".  Did not work in IM-6.7.0-9
+             a MNG, otherwise "none".  Did not work in IM-6.7.0-9
              and earlier because of a missing "else".
 
-        8:   Z_RLE strategy, all filters
-             Unused prior to IM-6.7.0-10, was same as 6
+        8:   Z_RLE strategy (or Z_HUFFMAN_ONLY if quality < 10), adaptive
+             filtering. Unused prior to IM-6.7.0-10, was same as 6
 
-        9:   Z_RLE strategy, no PNG filters
+        9:   Z_RLE strategy (or Z_HUFFMAN_ONLY if quality < 10), no PNG filters
              Unused prior to IM-6.7.0-10, was same as 6
 
     Note that using the -quality option, not all combinations of
@@ -11189,8 +11197,11 @@ static MagickBooleanType WriteOnePNGImage(MngInfo *mng_info,
 
       value=GetImageProperty(image,property);
 
-      /* Don't write any "png:" properties; those are just for "identify" */
-      if (LocaleNCompare(property,"png:",4) != 0 &&
+      /* Don't write any "png:" or "jpeg:" properties; those are just for
+       * "identify" or for passing through to another JPEG
+       */
+      if ((LocaleNCompare(property,"png:",4) != 0 &&
+           LocaleNCompare(property,"jpeg:",5)) &&
 
           /* Suppress density and units if we wrote a pHYs chunk */
           (ping_exclude_pHYs != MagickFalse      ||

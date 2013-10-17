@@ -69,6 +69,7 @@ MAGICK_BASE_SRCS = \
 	magick/MagickCore.h \
 	magick/accelerate.c \
 	magick/accelerate.h \
+	magick/accelerate-private.h \
 	magick/animate.c \
 	magick/animate.h \
 	magick/animate-private.h \
@@ -200,6 +201,9 @@ MAGICK_BASE_SRCS = \
 	magick/morphology-private.h \
 	magick/nt-base.h \
 	magick/nt-feature.h \
+	magick/opencl.c \
+	magick/opencl.h \
+	magick/opencl-private.h \
 	magick/option.c \
 	magick/option.h \
 	magick/paint.c \
@@ -367,6 +371,7 @@ MAGICK_INCLUDE_HDRS = \
 	magick/monitor.h \
 	magick/montage.h \
 	magick/morphology.h \
+	magick/opencl.h \
 	magick/option.h \
 	magick/paint.h \
 	magick/pixel.h \
@@ -403,6 +408,7 @@ MAGICK_INCLUDE_HDRS = \
 	magick/xwindow.h
 
 MAGICK_NOINST_HDRS = \
+	magick/accelerate-private.h \
 	magick/animate-private.h \
 	magick/blob-private.h \
 	magick/cache-private.h \
@@ -425,6 +431,7 @@ MAGICK_NOINST_HDRS = \
 	magick/morphology-private.h \
 	magick/nt-base.h \
 	magick/nt-feature.h \
+	magick/opencl.h \
 	magick/pixel-private.h \
 	magick/quantum-private.h \
 	magick/random-private.h \

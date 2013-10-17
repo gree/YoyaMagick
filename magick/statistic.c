@@ -1632,7 +1632,7 @@ MagickExport ChannelStatistics *GetImageChannelStatistics(const Image *image,
   channel_statistics=(ChannelStatistics *) AcquireQuantumMemory(length,
     sizeof(*channel_statistics));
   if (channel_statistics == (ChannelStatistics *) NULL)
-    ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+    return(channel_statistics);
   (void) ResetMagickMemory(channel_statistics,0,length*
     sizeof(*channel_statistics));
   for (i=0; i <= (ssize_t) CompositeChannels; i++)
@@ -1871,6 +1871,9 @@ MagickExport ChannelStatistics *GetImageChannelStatistics(const Image *image,
       channel_statistics[i].standard_deviation*
       channel_statistics[i].standard_deviation)-3.0;
   }
+  if (y < (ssize_t) image->rows)
+    channel_statistics=(ChannelStatistics *) RelinquishMagickMemory(
+      channel_statistics);
   return(channel_statistics);
 }
 
@@ -2851,8 +2854,8 @@ MagickExport Image *StatisticImageChannel(const Image *image,
         s+=image->columns+neighbor_width;
       }
       GetMagickPixelPacket(image,&pixel);
-      SetMagickPixelPacket(image,p+neighbor_width*neighbor_height/2,indexes+
-        neighbor_width*neighbor_height/2+x,&pixel);
+      SetMagickPixelPacket(image,p+neighbor_width*neighbor_height/2,indexes+x+
+        neighbor_width*neighbor_height/2,&pixel);
       switch (type)
       {
         case GradientStatistic:

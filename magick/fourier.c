@@ -43,6 +43,7 @@
   Include declarations.
 */
 #include "magick/studio.h"
+#include "magick/artifact.h"
 #include "magick/blob.h"
 #include "magick/cache.h"
 #include "magick/image.h"
@@ -53,6 +54,7 @@
 #include "magick/memory_.h"
 #include "magick/monitor.h"
 #include "magick/pixel-accessor.h"
+#include "magick/pixel-private.h"
 #include "magick/property.h"
 #include "magick/quantum-private.h"
 #include "magick/resource_.h"
@@ -200,11 +202,11 @@ static MagickBooleanType ForwardQuadrantSwap(const size_t width,
     return(MagickFalse);
   for (y=0L; y < (ssize_t) height; y++)
     for (x=0L; x < (ssize_t) (width/2L-1L); x++)
-      forward_pixels[width*y+x+width/2L]=source_pixels[center*y+x];
+      forward_pixels[y*width+x+width/2L]=source_pixels[y*center+x];
   for (y=1; y < (ssize_t) height; y++)
     for (x=0L; x < (ssize_t) (width/2L-1L); x++)
-      forward_pixels[width*(height-y)+width/2L-x-1L]=
-        source_pixels[center*y+x+1L];
+      forward_pixels[(height-y)*width+width/2L-x-1L]=
+        source_pixels[y*center+x+1L];
   for (x=0L; x < (ssize_t) (width/2L); x++)
     forward_pixels[-x+width/2L-1L]=forward_pixels[x+width/2L+1L];
   return(MagickTrue);
@@ -291,12 +293,12 @@ static MagickBooleanType ForwardFourier(const FourierInfo *fourier_info,
   phase_pixels=(double *) GetVirtualMemoryBlob(phase_info);
   (void) ResetMagickMemory(phase_pixels,0,fourier_info->height*
     fourier_info->width*sizeof(*phase_pixels));
-  status=ForwardQuadrantSwap(fourier_info->height,fourier_info->height,
+  status=ForwardQuadrantSwap(fourier_info->width,fourier_info->height,
     magnitude,magnitude_pixels);
   if (status != MagickFalse)
-    status=ForwardQuadrantSwap(fourier_info->height,fourier_info->height,phase,
+    status=ForwardQuadrantSwap(fourier_info->width,fourier_info->height,phase,
       phase_pixels);
-  CorrectPhaseLHS(fourier_info->height,fourier_info->height,phase_pixels);
+  CorrectPhaseLHS(fourier_info->width,fourier_info->height,phase_pixels);
   if (fourier_info->modulus != MagickFalse)
     {
       i=0L;
@@ -427,8 +429,10 @@ static MagickBooleanType ForwardFourierTransform(FourierInfo *fourier_info,
   CacheView
     *image_view;
 
+  const char
+    *value;
+
   double
-    n,
     *source_pixels;
 
   fftw_complex
@@ -536,21 +540,29 @@ static MagickBooleanType ForwardFourierTransform(FourierInfo *fourier_info,
   fftw_execute(fftw_r2c_plan);
   fftw_destroy_plan(fftw_r2c_plan);
   source_info=(MemoryInfo *) RelinquishVirtualMemory(source_info);
-  /*
-    Normalize Fourier transform.
-  */
-  n=(double) fourier_info->width*(double) fourier_info->width;
-  i=0L;
-  for (y=0L; y < (ssize_t) fourier_info->height; y++)
-    for (x=0L; x < (ssize_t) fourier_info->center; x++)
+  value=GetImageArtifact(image,"fourier:normalize");
+  if ((value == (const char *) NULL) || (LocaleCompare(value,"forward") == 0))
     {
+      double
+        gamma;
+
+      /*
+        Normalize inverse transform.
+      */
+      i=0L;
+      gamma=PerceptibleReciprocal((double) fourier_info->width*
+        fourier_info->height);
+      for (y=0L; y < (ssize_t) fourier_info->height; y++)
+        for (x=0L; x < (ssize_t) fourier_info->center; x++)
+        {
 #if defined(MAGICKCORE_HAVE_COMPLEX_H)
-      forward_pixels[i]/=n;
+          forward_pixels[i]*=gamma;
 #else
-      forward_pixels[i][0]/=n;
-      forward_pixels[i][1]/=n;
+          forward_pixels[i][0]*=gamma;
+          forward_pixels[i][1]*=gamma;
 #endif
-      i++;
+          i++;
+        }
     }
   /*
     Generate magnitude and phase (or real and imaginary).
@@ -825,9 +837,9 @@ static MagickBooleanType InverseQuadrantSwap(const size_t width,
   center=(ssize_t) floor((double) width/2L)+1L;
   for (y=1L; y < (ssize_t) height; y++)
     for (x=0L; x < (ssize_t) (width/2L+1L); x++)
-      destination[center*(height-y)-x+width/2L]=source[y*width+x];
+      destination[(height-y)*center-x+width/2L]=source[y*width+x];
   for (y=0L; y < (ssize_t) height; y++)
-    destination[center*y]=source[y*width+width/2L];
+    destination[y*center]=source[y*width+width/2L];
   for (x=0L; x < center; x++)
     destination[x]=source[center-x-1L];
   return(RollFourier(center,height,0L,(ssize_t) height/-2L,destination));
@@ -1009,7 +1021,7 @@ static MagickBooleanType InverseFourier(FourierInfo *fourier_info,
         }
     }
   phase_view=DestroyCacheView(phase_view);
-  CorrectPhaseLHS(fourier_info->width,fourier_info->width,phase_pixels);
+  CorrectPhaseLHS(fourier_info->width,fourier_info->height,phase_pixels);
   if (status != MagickFalse)
     status=InverseQuadrantSwap(fourier_info->width,fourier_info->height,
       phase_pixels,inverse_pixels);
@@ -1059,6 +1071,9 @@ static MagickBooleanType InverseFourierTransform(FourierInfo *fourier_info,
   double
     *source_pixels;
 
+  const char
+    *value;
+
   fftw_plan
     fftw_c2r_plan;
 
@@ -1087,6 +1102,30 @@ static MagickBooleanType InverseFourierTransform(FourierInfo *fourier_info,
       return(MagickFalse);
     }
   source_pixels=(double *) GetVirtualMemoryBlob(source_info);
+  value=GetImageArtifact(image,"fourier:normalize");
+  if (LocaleCompare(value,"inverse") == 0)
+    {
+      double
+        gamma;
+
+      /*
+        Normalize Fourier transform.
+      */
+      i=0L;
+      gamma=PerceptibleReciprocal((double) fourier_info->width*
+        fourier_info->height);
+      for (y=0L; y < (ssize_t) fourier_info->height; y++)
+        for (x=0L; x < (ssize_t) fourier_info->center; x++)
+        {
+#if defined(MAGICKCORE_HAVE_COMPLEX_H)
+          fourier_pixels[i]*=gamma;
+#else
+          fourier_pixels[i][0]*=gamma;
+          fourier_pixels[i][1]*=gamma;
+#endif
+          i++;
+        }
+    }
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
   #pragma omp critical (MagickCore_InverseFourierTransform)
 #endif
