@@ -2938,6 +2938,61 @@ static void Reduce(const Image *image,CubeInfo *cube_info,
     }
 }
 
+#if defined(MAGICKCORE_QUANTIZE_BULK_REDUCE_ACCELERATION)
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
++   Q u a n t i z e E r r o r F l a t t e n                                   %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% QuantizeErrorFlatten
+%  A description of each parameter follows.
+%
+%    o image: the image.
+%
+%    o cube_info: A pointer to the Cube structure.
+%
+%    o node_info: pointer to node in color cube tree that is current pointer.
+%
+%    o quantize_error_list: A pointer to fratten 1-dimentional array.
+%
+%    o quantize_error_offset: quantize error offset for recursive call
+%
+%    o quantize_error_offset_max: quantize error offset max limit
+*/
+static unsigned int QuantizeErrorFlatten(const Image *image, CubeInfo *cube_info,
+                                   const NodeInfo *node_info,
+                                   MagickRealType *quantize_error_list,
+                                   int quantize_error_offset,
+                                   int quantize_error_offset_max) {
+    long  number_children;
+    register long i, num ;
+    if (quantize_error_offset >= quantize_error_offset_max) {
+        return 0;
+    }
+    quantize_error_list[quantize_error_offset] = node_info->quantize_error;
+    num = 1;
+    number_children=cube_info->associate_alpha == MagickFalse ? 8UL : 16UL;
+    for (i = 0; i < number_children ; i++) {
+        if (node_info->child[i] != (NodeInfo *) NULL) {
+            num += QuantizeErrorFlatten(image,cube_info,node_info->child[i], 
+                                  quantize_error_list, quantize_error_offset+num,
+                                  quantize_error_offset_max);
+        }
+    }
+    return num;
+}
+static int MagickRealTypeCmp(const void *a, const void *b) {
+    MagickRealType *af = (MagickRealType *) a;
+    MagickRealType *bf = (MagickRealType *) b;
+    if (*af > *bf) return 1;
+    return -1;
+}
+#endif /* MAGICKCORE_QUANTIZE_BULK_REDUCE_ACCELERATION */
+
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -3006,6 +3061,25 @@ static void ReduceImageColors(const Image *image,CubeInfo *cube_info)
     span;
 
   cube_info->next_threshold=0.0;
+
+#if defined(MAGICKCORE_QUANTIZE_BULK_REDUCE_ACCELERATION)
+  if (cube_info->colors > cube_info->maximum_colors) {
+      MagickRealType *quantize_error_list;
+      unsigned int quantize_error_result;
+      quantize_error_list = malloc(sizeof(MagickRealType) * cube_info->nodes);
+      if (quantize_error_list) {
+          quantize_error_result = QuantizeErrorFlatten(image, cube_info,
+                                                       cube_info->root,
+                                                       quantize_error_list,
+                                                       0, cube_info->nodes);
+          qsort(quantize_error_list, cube_info->nodes, sizeof(MagickRealType),
+                MagickRealTypeCmp);
+          cube_info->next_threshold = quantize_error_list[cube_info->nodes - cube_info->maximum_colors];
+          free(quantize_error_list);
+      }
+  }
+#endif /* MAGICKCORE_QUANTIZE_BULK_REDUCE_ACCELERATION */
+
   for (span=cube_info->colors; cube_info->colors > cube_info->maximum_colors; )
   {
     cube_info->pruning_threshold=cube_info->next_threshold;
