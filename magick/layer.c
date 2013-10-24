@@ -648,6 +648,24 @@ static RectangleInfo CompareImageBounds(const Image *image1,const Image *image2,
   }
   if (x >= (ssize_t) image1->columns)
     {
+#if 1 /* for AU mobile terminal */
+      /*
+        Images are identical, return 2x2 image as possible.
+      */
+
+      bounds.x=0;
+      bounds.y=0;
+      if (1 < (long) image1->columns) {
+          bounds.width=2;
+      } else {
+          bounds.width=1;
+      }
+      if (1 < (long) image1->rows) {
+          bounds.height=2;
+      } else {
+          bounds.height=1;
+      }
+#else
       /*
         Images are identical, return a null image.
       */
@@ -655,6 +673,7 @@ static RectangleInfo CompareImageBounds(const Image *image1,const Image *image2,
       bounds.y=-1;
       bounds.width=1;
       bounds.height=1;
+#endif
       return(bounds);
     }
   bounds.x=x;
@@ -1117,6 +1136,21 @@ static Image *OptimizeLayerFrames(const Image *image,
         /*
           Compare a none disposal against a previous disposal
         */
+
+        /* for AU mobile terminal */
+        if ((bounds[i].width == 1) && (1 < image->columns)) {
+          bounds[i].width = 2;
+          if (image->columns < bounds[i].x + 2) {
+            bounds[i].x --;
+          }
+        }
+        if ((bounds[i].height == 1) && (1 < image->rows)) {
+          bounds[i].height = 2;
+          if (image->rows < bounds[i].y + 2) {
+            bounds[i].y --;
+          }
+        }
+
         try_bounds=CompareImageBounds(prev_image,curr,CompareAnyLayer,exception);
         try_cleared=IsBoundsCleared(prev_image,curr,&try_bounds,exception);
 #if DEBUG_OPT_FRAME
