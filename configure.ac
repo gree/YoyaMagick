@@ -530,6 +530,18 @@ if test "$enable_opencl" != no; then
   fi
 fi
 
+# Enable Quantize Bulk Reduce Acceleration
+AC_ARG_ENABLE([qbra],
+    [AC_HELP_STRING([--enable-qbra],
+                    [enable Quantize Bulk Reduce Acceleration])],
+    [enable_qbra=$enableval],
+    [enable_qbra='no'])
+if test "$enable_qbra" != no; then
+    MAGICK_FEATURES="QBRA $MAGICK_FEATURES"
+    AC_DEFINE([QUANTIZE_BULK_REDUCE_ACCELERATION], [1],
+      [enable Quantize Bulk Reduce Acceleration])
+fi
+
 ########
 #
 # Check for large file support

@@ -824,6 +824,9 @@
 /* Pixel cache threshold in MB (defaults to available memory) */
 #undef PixelCacheThreshold
 
+/* Quantize Bulk Reduce Acceleration enable */
+#undef QUANTIZE_BULK_REDUCE_ACCELERATION
+
 /* Number of bits in a pixel Quantum (8/16/32/64) */
 #undef QUANTUM_DEPTH_OBSOLETE_IN_H
 

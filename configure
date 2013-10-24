@@ -1128,6 +1128,7 @@ with_pkgconfigdir
 with_threads
 enable_openmp
 enable_opencl
+enable_qbra
 enable_largefile
 enable_shared
 enable_static
@@ -1866,6 +1867,7 @@ Optional Features:
                           build universal binary on OS X [[default=no]]
   --disable-openmp        do not use OpenMP
   --enable-opencl         enable OpenCL support
+  --enable-qbra           enable Quantize Bulk Reduce Acceleration
   --disable-largefile     omit support for large files
   --enable-shared[=PKGS]  build shared libraries [default=yes]
   --enable-static[=PKGS]  build static libraries [default=yes]
@@ -10372,6 +10374,23 @@ if test "$enable_opencl" != no; then
   if test "X$ax_cv_check_cl_libcl" != Xno; then :
     MAGICK_FEATURES="OpenCL $MAGICK_FEATURES"
   fi
+fi
+
+# Enable Quantize Bulk Reduce Acceleration
+
+# Check whether --enable-qbra was given.
+if test "${enable_qbra+set}" = set; then :
+  enableval=$enable_qbra; enable_qbra=$enableval
+else
+  enable_qbra='no'
+fi
+
+
+if test "$enable_qbra" != no; then
+    MAGICK_FEATURES="QBRA $MAGICK_FEATURES"
+
+$as_echo "#define QUANTIZE_BULK_REDUCE_ACCELERATION 1" >>confdefs.h
+
 fi
 
 ########
