@@ -77,6 +77,6 @@ Features and Capabilities
   Examples of ImageMagick Usage, http://www.imagemagick.org/Usage/, shows how
   to use ImageMagick from the command-line to accomplish any of these tasks and
   much more. Also, see Fred's ImageMagick Scripts,
-  http://www.fmwconcepts.com/imagemagick/: a plethora of command-line scripts
+  http://www.fmwconcepts.com/imagemagick/ : a plethora of command-line scripts
   that perform geometric transforms, blurs, sharpens, edging, noise removal,
   and color manipulations.
